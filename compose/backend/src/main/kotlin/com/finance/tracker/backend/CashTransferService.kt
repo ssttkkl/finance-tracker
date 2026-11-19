@@ -134,7 +134,8 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
 class CashTransferService(private val database:Database,private val now:()->Instant=Instant::now,
     private val beforeWorkspaceLock:()->Unit={},private val beforeReturn:()->Unit={},private val beforeWrite:()->Unit={}) {
     private val reads=ReadServices(database,now)
-    internal fun transfer(token:String?,value:JsonElement,original:DecodedPythonJson?=null,requestWorkspace:String?=null):JsonObject {
+    internal fun transfer(token:String?,value:JsonElement,original:DecodedPythonJson?=null,requestWorkspace:String?=null,
+        command: CashCreationCommand? = null):JsonObject {
         val input=copyCashJsonContainers(value) as? JsonObject ?: legacyCashPayloadError("cashflow_payload_invalid")
         val fromName=legacyCashText(input,"from_account")!!;val toName=legacyCashText(input,"to_account")!!
         val amountText=legacyCashDecimalText(input,"amount",original=original)!!;val arrivalText=legacyCashDecimalText(input,"to_amount",false,original)
@@ -154,45 +155,53 @@ class CashTransferService(private val database:Database,private val now:()->Inst
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
             if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
-            reads.lockedContext(c,token,workspace,write=true)
-            val context=CashSqlContext(c,workspace,database.sqlite,now);val repository=CashTransferRepository(context);val accounts=repository.accounts()
-            fun validateName(key:String,name:String) {try {manualOriginalUtf8(input[key],original,normalized=name)} catch(failure:ManualCashBusinessFailure) {throw IllegalArgumentException(failure.message)}}
-            validateName("from_account",fromName)
-            val from=accounts.firstOrNull {it.account.name==fromName} ?: legacyCashBusinessError("account.not_found","未找到来源账户: $fromName($fromCurrency)")
-            validateName("to_account",toName)
-            val to=accounts.firstOrNull {it.account.name==toName} ?: legacyCashBusinessError("account.not_found","未找到目标账户: $toName($toCurrency)")
-            for(account in listOf(from,to)) if(account.account.type in setOf("security","crypto") && accounts.count {it.account.name==account.account.name && it.account.type in setOf("security","crypto")}>1)
-                legacyCashBusinessError("transfer.ambiguous_investment_account","同名投资账户无法由当前事件格式可靠区分",buildJsonObject {put("account_name",account.account.name)})
-            if(fromCurrency!=toCurrency && suppliedArrival==null) legacyCashBusinessError("transfer.to_amount_required","跨币种转账需要 --to-amount")
-            val arrival=if(fromCurrency==toCurrency) amount else suppliedArrival!!
-            val warning=if(fromCurrency==toCurrency && suppliedArrival!=null) "同币种转账无需 --to-amount，忽略" else ""
-            val transferId=UUID.randomUUID().toString();val timestamp="$date $time"
-            fun rawPositions(key:String,text:String):Set<Int> {
-                val source=input[key] as? JsonPrimitive ?: return emptySet()
-                val shift=source.content.indexOf(text).coerceAtLeast(0)
-                return original?.stringRawSurrogates(source).orEmpty().map {it-shift}.filter {it in text.indices}.toSet()
+            val principal = reads.lockedContext(c,token,workspace,write=true)
+            val kind = "cash_create_transfer"
+            command?.replay(c, database.sqlite, principal, kind)?.let { return@write it }
+            command?.rejection(c, database.sqlite, principal, kind, listOf(fromCurrency, toCurrency), now)?.let { return@write it }
+            fun writeTransfer(): JsonObject {
+                val context=CashSqlContext(c,workspace,database.sqlite,now);val repository=CashTransferRepository(context);val accounts=repository.accounts()
+                fun validateName(key:String,name:String) {try {manualOriginalUtf8(input[key],original,normalized=name)} catch(failure:ManualCashBusinessFailure) {throw IllegalArgumentException(failure.message)}}
+                validateName("from_account",fromName)
+                val from=accounts.firstOrNull { if (command == null) it.account.name==fromName else it.id==command.accountIds[0] }
+                    ?: legacyCashBusinessError("account.not_found","未找到来源账户: $fromName($fromCurrency)")
+                validateName("to_account",toName)
+                val to=accounts.firstOrNull { if (command == null) it.account.name==toName else it.id==command.accountIds[1] }
+                    ?: legacyCashBusinessError("account.not_found","未找到目标账户: $toName($toCurrency)")
+                for(account in listOf(from,to)) if(account.account.type in setOf("security","crypto") && accounts.count {it.account.name==account.account.name && it.account.type in setOf("security","crypto")}>1)
+                    legacyCashBusinessError("transfer.ambiguous_investment_account","同名投资账户无法由当前事件格式可靠区分",buildJsonObject {put("account_name",account.account.name)})
+                if(fromCurrency!=toCurrency && suppliedArrival==null) legacyCashBusinessError("transfer.to_amount_required","跨币种转账需要 --to-amount")
+                val arrival=if(fromCurrency==toCurrency) amount else suppliedArrival!!
+                val warning=if(fromCurrency==toCurrency && suppliedArrival!=null) "同币种转账无需 --to-amount，忽略" else ""
+                val transferId=UUID.randomUUID().toString();val timestamp="$date $time"
+                fun rawPositions(key:String,text:String):Set<Int> {
+                    val source=input[key] as? JsonPrimitive ?: return emptySet()
+                    val shift=source.content.indexOf(text).coerceAtLeast(0)
+                    return original?.stringRawSurrogates(source).orEmpty().map {it-shift}.filter {it in text.indices}.toSet()
+                }
+                val dateSurrogates=rawPositions("date",date!!)+rawPositions("time",time!!).map {it+date.length+1}
+                val fromRow=JsonObject(cashTransferEvent(timestamp,amount,from.account,to.account,fromCurrency,toCurrency,true,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
+                val toRow=JsonObject(cashTransferEvent(timestamp,arrival,to.account,from.account,toCurrency,fromCurrency,false,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
+                val fromFact=repository.stage(from,fromRow,original,input["note"],dateSurrogates);val toFact=repository.stage(to,toRow,original,input["note"],dateSurrogates)
+                if(fromFact!=null && toFact!=null) repository.relation(fromFact,toFact)
+                val document=context.snapshot.load(lock=true)
+                val outgoing=CashAmount.parse("-"+amount.toString())
+                document.value=applyCashTransferSnapshot(document.value,from.account,fromCurrency,outgoing)
+                document.value=applyCashTransferSnapshot(document.value,to.account,toCurrency,arrival)
+                document.value=JsonObject(document.value+("updated_at" to JsonPrimitive(date)));context.snapshot.save(document)
+                val ids=listOfNotNull(fromFact?.first,toFact?.first).toSet()
+                maintainCanonicalCashEntries(context,ids)
+                beforeReturn();reads.lockedContext(c,token,workspace,write=true)
+                return buildJsonObject {
+                    put("ok",true);put("error",JsonNull);put("row",JsonNull);put("rows",JsonArray(listOf(fromRow,toRow)));put("message","")
+                    put("details",buildJsonObject {
+                        put("from_account",from.wire);put("to_account",to.wire);put("amount",amount.fixedTransferText());put("to_amount",arrival.fixedTransferText())
+                        put("from_currency",fromCurrency);put("to_currency",toCurrency);put("date",date);put("warning",warning)
+                        if(fromCurrency!=toCurrency) put("rate",amount.arithmeticValue().divide(arrival.arithmeticValue(),MathContext(28,RoundingMode.HALF_EVEN)).toPlainString())
+                    })
+                }
             }
-            val dateSurrogates=rawPositions("date",date!!)+rawPositions("time",time!!).map {it+date.length+1}
-            val fromRow=JsonObject(cashTransferEvent(timestamp,amount,from.account,to.account,fromCurrency,toCurrency,true,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
-            val toRow=JsonObject(cashTransferEvent(timestamp,arrival,to.account,from.account,toCurrency,fromCurrency,false,note)+("manual_transfer_id" to JsonPrimitive(transferId)))
-            val fromFact=repository.stage(from,fromRow,original,input["note"],dateSurrogates);val toFact=repository.stage(to,toRow,original,input["note"],dateSurrogates)
-            if(fromFact!=null && toFact!=null) repository.relation(fromFact,toFact)
-            val document=context.snapshot.load(lock=true)
-            val outgoing=CashAmount.parse("-"+amount.toString())
-            document.value=applyCashTransferSnapshot(document.value,from.account,fromCurrency,outgoing)
-            document.value=applyCashTransferSnapshot(document.value,to.account,toCurrency,arrival)
-            document.value=JsonObject(document.value+("updated_at" to JsonPrimitive(date)));context.snapshot.save(document)
-            val ids=listOfNotNull(fromFact?.first,toFact?.first).toSet()
-            maintainCanonicalCashEntries(context,ids)
-            beforeReturn();reads.lockedContext(c,token,workspace,write=true)
-            buildJsonObject {
-                put("ok",true);put("error",JsonNull);put("row",JsonNull);put("rows",JsonArray(listOf(fromRow,toRow)));put("message","")
-                put("details",buildJsonObject {
-                    put("from_account",from.wire);put("to_account",to.wire);put("amount",amount.fixedTransferText());put("to_amount",arrival.fixedTransferText())
-                    put("from_currency",fromCurrency);put("to_currency",toCurrency);put("date",date);put("warning",warning)
-                    if(fromCurrency!=toCurrency) put("rate",amount.arithmeticValue().divide(arrival.arithmeticValue(),MathContext(28,RoundingMode.HALF_EVEN)).toPlainString())
-                })
-            }
+            if (command == null) writeTransfer() else command.apply(c, database.sqlite, principal, kind, now) { writeTransfer() }
         }
     }
 }

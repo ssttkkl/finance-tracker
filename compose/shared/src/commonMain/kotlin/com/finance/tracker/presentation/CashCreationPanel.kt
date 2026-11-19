@@ -13,7 +13,8 @@ import com.finance.tracker.domain.*
 
 @Composable
 internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>, categories: List<CashCategory>,
-    options: LedgerOptions, sizeClass: WindowSizeClass, onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit) {
+    options: LedgerOptions, sizeClass: WindowSizeClass, canWrite: Boolean,
+    onChange: (CashCreationDraft) -> Unit, onClose: () -> Unit, onSave: () -> Unit, onCreateAccount: (() -> Unit)?) {
     val connection = LocalSessionConnection.current
     val draft = state.draft ?: return
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -23,66 +24,79 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
         if (state.errorCode != null) formScroll.animateScrollTo(0)
     }
     val requestClose = { if (!state.busy) { if (state.dirty && !state.unknown) confirmDiscard = true else onClose() } }
-    val locked = state.busy || state.unknown
+    val locked = !canWrite || state.busy || state.unknown
+    val canSave = canWrite && connection.canSubmit && !state.busy
     CashRecordModalPanel(sizeClass, localizedText("copy_1f62e3f53f"), compactFullScreen = true,
         semanticStateKey = "cash-creation", onDismiss = requestClose, onBack = requestClose,
         footer = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
                 if (sizeClass == WindowSizeClass.COMPACT) {
                 TextButton(onClick = requestClose, enabled = !state.busy, modifier = Modifier.testTag("cash.create.cancel")) {
-                    Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
+                    Text(localizedText(if (state.unknown) "cash_action_back" else "copy_4d0b4688c7"))
                 }
                 }
-                if (!state.unknown) {
-                PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(connection.canSubmit && !state.busy))
-                Button(onClick = { if (connection.canSubmit) { saveAttempt++; onSave() } }, enabled = connection.canSubmit && !state.busy, modifier = Modifier.testTag("cash.create.save")) {
-                    Text(localizedText(if (state.busy) "copy_6644f06197" else "copy_fadf24dbc5"))
+                if (!state.unknown || state.canResumeSave) {
+                PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(canSave))
+                Button(onClick = { if (canSave) { saveAttempt++; onSave() } }, enabled = canSave, modifier = Modifier.testTag("cash.create.save")) {
+                    Text(localizedText("copy_fadf24dbc5"))
                 }
                 }
                 if (sizeClass != WindowSizeClass.COMPACT) {
                 TextButton(onClick = requestClose, enabled = !state.busy, modifier = Modifier.testTag("cash.create.cancel")) {
-                    Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
+                    Text(localizedText(if (state.unknown) "cash_action_back" else "copy_4d0b4688c7"))
                 }
                 }
             }
         }) {
-        Column(Modifier.fillMaxSize().verticalScroll(formScroll).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SessionConnectionNotice()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {
-                    FilterChip(selected = draft.mode == mode, onClick = { onChange(draft.copy(mode = mode)) }, enabled = !locked,
-                        border = financeInteractiveBorder(enabled = !locked, selected = draft.mode == mode),
-                        label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.mode-${mode.name.lowercase()}"))
-                }
-            }
-            if (state.unknown) StateMessage(localizedText("cash_create_unknown"), isError = true, modifier = Modifier.testTag("cash.create.unknown"))
-            else state.errorCode?.let { code ->
-                StateMessage(when (code) {
-                    "invalid_datetime" -> localizedText("cash_invalid_local_time")
-                    "invalid_amount" -> localizedText("cash_create_invalid_amount")
-                    "invalid_currency" -> localizedText("cash_invalid_currency")
-                    "invalid_account" -> localizedText("cash_invalid_account")
-                    else -> ledgerErrorText(code)
-                }, isError = true, modifier = Modifier.testTag("cash.create.error"))
-            }
-            if (draft.mode == CashCreationMode.ORDINARY) {
+        Column(Modifier.fillMaxSize()) {
+            if (state.busy) TaskProgressIndicator(Modifier.testTag("cash.create.progress"))
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(formScroll).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SessionConnectionNotice()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((value, label) in listOf("consumption" to "ledger_quick_expense", "income" to "ledger_quick_income")) {
-                        FilterChip(selected = draft.ordinary.values["record_type"] == value, onClick = {
-                            onChange(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("record_type" to value) + ("record_subtype" to ""))))
-                        }, enabled = !locked, border = financeInteractiveBorder(enabled = !locked,
-                            selected = draft.ordinary.values["record_type"] == value),
-                        label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
+                    for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {
+                        FilterChip(selected = draft.mode == mode, onClick = { onChange(draft.copy(mode = mode)) }, enabled = !locked,
+                            border = financeInteractiveBorder(enabled = !locked, selected = draft.mode == mode),
+                            label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.mode-${mode.name.lowercase()}"))
                     }
                 }
-                CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
-                    locked, "cash.create") { field, value ->
-                    val values = draft.ordinary.values + (field to value)
-                    val currency = if (field == "account_id") accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull() else null
-                    onChange(draft.copy(ordinary = CashOrdinaryInput(if (currency == null) values else values + ("currency" to currency))))
+                if (!state.busy && state.unknown) StateMessage(localizedText(if (state.canResumeSave) "cash_continue_pending_save" else "cash_create_unknown"),
+                    isError = true, modifier = Modifier.testTag("cash.create.unknown"))
+                else state.errorCode?.let { code ->
+                    StateMessage(when (code) {
+                        "invalid_datetime" -> localizedText("cash_invalid_local_time")
+                        "invalid_amount" -> localizedText("cash_create_invalid_amount")
+                        "cash_amount_out_of_range" -> localizedText("cash_create_amount_out_of_range")
+                        "invalid_currency" -> localizedText("cash_invalid_currency")
+                        "invalid_account" -> localizedText("cash_invalid_account")
+                        "account_changed" -> localizedText("cash_create_choose_account_again")
+                        else -> ledgerErrorText(code)
+                    }, isError = true, modifier = Modifier.testTag("cash.create.error"))
                 }
-            } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked) { onChange(draft.copy(transfer = it)) }
+                if (!locked && onCreateAccount != null) {
+                    FilledTonalButton(onClick = onCreateAccount, enabled = connection.canSubmit,
+                        modifier = Modifier.testTag("cash.create.new-account")) {
+                        Text(localizedText("cash_import_create_account"))
+                    }
+                }
+                if (draft.mode == CashCreationMode.ORDINARY) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for ((value, label) in listOf("consumption" to "ledger_quick_expense", "income" to "ledger_quick_income")) {
+                            FilterChip(selected = draft.ordinary.values["record_type"] == value, onClick = {
+                                onChange(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("record_type" to value) + ("record_subtype" to ""))))
+                            }, enabled = !locked, border = financeInteractiveBorder(enabled = !locked,
+                                selected = draft.ordinary.values["record_type"] == value),
+                            label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
+                        }
+                    }
+                    CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
+                        locked, "cash.create") { field, value ->
+                        val values = draft.ordinary.values + (field to value)
+                        val currency = if (field == "account_id") accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull() else null
+                        onChange(draft.copy(ordinary = CashOrdinaryInput(if (currency == null) values else values + ("currency" to currency))))
+                    }
+                } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked) { onChange(draft.copy(transfer = it)) }
+            }
         }
     }
     if (confirmDiscard) AlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text(localizedText("ledger_record_discard_title")) },

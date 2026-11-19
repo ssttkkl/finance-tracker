@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -183,7 +185,8 @@ internal fun CashDetailRelations(
     onLoadSources: () -> Unit, onBegin: (() -> Unit)?, onSave: (List<CashRelationDecision>) -> Unit,
     onAdd: (CashRelationAddition, String?) -> Unit, onSearch: suspend (CashAssociationSearch) -> CashAssociationPage,
     onConfirm: () -> Unit, onCancel: () -> Unit,
-    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit, onRefresh: () -> Unit,
+    onCommonFields: (StructuredObject) -> Unit, onResolve: (() -> Unit)?, onRefresh: () -> Unit,
+    onAssociationVisibilityChanged: (Boolean) -> Unit,
 ) {
     val record = state.record ?: return
     var dialog by remember(record.transactionId, state.savedRevision) { mutableStateOf<String?>(null) }
@@ -281,8 +284,12 @@ internal fun CashDetailRelations(
         )
     }
     dialog?.let { mode ->
+        DisposableEffect(Unit) {
+            onAssociationVisibilityChanged(true)
+            onDispose { onAssociationVisibilityChanged(false) }
+        }
         CashAssociationDialog(state, mode, suggestionId, targetRelationIds, sizeClass, accounts, categories, options,
-            onSearch, onSave, onAdd, onConfirm, onCommonFields, onResolve, onRetryOriginal,
+            onSearch, onSave, onAdd, onConfirm, onCommonFields, onResolve,
             onRestart = { onBegin?.invoke() }, onRefresh = { dialog = null; onCancel(); onRefresh() },
             onDismiss = { if (!state.busy) { dialog = null; if (!state.unresolved) onCancel() } })
     }
@@ -333,7 +340,7 @@ private fun CashAssociationDialog(
     accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     onSearch: suspend (CashAssociationSearch) -> CashAssociationPage, onSave: (List<CashRelationDecision>) -> Unit,
     onAdd: (CashRelationAddition, String?) -> Unit, onConfirm: () -> Unit,
-    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit,
+    onCommonFields: (StructuredObject) -> Unit, onResolve: (() -> Unit)?,
     onRestart: () -> Unit, onRefresh: () -> Unit, onDismiss: () -> Unit,
 ) {
     val connection = LocalSessionConnection.current
@@ -367,7 +374,7 @@ private fun CashAssociationDialog(
         if (!initialized && group != null) {
             initialized = true; candidate = cashRelationInitialCandidate(group)
             kind = group.kind.orEmpty()
-            if (mode == "suggestion" && cashDetailAlternativeCount(group) == 0) step = "search"
+            if (mode == "suggestion" && !cashRelationIsJoint(group) && cashDetailAlternativeCount(group) == 0) step = "search"
         }
     }
     val changes = group?.splitFieldDiffs.orEmpty().filter { it.current != it.restored }.distinct()
@@ -428,7 +435,12 @@ private fun CashAssociationDialog(
     val title = when (view) {
         "review" -> "cash_detail_preview"; "conflict" -> "cash_detail_common_values"
         "remove" -> "cash_detail_remove"; "reject" -> "cash_detail_reject"
-        "unknown" -> "cash_save_unknown"; "stale" -> "cash_detail_stale_title"
+        "unknown" -> when (mode) {
+            "remove" -> "cash_detail_remove"
+            "reject" -> "cash_detail_reject"
+            else -> "copy_f46e36d281"
+        }
+        "stale" -> "cash_detail_stale_title"
         else -> if (mode == "add") "copy_f46e36d281" else if (group != null && cashDetailAlternativeCount(group) == 1 && !joint) "cash_detail_accept" else "cash_detail_check"
     }
     Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = !compact)) {
@@ -446,12 +458,14 @@ private fun CashAssociationDialog(
                         .padding(top = if (compact) 24.dp else 0.dp, bottom = if (compact) 24.dp else 0.dp)
                         .testTag("cash.association.view-$view"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SessionConnectionNotice()
-                        if (state.busy) CircularProgressIndicator()
+                        if (state.busy) {
+                            val label = localizedText("copy_1cac8ac7f5")
+                            CircularProgressIndicator(Modifier.semantics { contentDescription = label })
+                        }
                         if (!stale && !state.unresolved) state.errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
                         when (view) {
                             "unknown" -> {
-                                Text(localizedText("cash_detail_unknown_hint"))
-                                if (state.retryOriginalAllowed) TextButton(onClick = { if (connection.canSubmit) onRetryOriginal() }, enabled = connection.canSubmit && !state.busy) { Text(localizedText("cash_continue_save")) }
+                                if (!state.busy) Text(localizedText("cash_detail_unknown_hint"))
                             }
                             "stale" -> Text(localizedText("cash_detail_stale_hint"), color = MaterialTheme.colorScheme.error)
                             "review" -> {
@@ -545,7 +559,8 @@ private fun CashAssociationDialog(
                                             }
                                         }
                                     }
-                                    TextButton(onClick = { selected = null; step = "search" }, enabled = !busy, modifier = Modifier.testTag("cash.association.choose-other")) { Text(localizedText("cash_detail_choose_other")) }
+                                    if (!joint) TextButton(onClick = { selected = null; step = "search" }, enabled = !busy,
+                                        modifier = Modifier.testTag("cash.association.choose-other")) { Text(localizedText("cash_detail_choose_other")) }
                                 }
                             }
                             "search" -> {
@@ -559,9 +574,6 @@ private fun CashAssociationDialog(
                                 } else {
                                     if (group != null && cashDetailAlternativeCount(group) == 0) Text(cashSearchHint(group.kind, record))
                                     Text(localizedText("cash_detail_locked_type") + suggestionRelationLabel(group ?: return@Column, options), modifier = Modifier.testTag("cash.association.locked-type"), style = MaterialTheme.typography.bodySmall)
-                                    if (joint) Surface(color = LocalFinanceColorRoles.current.warningSurface, contentColor = LocalFinanceColorRoles.current.warning, shape = MaterialTheme.shapes.small) {
-                                        Text(localizedText("cash_detail_joint_search_blocked"), Modifier.padding(12.dp).testTag("cash.association.joint-search-blocked"))
-                                    }
                                 }
                                 OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -594,7 +606,8 @@ private fun CashAssociationDialog(
                         val selectedParts = selected?.let { cashAssociationChoice(record, it, anchorPart, targetPart) }
                         val choiceLoaded = group?.let { g -> cashRelationChoicesLoaded(listOf(CashRelationDecision(g.suggestionId, "accept", candidateId = candidate)), listOf(g), records) } == true
                         val canAct = !state.busy && (view !in setOf("review", "remove", "reject") || connection.canSubmit) && when (view) {
-                            "unknown", "stale" -> true
+                            "unknown" -> connection.canSubmit && onResolve != null
+                            "stale" -> true
                             "review" -> ready && !cashHasUnresolvedEffects(state) && state.plan?.canCommit == true && state.plan.invalidatedChoices.isEmpty()
                             "conflict" -> activeConflicts.isNotEmpty() && activeConflicts.all { (field, values) -> common[field] in cashRelationCommonValues(field, values) }
                             "remove", "reject" -> confirmationReady
@@ -602,32 +615,39 @@ private fun CashAssociationDialog(
                             "plans" -> group != null && "accept" in group.allowedActions && choiceLoaded
                             else -> false
                         }
-                        PlatformControlAccessibility("cash.association.continue", ControlAccessibilityState.Button(canAct))
-                        Button(enabled = canAct, modifier = Modifier.testTag("cash.association.continue"), onClick = {
-                            if (view in setOf("review", "remove", "reject") && !connection.canSubmit) return@Button
-                            when (view) {
-                                "unknown" -> onResolve()
-                                "stale" -> onRefresh()
-                                "review" -> onConfirm()
-                                "conflict" -> {
-                                    val pending = deferredDecision
-                                    requestPreview()
-                                    if (pending != null) { deferredDecision = null; onSave(listOf(pending.copy(commonFields = StructuredObject(common)))) }
-                                    else onCommonFields(StructuredObject(common))
+                        if (view != "unknown" || !state.busy) {
+                            PlatformControlAccessibility("cash.association.continue", ControlAccessibilityState.Button(canAct))
+                            Button(enabled = canAct, modifier = Modifier.testTag("cash.association.continue"), onClick = {
+                                if (view in setOf("review", "remove", "reject") && !connection.canSubmit) return@Button
+                                when (view) {
+                                    "unknown" -> onResolve?.invoke()
+                                    "stale" -> onRefresh()
+                                    "review" -> onConfirm()
+                                    "conflict" -> {
+                                        val pending = deferredDecision
+                                        requestPreview()
+                                        if (pending != null) { deferredDecision = null; onSave(listOf(pending.copy(commonFields = StructuredObject(common)))) }
+                                        else onCommonFields(StructuredObject(common))
+                                    }
+                                    "remove", "reject" -> onConfirm()
+                                    "search" -> selected?.let { requestPreview(); onAdd(CashRelationAddition(it.transactionId, it.rowRevision, selectedParts!!.anchorComponentId, selectedParts.targetComponentId, kind), suggestionId) }
+                                    "plans" -> group?.let {
+                                        val decision = CashRelationDecision(it.suggestionId, "accept", candidateId = candidate)
+                                        if (it.commonFieldConflicts.isNotEmpty()) { deferredDecision = decision; step = "conflict" }
+                                        else { requestPreview(); onSave(listOf(decision)) }
+                                    }
                                 }
-                                "remove", "reject" -> onConfirm()
-                                "search" -> selected?.let { requestPreview(); onAdd(CashRelationAddition(it.transactionId, it.rowRevision, selectedParts!!.anchorComponentId, selectedParts.targetComponentId, kind), suggestionId) }
-                                "plans" -> group?.let {
-                                    val decision = CashRelationDecision(it.suggestionId, "accept", candidateId = candidate)
-                                    if (it.commonFieldConflicts.isNotEmpty()) { deferredDecision = decision; step = "conflict" }
-                                    else { requestPreview(); onSave(listOf(decision)) }
+                            }) { Text(localizedText(when (view) {
+                                "unknown" -> when (mode) {
+                                    "remove" -> "cash_detail_confirm_remove"
+                                    "reject" -> "cash_detail_confirm_reject"
+                                    else -> "copy_fadf24dbc5"
                                 }
-                            }
-                        }) { Text(localizedText(when (view) {
-                            "unknown" -> "cash_check_result"; "stale" -> "cash_detail_close_refresh"
-                            "review" -> "cash_confirm_save"; "conflict" -> "cash_detail_continue_review"
-                            "remove" -> "cash_detail_confirm_remove"; "reject" -> "cash_detail_confirm_reject"; else -> "cash_detail_preview"
-                        })) }
+                                "stale" -> "cash_detail_close_refresh"
+                                "review" -> "cash_confirm_save"; "conflict" -> "cash_detail_continue_review"
+                                "remove" -> "cash_detail_confirm_remove"; "reject" -> "cash_detail_confirm_reject"; else -> "cash_detail_preview"
+                            })) }
+                        }
                     }
                 }
             }

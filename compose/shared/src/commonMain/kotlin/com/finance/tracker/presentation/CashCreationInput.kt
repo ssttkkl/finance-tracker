@@ -1,5 +1,6 @@
 package com.finance.tracker.presentation
 
+import com.finance.tracker.business.domain.CashAmount
 import com.finance.tracker.core.instantForLocalDateTime
 import com.finance.tracker.domain.*
 
@@ -12,6 +13,7 @@ private fun creationAccount(id: String, currency: String, accounts: List<Account
 private fun creationMagnitude(value: String, positive: Boolean): String {
     val amount = value.removePrefix("+")
     if (!Regex("\\d+(?:\\.\\d+)?").matches(amount) || positive && amount.none { it in '1'..'9' }) invalidCreation("invalid_amount")
+    if (CashAmount.parseOrNull(amount) == null) invalidCreation("cash_amount_out_of_range")
     return amount
 }
 internal val cashOrdinaryFields = listOf("amount", "currency", "occurred_at", "account_id", "record_type", "record_subtype", "category_id", "counterparty", "counterparty_account", "counterparty_account_attrs", "note")

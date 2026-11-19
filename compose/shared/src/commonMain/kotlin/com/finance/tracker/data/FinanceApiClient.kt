@@ -51,13 +51,14 @@ class FinanceApiClient private constructor(
     private val shared: FinanceApiClient?,
     internal val boundCredentials: ApiCredentialSnapshot?,
     internal val expectedWorkspace: String?,
+    internal val expectedPrincipalEmail: String?,
 ) {
     constructor(baseUrl: () -> String, tokenStore: TokenStore, engine: HttpClientEngine? = null, allowInsecureHttp: Boolean = false) :
-        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null)
+        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null, null)
 
-    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String): FinanceApiClient {
+    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String, principalEmail: String? = null): FinanceApiClient {
         require(workspaceId.isNotEmpty())
-        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId)
+        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail)
     }
 
     internal val credentialMutex: Mutex = shared?.credentialMutex ?: Mutex()

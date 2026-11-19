@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures } from "./compose-fixtures";
+import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures, typeIntoComposeInput } from "./compose-fixtures";
 
 async function countNavigationFocusRingPixels(page: Page, target: Locator): Promise<number> {
   const bounds = await target.boundingBox();
@@ -315,7 +315,8 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   const targetWorkspace = page.getByRole("button", { name: /共享账本/ });
   await clickStableComposeTarget(page, targetWorkspace);
   await expect.poll(() => selectionStarts).toBe(1);
-  await expect(page.getByText("正在切换工作区")).toBeVisible();
+  await expect(page.getByText("正在切换工作区")).toHaveCount(0);
+  await expect(page.locator('[id="account.workspace.selection-progress"]')).toBeVisible();
   await page.screenshot({ path: "/tmp/compose-app-shell-workspace-loading-768.png" });
   await clickStableComposeTarget(page, targetWorkspace);
   expect(selectionStarts).toBe(1);
@@ -385,4 +386,35 @@ test("account panel switches workspace, opens management, and signs out", async 
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test("手工记账保存失败后从原按钮继续保存", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 900 });
+  await installComposeApiFixtures(page);
+  const commands: Array<{ key?: string; workspace?: string; accounts?: string; body: string | null }> = [];
+  await page.route("**/api/v1/cash-records/commands", async route => {
+    const request = route.request();
+    const headers = request.headers();
+    commands.push({ key: headers["idempotency-key"], workspace: headers["x-ft-workspace-id"],
+      accounts: headers["x-ft-account-ids"], body: request.postData() });
+    if (commands.length === 1) return route.fulfill({ status: 503, json: { error: { code: "storage.connect" } } });
+    return route.fulfill({ status: 201, json: {
+      receipt_id: "00000000-0000-4000-8000-000000000001", committed: true,
+      operation_kind: "cash_create_manual", created_at: "2026-11-19T00:00:00Z", ledger_seq: "0",
+    } });
+  });
+  await page.goto("/w/workspace-1");
+  const press = (id: string) => clickStableComposeTarget(page, page.locator(`[id="${id}"]:visible`).last());
+  await press("ledger.actions-fab");
+  await press("ledger.add");
+  await typeIntoComposeInput(page, '[id="cash.create.amount"]', "12.50");
+  await press("cash.create.save");
+  await expect(page.getByText("保存遇到问题，请重试。")).toBeVisible();
+  await page.screenshot({ path: "/tmp/compose-manual-save-retry.png" });
+  await press("cash.create.save");
+  await expect.poll(() => commands.length).toBe(2);
+  expect(commands[0].key).toBeTruthy();
+  expect(commands[0].workspace).toBe("workspace-1");
+  expect(commands[0].accounts).toBe("1");
+  expect(commands[1]).toEqual(commands[0]);
 });

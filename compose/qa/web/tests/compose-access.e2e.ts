@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { captureBrowserDiagnostics, installComposeApiFixtures, typeIntoComposeInput, type BrowserDiagnostics } from "./compose-fixtures";
+import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiFixtures, typeIntoComposeInput, type BrowserDiagnostics } from "./compose-fixtures";
 
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
 
@@ -376,6 +376,38 @@ test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ 
     .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
 });
 
+for (const [locale, suggestedName] of [
+  ["zh-CN", "qa 的工作区"],
+  ["en-US", "qa’s workspace"],
+] as const) {
+  test.describe(`首次工作区名称 ${locale}`, () => {
+    test.use({ locale });
+    test("注册后预填名称，编辑后提交自己的名称", async ({ page }, info) => {
+      const fixture = await installComposeApiFixtures(page, {
+        seedToken: false,
+        initialSession: null,
+        loginSession: { user: { email: "qa@example.com" }, active_workspace_id: null, workspaces: [] },
+      });
+      await page.goto("/");
+      await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
+      await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com");
+      await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { masked: true });
+      await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "Sample-password-123", { masked: true });
+      await page.locator('[id="auth.submit"]').last().click({ force: true });
+      const name = page.locator('[id="workspace.create-name"]:visible').last();
+      await expect(name).toHaveText(suggestedName);
+      await page.screenshot({ path: info.outputPath("suggested-workspace-name.png") });
+      expect(fixture.calls.some(call => call.method === "POST" && call.path === "/api/v1/auth/workspaces")).toBe(false);
+      await typeIntoComposeInput(page, '[id="workspace.create-name"]', "My household", { replace: true });
+      await page.setViewportSize({ width: 768, height: 900 });
+      await expect(name).toHaveText("My household");
+      await clickStableComposeTarget(page, page.locator('[id="workspace.create"]:visible').last());
+      await expect.poll(() => fixture.calls.find(call => call.method === "POST" && call.path === "/api/v1/auth/workspaces")?.body)
+        .toBe(JSON.stringify({ name: "My household" }));
+    });
+  });
+}
+
 test("Compose 工作区名称校验写入固定字段的诊断日志", async ({ page }) => {
   await installComposeApiFixtures(page, {
     seedToken: false,
@@ -387,6 +419,7 @@ test("Compose 工作区名称校验写入固定字段的诊断日志", async ({ 
   await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123");
   await page.locator('[id="auth.submit"]').last().click({ force: true });
   await expect(page.locator('[id="workspace.screen"]')).toBeVisible();
+  await typeIntoComposeInput(page, '[id="workspace.create-name"]', "", { replace: true });
   await page.locator('[id="workspace.create"]').last().click({ force: true });
 
   await expect(page.getByText("请输入不超过 255 个字符的名称。", { exact: true })).toBeVisible();

@@ -348,6 +348,25 @@ class LocalCashLedgerQueryTest {
         for (canWrite in listOf(true, false)) assertFailsWith<IllegalStateException> { corrupt.record("1", canWrite) }
     }
 
+    @Test fun importedPendingSubsetFiltersRowsCountsAndCursorTogether() {
+        val base = snapshot()
+        val issues = base.facts.cashTransactions.filter { it.id in setOf("1", "4") }.map {
+            LedgerCashIssueFactDto("99${it.id}", it.id, "pending", "source_update_pending", null,
+                JsonObject(emptyMap()), JsonObject(emptyMap()), JsonObject(emptyMap()), "1", it.createdAt, it.createdAt)
+        }
+        val q = query(base.copy(facts = base.facts.copy(cashTransactionIssues = issues)))
+        fun scope(ids: Set<String>) = normalizeLocalCashLedgerQueryInput(
+            CashFiltersDto(confirmationStatus = "pending", importTransactionIds = ids), null,
+        ) { _, _, _ -> CashLedgerDateBounds(null, null, "UTC", null, null) }
+        val batchIds = setOf("1", "4")
+        val first = q.page(scope(batchIds), limit = 1)
+        assertEquals(2, q.page(scope(batchIds), startIndex = 0, limit = 1).totalCount)
+        assertEquals(2L, first.pendingItemCount)
+        val second = q.page(scope(batchIds.reversed().toSet()), cursor = assertNotNull(first.nextCursor), limit = 1)
+        assertEquals(batchIds, (first.items + second.items).map { it.transactionId }.toSet())
+        assertFailsWith<CashProjectionDomainFailure> { q.page(scope(setOf("1", "3")), cursor = first.nextCursor) }
+    }
+
     @Test fun unicodeEntryIdsUseCodePointOrderForBothSortingAndContinuation() {
         val base = snapshot()
         val identifiers = mapOf("1" to "a\uE000", "4" to "a𐀀")

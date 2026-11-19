@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -419,8 +420,15 @@ internal fun WorkspaceAccessScreen(
 ) {
     val connection = LocalSessionConnection.current
     val workspaceNameLabel = localizedText("copy_3a0522a8a9")
-    var workspaceName by remember { mutableStateOf("") }
-    var nameError by remember { mutableStateOf(false) }
+    val workspacesExist = session.workspaces.isNotEmpty()
+    val suggestedName = if (workspacesExist) "" else {
+        val loginName = session.user.email.substringBefore('@')
+        normalizeWorkspaceName(localizedText("workspace_first_name", loginName)) ?: localizedText("workspace_first_name_fallback")
+    }
+    var editedName by rememberSaveable(session.user.email, workspacesExist) { mutableStateOf<String?>(null) }
+    var nameError by remember(session.user.email, workspacesExist) { mutableStateOf(false) }
+    val workspaceName = editedName ?: suggestedName
+    val editWorkspaceName: (String) -> Unit = { editedName = it; nameError = false }
     val normalizedName = normalizeWorkspaceName(workspaceName)
     val submitCreate = {
         if (normalizedName == null) {
@@ -430,7 +438,6 @@ internal fun WorkspaceAccessScreen(
     }
 
     AuthResponsiveShell { modifier, compact, wide, viewportHeight ->
-        val workspacesExist = session.workspaces.isNotEmpty()
         if (compact) {
             Column(
                 modifier = modifier.testTag(SemanticIds.workspaceScreen),
@@ -452,7 +459,7 @@ internal fun WorkspaceAccessScreen(
                         workspaceNameLabel = workspaceNameLabel,
                         nameError = nameError,
                         onSelect = onSelect,
-                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onWorkspaceNameChange = editWorkspaceName,
                         onCreate = submitCreate,
                         onRetry = onRetry,
                         compact = true,
@@ -465,7 +472,7 @@ internal fun WorkspaceAccessScreen(
                         busy = busy,
                         requestError = requestError,
                         nameError = nameError,
-                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onWorkspaceNameChange = editWorkspaceName,
                         onCreate = submitCreate,
                         onRetry = onRetry,
                         compact = true,
@@ -498,7 +505,7 @@ internal fun WorkspaceAccessScreen(
                         workspaceNameLabel = workspaceNameLabel,
                         nameError = nameError,
                         onSelect = onSelect,
-                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onWorkspaceNameChange = editWorkspaceName,
                         onCreate = submitCreate,
                         onRetry = onRetry,
                         compact = false,
@@ -514,7 +521,7 @@ internal fun WorkspaceAccessScreen(
                         busy = busy,
                         requestError = requestError,
                         nameError = nameError,
-                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onWorkspaceNameChange = editWorkspaceName,
                         onCreate = submitCreate,
                         onRetry = onRetry,
                         compact = false,
@@ -780,11 +787,9 @@ private fun FirstUseWorkspaceCard(
 
 @Composable
 internal fun SessionLoadingScreen() {
+    val label = localizedText("session_loading")
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            CircularProgressIndicator()
-            Text(localizedText("copy_1b86167f23"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        CircularProgressIndicator(Modifier.semantics { contentDescription = label })
     }
 }
 

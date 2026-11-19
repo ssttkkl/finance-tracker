@@ -7,6 +7,8 @@ import com.finance.tracker.domain.DomainFailure
 import com.finance.tracker.domain.FailureCategory
 
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -35,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -95,7 +99,8 @@ internal fun CashCategoryScreen(
     val deleteError = deleteFailure?.let { categoryErrorText(it.code) }
     val busy = state.busy || state.loadingDeleteImpact || state.loading
     val deleteDialog = state.deleting != null && state.deleteImpact != null
-    val modalOpen = deleteDialog || state.draft != null
+    var orderItem by remember(workspaceId) { mutableStateOf<CashCategory?>(null) }
+    val modalOpen = deleteDialog || state.draft != null || orderItem != null
     DisposableEffect(modalOpen) {
         onModalVisibilityChanged(modalOpen)
         onDispose { onModalVisibilityChanged(false) }
@@ -128,12 +133,12 @@ internal fun CashCategoryScreen(
     }
     ManagementSectionContent(Modifier.fillMaxWidth().focusRequester(sectionFocus).focusable().testTag(SemanticIds.cashCategoriesScreen)) {
         Text(localizedText("navigation_cash_categories"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+        if (!modalOpen && busy) TaskProgressIndicator()
         if (state.directory != null) InlineError(pageError)
-        if (!deleteDialog && deleteFailure != null && !deleteFailure.short) {
+        if (!deleteDialog && !busy && deleteFailure != null && !deleteFailure.short) {
             ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
                 canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion)
         }
-        if (state.loading && state.directory == null) StateMessage(localizedText("copy_07c21b1c4e"))
         if (pageError != null && state.directory == null) {
             StateMessage(pageError, isError = true) {
                 TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
@@ -147,7 +152,7 @@ internal fun CashCategoryScreen(
                 onCreateRoot = { if (canWrite && !busy) { lastEditorId = null; viewModel.startCreate() } },
                 onEdit = { if (canWrite && !busy) { lastEditorId = it.id; viewModel.edit(it) } },
                 onCreateChild = { if (canWrite && !busy) { lastEditorId = it; viewModel.startChild(it) } },
-                onMove = { item, direction -> viewModel.move(item, direction, canWrite) },
+                onOrder = { orderItem = it },
                 onDelete = { viewModel.requestDelete(it, canWrite) },
                 actionFocus = actionFocus, createFocus = createFocus,
             )
@@ -157,6 +162,42 @@ internal fun CashCategoryScreen(
         CategoryEditorDialog(
             draft, parentOptions, sizeClass, busy, editorError,
             viewModel::updateDraft, { if (!busy) viewModel.cancelEditor() }, { viewModel.save(canWrite) },
+        )
+    }
+
+    orderItem?.let { item ->
+        val siblings = items.filter { it.parentId == item.parentId }
+        val isLast = siblings.lastOrNull()?.id == item.id
+        val next = siblings.getOrNull(siblings.indexOfFirst { it.id == item.id } + 1)?.id
+        val choices = siblings.filterNot { it.id == item.id || it.id == next }
+            .map { "before:${it.id}" to localizedText("cash_category_order_before", it.name) } +
+            if (isLast) emptyList() else listOf("last" to localizedText("cash_category_order_last"))
+        var position by remember(item.id) { mutableStateOf("") }
+        ConfirmationDialog(
+            title = localizedText("cash_category_order_title"),
+            message = item.name,
+            confirmLabel = localizedText("cash_category_order_apply"),
+            onConfirm = {
+                if (position == "last") viewModel.move(item, "last", canWrite)
+                else viewModel.move(item, "before_target", canWrite, position.removePrefix("before:"))
+                orderItem = null
+            },
+            onDismiss = { orderItem = null },
+            confirmEnabled = canWrite && !busy && siblings.any { it.id == item.id } && position.isNotEmpty() && choices.any { it.first == position },
+            semanticId = "cash-category.order",
+            supportingContent = {
+                Column(Modifier.selectableGroup().heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
+                    for ((value, label) in choices) {
+                        Row(Modifier.fillMaxWidth().selectable(position == value, role = Role.RadioButton, onClick = { position = value })
+                            .padding(vertical = 10.dp).testTag("cash-category.order-position.$value"),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = position == value, onClick = null)
+                            Text(label)
+                        }
+                    }
+                }
+            },
         )
     }
 
@@ -174,14 +215,14 @@ internal fun CashCategoryScreen(
             confirmLabel = localizedText("copy_3755f56f2f"),
             onConfirm = { viewModel.confirmDelete(canWrite) },
             onDismiss = viewModel::dismissDelete,
-            error = deleteError.takeUnless { deleteFailure?.short == false },
+            error = deleteError.takeUnless { busy || deleteFailure?.short == false },
             busy = busy,
             destructive = true,
             confirmEnabled = canWrite && deleteFailure?.short != false && canDeleteCashCategory(impact),
             semanticId = "cash-category.delete",
             supportingContent = {
                 SessionConnectionNotice()
-                if (deleteFailure?.short == false) {
+                if (!busy && deleteFailure?.short == false) {
                     ActionFailureStatus(deleteFailure, deleteError.orEmpty(),
                         canRefresh = connection.canSubmit && !busy, onRefresh = viewModel::verifyDeletion, refreshError = pageError)
                 }
@@ -191,7 +232,7 @@ internal fun CashCategoryScreen(
 }
 
 @Composable
-private fun categoryErrorText(code: String): String = userError(
+private fun categoryErrorText(code: String): String = if (code == "action_facts_refreshed") localizedText(code) else userError(
     DomainFailure(code, 400, FailureCategory.RECOVERABLE),
 )
 
@@ -206,7 +247,7 @@ private fun CategoryDirectory(
     onCreateRoot: () -> Unit,
     onEdit: (CashCategory) -> Unit,
     onCreateChild: (String) -> Unit,
-    onMove: (CashCategory, String) -> Unit,
+    onOrder: (CashCategory) -> Unit,
     onDelete: (CashCategory) -> Unit,
     actionFocus: MutableMap<String, FocusRequester>,
     createFocus: FocusRequester,
@@ -248,12 +289,10 @@ private fun CategoryDirectory(
                             onClick = { menuOpen = false; onCreateChild(item.id) }, enabled = item.depth < 5,
                         )
                         DropdownMenuItem(
-                            text = { Text(localizedText("copy_8a0c839791")) },
-                            onClick = { menuOpen = false; onMove(item, "before") }, enabled = categoryCanMove(allItems, item.id, "before"),
-                        )
-                        DropdownMenuItem(
-                            text = { Text(localizedText("copy_05c46fa3b7")) },
-                            onClick = { menuOpen = false; onMove(item, "after") }, enabled = categoryCanMove(allItems, item.id, "after"),
+                            text = { Text(localizedText("cash_category_order_title")) },
+                            onClick = { menuOpen = false; onOrder(item) },
+                            enabled = categoryCanMove(allItems, item.id, "before") || categoryCanMove(allItems, item.id, "after"),
+                            modifier = Modifier.testTag("cash-category.order.${item.id}"),
                         )
                         DropdownMenuItem(
                             text = { Text(localizedText(if (allItems.any { it.parentId == item.id }) "management_category_has_children" else "copy_3755f56f2f"), color = MaterialTheme.colorScheme.error) },
@@ -306,6 +345,7 @@ private fun CategoryEditorDialog(
                         onClose = onCancel, closeEnabled = !busy, closeTestTag = "cash-category.editor.close",
                     ) { Text(title, style = MaterialTheme.typography.titleLarge) }
                     if (compact) HorizontalDivider()
+                    if (busy) TaskProgressIndicator()
                     Column(
                         Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState())
                             .padding(horizontal = 24.dp).padding(top = if (compact) 24.dp else 16.dp),
@@ -339,7 +379,7 @@ private fun CategoryEditorDialog(
                         TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash-category.editor.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
                         PlatformControlAccessibility(SemanticIds.cashCategorySave, ControlAccessibilityState.Button(connection.canSubmit && !busy))
                         Button(onClick = { if (connection.canSubmit) onSave() }, enabled = connection.canSubmit && !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
-                            Text(if (busy) localizedText("copy_6644f06197") else if (draft.id == null) localizedText("copy_cbd700515a") else localizedText("copy_fadf24dbc5"))
+                            Text(localizedText(if (draft.id == null) "copy_cbd700515a" else "copy_fadf24dbc5"))
                         }
                     }
                 }

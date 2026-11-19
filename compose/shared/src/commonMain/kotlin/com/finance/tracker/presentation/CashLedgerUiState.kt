@@ -4,6 +4,7 @@ import com.finance.tracker.domain.*
 
 data class CashLedgerUiState(
     val accounts: List<Account> = emptyList(),
+    val accountsReady: Boolean = false,
     val categories: List<CashCategory> = emptyList(),
     val options: LedgerOptions = LedgerOptions(),
     val page: CashPage? = null,

@@ -85,7 +85,7 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             }
         }
     }
-    fun create(input:JsonObject,original:DecodedPythonJson?=null):JsonObject {
+    fun create(input:JsonObject,original:DecodedPythonJson?=null, expectedAccountId: Long? = null):JsonObject {
         context.requireActive()
         val rawParts=input["components"].takeUnless {it==JsonNull} as? JsonArray
         var name=manualTrim(manualText(input["account_name"]))
@@ -97,7 +97,8 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
             val id=first?.get("account_id")
             if(name.isEmpty() && id!=null && id!=JsonNull && id!=JsonPrimitive("")) {name=account(id=integer(id,original))?.name.orEmpty();nameSource=null}
         }
-        val parent=account(name=name,source=nameSource,original=original)?.takeIf {it.type in setOf("cash","loan","lend")} ?: manualBusiness("请选择现金、贷款或借款账户")
+        val parent=(if (expectedAccountId == null) account(name=name,source=nameSource,original=original)
+            else account(id=expectedAccountId.toBigInteger()))?.takeIf {it.type in setOf("cash","loan","lend")} ?: manualBusiness("请选择现金、贷款或借款账户")
         val suppliedCurrency=manualText(input["currency"]);val currency=manualUpper(manualTrim(suppliedCurrency))
         if(original?.stringRawSurrogates(input["currency"] ?: JsonNull).orEmpty().isNotEmpty() || currency.codePointCount(0,currency.length)!=3 || !manualAlpha(currency)) manualBusiness("请先选择币种")
         val supported=parent.currencies.jsonArray.filter(::pythonTruthy).map {manualUpper(pythonString(it))}.toSet()
@@ -225,17 +226,28 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
 class ManualCashService(private val database:Database,private val now:()->Instant=Instant::now,
     private val beforeWorkspaceLock:()->Unit={},private val beforeReturn:()->Unit={},private val beforeWrite:()->Unit={}) {
     private val reads=ReadServices(database,now)
-    internal fun create(token:String?,value:JsonElement,original:DecodedPythonJson?=null,requestWorkspace:String?=null):JsonObject {
+    internal fun create(token:String?,value:JsonElement,original:DecodedPythonJson?=null,requestWorkspace:String?=null,
+        command: CashCreationCommand? = null):JsonObject {
         val input=manualCashApplicationInput(value)
         beforeWrite()
         return database.write {c ->
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
             if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
-            reads.lockedContext(c,token,workspace,write=true)
-            val result=ManualCashRecordRepository(CashSqlContext(c,workspace,database.sqlite,now)).create(input,original)
-            beforeReturn();reads.lockedContext(c,token,workspace,write=true)
-            result
+            val principal = reads.lockedContext(c,token,workspace,write=true)
+            val kind = "cash_create_manual"
+            command?.replay(c, database.sqlite, principal, kind)?.let { return@write it }
+            if (command != null) {
+                if (input["components"] != null && input["components"] != JsonNull) throw CashCreationCommandInputFailure()
+                command.rejection(c, database.sqlite, principal, kind, listOf(manualText(input["currency"])), now)
+                    ?.let { return@write it }
+            }
+            fun writeRecord(): JsonObject {
+                val result=ManualCashRecordRepository(CashSqlContext(c,workspace,database.sqlite,now)).create(input,original,command?.accountIds?.single())
+                beforeReturn();reads.lockedContext(c,token,workspace,write=true)
+                return result
+            }
+            if (command == null) writeRecord() else command.apply(c, database.sqlite, principal, kind, now) { writeRecord() }
         }
     }
 }

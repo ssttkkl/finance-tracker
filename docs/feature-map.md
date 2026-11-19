@@ -49,7 +49,7 @@ flowchart TD
 | ID | 页面级功能 | 入口或承载方式 |
 |---|---|---|
 | F-01 | [登录与注册](authentication/feature-map.md#f-01-登录与注册) | 无有效会话时的应用入口，登录／注册共用页面 |
-| F-02 | [工作区选择与创建](workspace/feature-map.md#f-02-工作区选择与创建) | 认证后的工作区入口，无独立路由 |
+| F-02 | [工作区选择与创建](workspace/feature-map.md#f-02-工作区选择与创建) | 认证后的入口。首次创建预填可编辑的名称 |
 | F-03 | [收支账本](cash-ledger/feature-map.md#f-03-收支账本) | `/w/<workspaceId>/` |
 | F-04 | [收支详情与记账](cash-ledger/feature-map.md#f-04-收支详情与记账) | F-03 的详情面板或新增表单，无独立路由 |
 | F-05 | [现金账单导入](import/feature-map.md#f-05-现金账单导入) | `/w/<workspaceId>/cash-import`，全屏任务 |
@@ -73,7 +73,7 @@ flowchart TD
 | F-07 | 目录、搜索、排序、编辑、删除已实现；查看者只读入口含物理与语义激活保护；有 Wasm 单测、Web／Android 搜索创建、新 Android 管理布局及 iPad 11 部分操作证据 | iOS 新布局与分类完整操作集待设备验证；见 [F-07](cash-ledger/feature-map.md#f-07-收支分类管理) |
 | F-08 | Web E2E、Android 三布局主题 QA、iPad 11 估值／详情及 iPad 13 wide 深色布局有通过记录 | 既有结果仅覆盖所列范围；见 [F-08](investment/feature-map.md#f-08-投资持仓) |
 | F-09 | Web E2E、Android 详情／分页、iPad 11 详情／加载更多有通过记录 | 银证转账关系只读；既有结果仅覆盖所列范围；见 [F-09](investment/feature-map.md#f-09-投资流水) |
-| F-10 | 资料／成员／邀请／删除已实现，复制和改名使用 Snackbar；Web E2E 与 Android 管理 QA、iOS 改名／角色／邀请有记录 | 新 iPhone／iPad 管理布局及 iOS 删除流程待设备验收；见 [F-10](workspace/feature-map.md#f-10-管理) |
+| F-10 | 资料／成员／邀请／删除已实现，复制和改名使用 Snackbar，切换进度显示于目标工作区行；Web E2E 与 Android 管理 QA、iOS 改名／角色／邀请有记录 | 新 iPhone／iPad 管理布局及 iOS 删除流程待设备验收；见 [F-10](workspace/feature-map.md#f-10-管理) |
 
 **共同缺口：** Compose Web `1.12.1` 关闭详情弹层后无障碍树不恢复；草稿保存及公共备注决策已补齐有限的 Web 控件状态导出，整体无障碍 QA 仍保留未通过状态，不升级 Compose。问题与历史浏览器证据见 [共享规则](shared/feature-map.md#web-已知缺陷与历史验证)。目前仍没有覆盖全部页面、平台、窗口尺寸与状态的完整矩阵。
 

@@ -15,6 +15,9 @@ data class ActionFailure(val code: String, val presentation: ActionFailurePresen
         unknown || code in setOf("projection.version_conflict", "projection_version_conflict", "category.not_found")
 }
 
+internal fun ActionFailure?.afterRefreshingFacts(): ActionFailure? =
+    if (this?.unknown == true) ActionFailure("action_facts_refreshed", ActionFailurePresentation.SHORT) else null
+
 private val failuresRequiringReview = setOf(
     "authentication_required", "workspace_forbidden", "workspace_name_mismatch",
     "category.has_children", "category.not_found", "projection.unavailable",
@@ -56,7 +59,7 @@ internal fun ActionFailureStatus(
         InlineError(refreshError)
         if (failure.code != "unknown_error" || failure.unknown) {
             TextButton(onClick = onRefresh, enabled = canRefresh) {
-                Text(localizedText(if (failure.unknown) "action_check" else "ledger_refresh"))
+                Text(localizedText("ledger_refresh"))
             }
         }
     }

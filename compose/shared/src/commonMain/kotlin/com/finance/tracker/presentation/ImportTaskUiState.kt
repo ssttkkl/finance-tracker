@@ -51,8 +51,7 @@ data class ImportTaskUiState(
     val hasSubmission: Boolean get() = frozenCommand != null || recoveryBatchId != null
     val showRecoveryAction: Boolean get() = if (receipt != null) recoveryBatchId != null && internalFailure == null &&
         submission in setOf(ImportSubmissionState.COMPLETE, ImportSubmissionState.CHECKING) else
-        (recoveryBatchId != null || submission != ImportSubmissionState.RETRY_ORIGINAL || errorCode == null) &&
-        (internalFailure == null || submission != ImportSubmissionState.RETRY_ORIGINAL)
+        (internalFailure == null || submission != ImportSubmissionState.RETRY_ORIGINAL) && hasSubmission
 
     private val canEditIgnoringBusy: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE &&
         !needsContextRefresh && !hasSubmission && receipt == null && receiptToFetch == null && (context == null || context.state == "open")

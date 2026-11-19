@@ -30,6 +30,10 @@ class CashImportTaskViewModel(
     private val inFlightUploads = mutableSetOf<String>()
     private var uploadGeneration = 0
 
+    fun closeView() {
+        if (state.value.receipt == null || state.value.recoveryBatchId == null) detach()
+    }
+
     fun detach() {
         uploadGeneration++
         uploadQueue.clear()
@@ -38,8 +42,52 @@ class CashImportTaskViewModel(
         uploadJobs.clear()
         job?.cancel()
         job = null
+        completionRetryJob?.cancel()
+        completionRetryJob = null
         recoverySessionId = null
         mutableState.value = ImportTaskUiState(recoveryReady = false)
+    }
+
+    fun restoreCommittedReceipt() {
+        val current = state.value
+        if (current.busy || current.internalFailure != null || current.receipt != null) return
+        current.receiptToFetch?.let { id ->
+            execute(current.beginRequest()) { restoreKnownReceipt(it, id) }
+            return
+        }
+        if (current.recoveryReady) return
+        execute(current.beginRequest()) { request ->
+            val pointer = recovery.load()
+            if (!current(request)) return@execute
+            when (pointer) {
+                is ImportRecoveryPointer.Receipt -> restoreKnownReceipt(request, pointer.receiptId)
+                is ImportRecoveryPointer.LocalBatch -> restoreProvenBatch(request, pointer.batchId)
+                else -> Unit
+            }
+        }
+    }
+
+    private suspend fun restoreProvenBatch(request: ImportTaskRequest, batchId: String) {
+        try {
+            repository.restoreCommittedBatch(batchId) { receipt ->
+                if (!current(request)) throw CancellationException("import_task_detached")
+                mutableState.value = state.value.copy(recoveryReady = true, recoveryBatchId = batchId)
+                publishReceipt(request, receipt, originalBatchId = batchId)
+            }
+        } catch (failure: ImportCompletionFailure) {
+            if (!current(request)) return
+            mutableState.value = state.value.copy(recoveryReady = true, recoveryBatchId = batchId)
+            publishCompletionFailure(request, failure, batchId)
+        }
+    }
+
+    private suspend fun restoreKnownReceipt(request: ImportTaskRequest, receiptId: String) {
+        mutableState.value = state.value.copy(recoveryReady = true, receiptToFetch = receiptId)
+        try {
+            repository.restoreReceipt(receiptId) { publishReceipt(request, it) }
+        } catch (failure: ImportCompletionFailure) {
+            publishCompletionFailure(request, failure, failure.batchId)
+        }
     }
 
     fun restore() {
@@ -71,10 +119,7 @@ class CashImportTaskViewModel(
                         submission = ImportSubmissionState.CHECKING, needsContextRefresh = true)
                     resolveRequest(request, pointer.command)
                 }
-                is ImportRecoveryPointer.Receipt -> {
-                    mutableState.value = state.value.copy(recoveryReady = true, receiptToFetch = pointer.receiptId)
-                    publishReceipt(request, repository.receipt(pointer.receiptId))
-                }
+                is ImportRecoveryPointer.Receipt -> restoreKnownReceipt(request, pointer.receiptId)
             }
         }
     }
@@ -84,7 +129,7 @@ class CashImportTaskViewModel(
         if (before.internalFailure != null) return
         if (!before.recoveryReady || before.busy || before.hasSubmission || before.receipt != null) return
         before.receiptToFetch?.let { receiptId ->
-            execute(before.beginRequest()) { publishReceipt(it, repository.receipt(receiptId)) }
+            execute(before.beginRequest()) { restoreKnownReceipt(it, receiptId) }
             return
         }
         val sessionId = before.context?.sessionId ?: recoverySessionId ?: return
@@ -430,6 +475,29 @@ class CashImportTaskViewModel(
         catch (failure: ImportReviewRequired) { publishReviewRequired(request, failure, sessionId) }
     }
 
+    fun continueSubmission(canSubmit: () -> Boolean) {
+        val before = state.value
+        if (before.busy || before.receipt == null && !canSubmit()) return
+        if (before.submission == ImportSubmissionState.RETRY_ORIGINAL) {
+            retryOriginal()
+            return
+        }
+        if (before.recoveryBatchId != null) {
+            resolve()
+            return
+        }
+        val command = before.frozenCommand ?: return
+        execute(before.beginResolution()) { request ->
+            resolveRequest(request, command)
+            if (current(request) && canSubmit() && state.value.internalFailure == null &&
+                state.value.submission == ImportSubmissionState.RETRY_ORIGINAL &&
+                state.value.frozenCommand == command && state.value.receipt == null) {
+                mutableState.value = state.value.copy(submission = ImportSubmissionState.SAVING, errorCode = null)
+                sendOriginal(request)
+            }
+        }
+    }
+
     fun resolve() {
         state.value.recoveryBatchId?.let { batchId ->
             execute(state.value.beginResolution()) { resumeBatch(it, batchId) }
@@ -608,7 +676,16 @@ class CashImportTaskViewModel(
         }
     }
 
-    /** Retry the committed receipt's aftercare a few times before asking the user to refresh. */
+    fun resumeCompletionWhenReady() {
+        val current = state.value
+        val batchId = current.recoveryBatchId ?: return
+        if (current.receipt != null && current.completionRetryExhausted && current.internalFailure == null) {
+            mutableState.value = current.copy(completionRetryExhausted = false)
+            scheduleCompletionRetry(batchId)
+        }
+    }
+
+    /** Finish the committed receipt without repeating the import write. */
     private fun scheduleCompletionRetry(batchId: String) {
         if (completionRetryJob?.isActive == true) return
         completionRetryJob = viewModelScope.launch {

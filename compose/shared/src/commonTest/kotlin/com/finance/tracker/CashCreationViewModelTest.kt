@@ -40,6 +40,27 @@ class CashCreationViewModelTest {
         vm.save(accounts, "UTC"); advanceUntilIdle()
         assertFalse(vm.state.value.unknown); assertNotNull(vm.state.value.draft); assertEquals(0, vm.state.value.savedRevision)
     } }
+    @Test fun originalSaveKeepsItsKeyAndBodyAfterClosingAndReopening() = runTest {
+        task(keyed = true) { vm, repo ->
+            vm.open(accounts, "2026-10-24T12:30")
+            val initial = vm.state.value.draft!!
+            vm.update(initial.copy(mode = CashCreationMode.TRANSFER, transfer = initial.transfer.copy(amount = "9")))
+            repo.failure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+            vm.save(accounts, "UTC")
+            advanceUntilIdle()
+            assertTrue(vm.state.value.canResumeSave)
+            assertTrue(vm.close())
+            assertFalse(vm.state.value.visible)
+            vm.open(accounts, "2026-10-25T10:00")
+            assertTrue(vm.state.value.visible)
+            repo.failure = null
+            vm.save(emptyList(), "Asia/Shanghai")
+            advanceUntilIdle()
+            assertEquals(2, repo.keyedSaves.size)
+            assertEquals(repo.keyedSaves.first(), repo.keyedSaves.last())
+            assertEquals(1, vm.state.value.savedRevision)
+        }
+    }
     @Test fun savingCannotCloseChangeOrSubmitTwice() = runTest { task { vm, repo ->
         vm.open(accounts, "2026-10-24T12:30"); val initial = vm.state.value.draft!!
         vm.update(initial.copy(ordinary = CashOrdinaryInput(initial.ordinary.values + ("amount" to "1"))))
@@ -48,14 +69,20 @@ class CashCreationViewModelTest {
         vm.update(initial); vm.save(accounts, "UTC"); assertEquals("1", vm.state.value.draft!!.ordinary.values["amount"])
         repo.gate!!.complete(Unit); advanceUntilIdle(); assertEquals(1, repo.records.size)
     } }
-    private suspend fun TestScope.task(block: suspend TestScope.(CashCreationViewModel, CreationRepo) -> Unit) {
+    private suspend fun TestScope.task(keyed: Boolean = false, block: suspend TestScope.(CashCreationViewModel, CreationRepo) -> Unit) {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        try { val repo = CreationRepo(); block(CashCreationViewModel(repo), repo) } finally { Dispatchers.resetMain() }
+        try { val repo = CreationRepo(keyed); block(CashCreationViewModel(repo, "workspace", "user@example.invalid"), repo) } finally { Dispatchers.resetMain() }
     }
 }
-private class CreationRepo : CashCreationRepository {
+private class CreationRepo(override val supportsIdempotentSave: Boolean) : CashCreationRepository {
+    val keyedSaves = mutableListOf<Triple<String, String, StructuredObject>>()
     val records = mutableListOf<StructuredObject>(); val transfers = mutableListOf<StructuredObject>()
     var gate: CompletableDeferred<Unit>? = null; var failure: DomainFailure? = null
     override suspend fun createRecord(input: StructuredObject) { records += input; gate?.await(); failure?.let { throw it } }
     override suspend fun createTransfer(input: StructuredObject) { transfers += input; gate?.await(); failure?.let { throw it } }
+    override suspend fun save(mode: CashCreationMode, input: StructuredObject, key: String, accountIds: List<String>,
+        workspaceId: String, principalEmail: String) {
+        keyedSaves += Triple(key, workspaceId, input)
+        super.save(mode, input, key, accountIds, workspaceId, principalEmail)
+    }
 }
