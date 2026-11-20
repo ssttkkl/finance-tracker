@@ -49,9 +49,7 @@ test("local ledger retains rows when a Worker fails and retries the filter witho
   await expect(selection).toBeEnabled();
   const ledgerWorker = page.workers().find(worker => new URL(worker.url()).hash === "#cash-ledger");
   expect(ledgerWorker).toBeDefined();
-  await ledgerWorker!.evaluate(() => {
-    self.onmessage = () => setTimeout(() => { throw new Error("synthetic ledger Worker crash"); }, 2_500);
-  });
+  await ledgerWorker!.evaluate(() => { self.onmessage = () => undefined; });
   const requests: string[] = [];
   await page.route("**/api/**", route => {
     requests.push(new URL(route.request().url()).pathname);
@@ -62,6 +60,9 @@ test("local ledger retains rows when a Worker fails and retries the filter witho
   await clickStableComposeTarget(page, selection);
   await expect(page.locator('[id="ledger.selected-count"]:visible')).toHaveCount(0);
   await expect(retry).toHaveCount(0);
+  await ledgerWorker!.evaluate(() => {
+    setTimeout(() => { throw new Error("synthetic ledger Worker crash"); }, 0);
+  });
   await expect(retry).toBeVisible();
   await expect(confirmed).toBeVisible();
   await expect(pending).toBeVisible();

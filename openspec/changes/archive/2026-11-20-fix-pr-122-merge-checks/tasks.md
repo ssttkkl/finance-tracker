@@ -14,7 +14,7 @@
 ## 4. 构建
 
 - [x] 4.1 完成 `main` 合并并提交冲突处置。
-- [x] 4.2 调整启动兼容性断言与管理目录标记等待。
+- [x] 4.2 调整启动兼容性断言、管理目录标记等待、Worker 故障触发与导入账户步骤重试。
 
 ## 5. 审查
 
@@ -26,9 +26,9 @@
 - [x] 6.1 `:shared:wasmJsTest` 通过 1045 项、0 失败。
 - [x] 6.2 后端 CI 命令通过：`:backend:test :backend:codegenTest :business-contracts:jvmTest :business-domain:jvmTest :backend:ktlintCheck :backend:detekt :backend:installDist`。
 - [x] 6.3 Web Node 检查 43 项、Demo Web 构建、Android Debug 构建、iOS 模拟器测试与共享 framework 链接通过。
-- [x] 6.4 管理目录用例重复 4 轮通过；完整 Chrome E2E 套件 64 项通过、3 项跳过、0 失败。
+- [x] 6.4 管理目录用例重复 4 轮、Worker 故障与账户步骤用例各重复 3 轮通过；完整 Chrome E2E 套件 64 项通过、3 项跳过、0 失败。
 - [x] 6.5 OpenSpec 严格校验 31/31、`git diff --check` 通过。
-- [ ] 6.6 PR #122 的必需远端检查重新运行并通过。
+- [ ] 6.6 PR #122 的必需远端检查重新运行并通过；首次推送的 E2E 暴露上述两项时序问题，已修正待重跑。
 
 ## 7. 发布
 

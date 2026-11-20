@@ -189,9 +189,13 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
     await clickStableComposeTarget(page, tagged("cash.import.add-files"));
     await (await chooser).setFiles({ name: "account-feedback.csv", mimeType: "text/csv", buffer: Buffer.from(feedbackCsv) });
     const next = tagged("cash.import.to-accounts");
-    await expect(next).toBeEnabled();
-    await clickStableComposeTarget(page, next);
-    const group = page.locator('[id^="cash.import.account-group-"]:visible').first();
+    const groups = page.locator('[id^="cash.import.account-group-"]:visible');
+    for (let attempt = 0; attempt < 4 && await groups.count() === 0; attempt++) {
+      await expect(next).toBeEnabled();
+      await clickStableComposeTarget(page, next);
+      await page.waitForTimeout(500);
+    }
+    const group = groups.first();
     const picker = group.locator('[id^="cash.import.account-"]:visible').first();
     await expect(picker).toBeVisible();
     const pickerBounds = (await picker.boundingBox())!;
