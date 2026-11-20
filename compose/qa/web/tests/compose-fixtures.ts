@@ -129,12 +129,21 @@ export const noWorkspaceSession: ComposeSession = {
 export const cashAccount = { id: 1, name: "日常账户", type: "cash", active: true, currencies: ["CNY"] };
 export const investmentAccount = { id: 9, name: "证券账户", type: "investment", active: true, currencies: ["USD"] };
 
-export async function clickStableComposeTarget(page: Page, target: Locator): Promise<void> {
-  await expect(target).toBeVisible();
+/** Wait until Web fonts have loaded and Compose has painted the resulting layout. */
+export async function settleComposeLayout(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await document.fonts.ready;
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
+}
+
+/** Read bounds only after fonts load and three consecutive samples agree. */
+export async function stableComposeBounds(
+  page: Page,
+  target: Locator,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  await expect(target).toBeVisible();
+  await settleComposeLayout(page);
   let bounds = await target.boundingBox();
   let stableSamples = 0;
   await expect.poll(async () => {
@@ -149,6 +158,11 @@ export async function clickStableComposeTarget(page: Page, target: Locator): Pro
     return stableSamples >= 3;
   }, { intervals: [100], message: "Compose target did not settle inside the viewport" }).toBe(true);
   if (!bounds) throw new Error("Missing stable Compose target bounds");
+  return bounds;
+}
+
+export async function clickStableComposeTarget(page: Page, target: Locator): Promise<void> {
+  const bounds = await stableComposeBounds(page, target);
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
 
@@ -160,10 +174,7 @@ export async function typeIntoComposeInput(
 ): Promise<void> {
   const input = page.locator(`${selector}:visible`).last();
   await expect(input).toBeVisible();
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-  });
+  await settleComposeLayout(page);
   let box = await input.boundingBox();
   let stable = 0;
   await expect.poll(async () => {

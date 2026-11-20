@@ -7,6 +7,7 @@ import com.finance.tracker.business.contracts.Role
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.LedgerVersionDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
+import com.finance.tracker.business.contracts.CashMutationResultPageDto
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.LedgerCacheScope
@@ -192,14 +193,24 @@ class LedgerSessionImportsTest {
                 RecoveryMemoryStorage(),
             )
             val vm = com.finance.tracker.presentation.ImportAccountViewModel(lifecycle, recovery).also { viewModel = it }
-            vm.restore(); advanceUntilIdle()
+            // The accounts section is computed by the Wasm Worker in browsers, so the ViewModel's
+            // fire-and-forget load needs real event-loop turns in addition to the test scheduler.
+            suspend fun awaitUi(predicate: () -> Boolean) {
+                var polls = 0
+                while (!predicate() && polls++ < 3000) {
+                    advanceUntilIdle()
+                    if (!predicate()) withContext(Dispatchers.Default) { delay(10) }
+                }
+                advanceUntilIdle()
+            }
+            vm.restore(); awaitUi { vm.state.value.ready }
             assertTrue(vm.state.value.ready)
             assertTrue(vm.state.value.currentAccounts.isEmpty())
             f.accountFailure = IOException("synthetic disconnected account request")
             val before = f.paths.toList()
             var ready: Map<String, com.finance.tracker.domain.ImportAccount>? = null
             vm.ensureCurrencies(mapOf(selected.accountId to selected.currencies)) { ready = it }
-            advanceUntilIdle()
+            awaitUi { ready != null }
             assertNull(vm.state.value.internalFailure)
             assertNull(vm.state.value.errorCode)
             assertEquals(selected, assertNotNull(ready)[selected.accountId])
@@ -1574,14 +1585,20 @@ class LedgerSessionImportsTest {
             val context = task.context(); val review = assertNotNull(imports.importReview("batch")).encode()
             val facts = f.storage.facts; val files = f.storage.files.toMap(); val paths = f.paths.toList()
             var saves = 0; f.storage.afterReviewSave = { saves++ }
-            for ((ref, patch, code) in listOf(
+            for ((index, attempt) in listOf(
                 Triple("invented", buildJsonObject { put("note", "unsafe") }, "plan_changed"),
                 Triple(reference, buildJsonObject { put("category_id", "missing-category") }, "category_unavailable"),
-                Triple(reference, buildJsonObject { put("category_id", "other-workspace-category") }, "category_unavailable"))) {
+                Triple(reference, buildJsonObject { put("category_id", "other-workspace-category") }, "category_unavailable")).withIndex()) {
+                val (ref, patch, code) = attempt
+                val attemptedBefore = sequence
                 assertEquals(code, assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
                     task.preview(2, "entry_plan_1", input(ref, patch), "UTC")
                 }.code)
-                assertEquals(0, saves); assertEquals(1, sequence)
+                // Wasm allocates the plan handle before Worker validation; the first attempt still
+                // fails during previous-review restoration, before any allocation.
+                val allocations = if (archiveCashImportPagesInWorker && index > 0) 1 else 0
+                assertEquals(attemptedBefore + allocations, sequence)
+                assertEquals(0, saves)
                 assertEquals(context, task.context()); assertEquals(first, task.plan("entry_plan_1", "UTC"))
                 assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
                 assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
@@ -1590,8 +1607,10 @@ class LedgerSessionImportsTest {
             val patch = buildJsonObject { put("note", ""); put("category_id", JsonNull); put("counterparty_account_attrs", JsonArray(emptyList())) }
             val selectedInput = input(reference, patch)
             val partialInput = JsonObject(selectedInput.filterKeys { it != "row_choices" } + ("unused_legacy_field" to JsonPrimitive(true)))
+            val selectedBefore = sequence
             val selected = task.preview(2, "entry_plan_1", partialInput, "UTC")
-            assertEquals(1, saves); assertEquals(2, sequence)
+            assertEquals(selectedBefore + 1, sequence)
+            assertEquals(1, saves)
             assertEquals(JsonPrimitive(""), selected.getValue("items").jsonArray.single().jsonObject.getValue("display").jsonObject["note"])
             val stored = assertNotNull(imports.importReview("batch"))
             assertEquals(selectedInput, stored.inputJson())
@@ -1827,10 +1846,12 @@ class LedgerSessionImportsTest {
             val invalid = JsonObject(f.plan.input + ("row_choices" to buildJsonArray {
                 add(buildJsonObject { put("row_ref", "file:r1"); put("action", "invalid") })
             }))
+            val attemptedBefore = sequence
             assertEquals("plan_input_invalid", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
                 task.preview(2, "actual_plan_1", invalid, "UTC")
             }.code)
-            assertEquals(0, saves); assertEquals(1, sequence)
+            assertEquals(attemptedBefore, sequence)
+            assertEquals(0, saves)
             assertEquals(context, task.context()); assertEquals(plan, task.plan("actual_plan_1", "UTC"))
             assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
             assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
@@ -1855,16 +1876,22 @@ class LedgerSessionImportsTest {
             val context = task.context(); val review = assertNotNull(imports.importReview("batch")).encode()
             val facts = f.storage.facts; val files = f.storage.files.toMap(); val paths = f.paths.toList()
             var saves = 0; f.storage.afterReviewSave = { saves++ }
+            val attemptedBefore = sequence
             assertEquals("plan_input_invalid", assertFailsWith<com.finance.tracker.business.domain.CashImportPlanError> {
                 task.preview(2, "actual_plan_1", invalid, "UTC")
             }.code)
-            assertEquals(0, saves); assertEquals(1, sequence)
+            // Wasm allocates the plan handle before Worker validation; native allocates after calculation.
+            assertEquals(attemptedBefore + if (archiveCashImportPagesInWorker) 1 else 0, sequence)
+            assertEquals(0, saves)
             assertEquals(context, task.context()); assertEquals(plan, task.plan("actual_plan_1", "UTC"))
             assertEquals(review, assertNotNull(imports.importReview("batch")).encode())
             assertEquals(facts, f.storage.facts); assertEquals(files, f.storage.files); assertEquals(paths, f.paths)
             assertNull(f.storage.submission)
+            val selectedBefore = sequence
             val continued = task.preview(2, "actual_plan_1", input, "UTC")
-            assertEquals(JsonPrimitive("actual_plan_2"), continued["plan_id"])
+            assertEquals(selectedBefore + 1, sequence)
+            assertEquals(JsonPrimitive("actual_plan_$sequence"), continued["plan_id"])
+            assertNotEquals(JsonPrimitive("actual_plan_1"), continued["plan_id"])
             assertEquals(JsonPrimitive(3), continued["session_revision"])
             assertEquals(JsonPrimitive(2), continued.getValue("summary").jsonObject["create_draft"])
             assertEquals(JsonPrimitive(2), continued.getValue("item_counts").jsonObject["pending"])
@@ -2238,6 +2265,8 @@ class LedgerSessionImportsTest {
                 results[result.authoritativeReceipt().receiptId] = result
                 return result
             }
+            override suspend fun archiveResultPages(batchId: String, pages: List<String>): LocalCashImportResult? =
+                archiveResult(batchId, pages.flatMap { apiJson.decodeFromString<CashMutationResultPageDto>(it).items })
             override suspend fun readResult(receiptId: String) = results[receiptId]
             override suspend fun readResultByBatchId(batchId: String) = results.values.singleOrNull { it.batchId == batchId }
             override suspend fun readResultByKey(key: String) = results.values.singleOrNull { it.submissionKey == key }
