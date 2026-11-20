@@ -13,8 +13,10 @@ interface ImportAccountRecovery {
     suspend fun verify(key: String): Boolean
 }
 
-class ScopedImportAccountRecovery(scope: ImportRecoveryScope, private val storage: ImportRecoveryStorage) : ImportAccountRecovery {
-    private val prefix = importRecoveryNamespace(scope) + ":account-command:"
+class ScopedImportAccountRecovery(scope: ImportRecoveryScope, private val storage: ImportRecoveryStorage,
+    forManualBooking: Boolean = false) : ImportAccountRecovery {
+    private val prefix = importRecoveryNamespace(scope) +
+        if (forManualBooking) ":booking-account-command:" else ":account-command:"
     private val mutex = Mutex()
 
     override suspend fun keys(): List<String> = mutex.withLock { readKeys() }

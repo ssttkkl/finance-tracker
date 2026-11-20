@@ -125,4 +125,5 @@ data class CashFiltersDto(
     val state: String? = null,
     @SerialName("confirmation_status") val confirmationStatus: String? = null,
     @SerialName("hide_zero_amount") val hideZeroAmount: String? = null,
+    @SerialName("import_transaction_ids") val importTransactionIds: Set<String>? = null,
 )

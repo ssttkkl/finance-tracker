@@ -25,6 +25,7 @@ fun CashFiltersDto.toDomain(): CashFilters = CashFilters(
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
     hideZeroAmount = hideZeroAmount?.toBooleanStrictOrNull() ?: true,
+    importTransactionIds = importTransactionIds,
 )
 
 fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
@@ -42,6 +43,7 @@ fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
     hideZeroAmount = hideZeroAmount.toString(),
+    importTransactionIds = importTransactionIds,
 )
 
 fun AccountListDto.toDomain(): AccountList = AccountList(

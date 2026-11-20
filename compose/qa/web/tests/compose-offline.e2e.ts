@@ -17,7 +17,7 @@ test("断网重启后从加密缓存浏览账本", async ({ page, baseURL }) => 
   await typeIntoComposeInput(page, '[id="auth.confirm-password"]', password);
   await page.locator('[id="auth.submit"]').last().click({ force: true });
   await expect(page.locator('[id="workspace.screen"]')).toBeVisible({ timeout: 20_000 });
-  await typeIntoComposeInput(page, '[id="workspace.create-name"]', "离线冒烟账本");
+  await typeIntoComposeInput(page, '[id="workspace.create-name"]', "离线冒烟账本", { replace: true });
   await page.locator('[id="workspace.create"]').last().click({ force: true });
   await expect(page.locator('[id="ledger.screen"]')).toBeVisible({ timeout: 20_000 });
 

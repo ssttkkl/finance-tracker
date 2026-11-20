@@ -77,5 +77,10 @@ fun normalizeLocalCashLedgerQueryInput(input: CashFiltersDto, timeZoneId: String
         "amount_min" to minimumText, "amount_max" to maximumText, "economic_type" to economic, "business_label" to businessLabel,
         "composition" to composition, "timezone" to bounds.timeZoneId, "state" to state, "confirmation_status" to confirmation,
         "hide_zero_amount" to if (hideZero) "True" else "False")
-    return LocalCashLedgerQueryInput(filters, bounds.start, bounds.end)
+    val transactionIds = input.importTransactionIds?.toSet()
+    if (transactionIds != null) {
+        if (transactionIds.any { id -> id.toLongOrNull()?.let { it > 0 && it.toString() == id } != true }) invalid()
+        filters["import_pending_scope"] = sha256Hex(transactionIds.sorted().joinToString(","))
+    }
+    return LocalCashLedgerQueryInput(filters, bounds.start, bounds.end, transactionIds)
 }

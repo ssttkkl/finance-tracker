@@ -95,6 +95,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     ErrorBody(ErrorDetail("internal_error", "系统错误。")))
             }
         }
+        exception<CashCreationCommandInputFailure> { call, failure ->
+            call.respond(HttpStatusCode.BadRequest, buildJsonObject {
+                put("commit_state", JsonPrimitive("not_committed"))
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive("请检查填写内容后重试。"))
+                })
+            })
+        }
         exception<CashStatementParseInternalFailure> { call, failure ->
             val errorId = java.util.UUID.randomUUID().toString()
             serverDiagnosticLog.error("statement_parse_failure request_id={} error_id={} trace={}", call.diagnosticRequestId, errorId,
@@ -507,7 +515,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     }
     val services = ReadServices(database, clock)
     val methods = "GET, POST, PUT, PATCH, DELETE"
-    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID"
+    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID, X-FT-Account-IDs"
     val localOrigin = Regex("^http://(?:127\\.0\\.0\\.1|localhost):[0-9]+$")
     intercept(ApplicationCallPipeline.Plugins) {
         val origin = call.request.headers[HttpHeaders.Origin]
@@ -797,6 +805,39 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 catch(failure:CashProjectionDomainFailure) {throw ManualCashBusinessFailure(failure.code)}
             })
         }
+        post("/api/v1/cash-records/commands") {
+            val principal = call.attributes[requestPrincipalKey]
+            val (bytes, command) = call.cashCreationCommand(principal, accountCount = 1)
+            val input = manualCashRequest(bytes)
+            call.respondCashCreation(withContext(Dispatchers.IO) {
+                try {
+                    manualCash.create(bearerToken(call.request.headers[HttpHeaders.Authorization]), input.value,
+                        input.original, principal.workspaceId, command)
+                } catch (failure: CashProjectionDomainFailure) { throw ManualCashBusinessFailure(failure.code) }
+            })
+        }
+        post("/api/v1/cashflow/transfer/commands") {
+            val principal = call.attributes[requestPrincipalKey]
+            val (bytes, command) = call.cashCreationCommand(principal, accountCount = 2)
+            val input = try { strictCashJsonRequest(pythonJsonText(bytes)) }
+                catch (_: CategoryFailure) { throw CashCreationCommandInputFailure() }
+                catch (_: NumberFormatException) { throw CashCreationCommandInputFailure() }
+            for (key in listOf("amount", "to_amount")) {
+                val amount = (input.value as? JsonObject)?.get(key) ?: continue
+                if (amount == JsonNull && key == "to_amount") continue
+                if (amount !is JsonPrimitive || !amount.isString || CashAmount.parseOrNull(amount.content) == null)
+                    throw CashCreationCommandInputFailure("invalid_amount")
+            }
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    transfers.transfer(bearerToken(call.request.headers[HttpHeaders.Authorization]), input.value,
+                        input, principal.workspaceId, command)
+                }
+            } catch (failure: CashflowOperationFailure) { throw CashCreationCommandInputFailure(failure.code) }
+              catch (failure: CashProjectionDomainFailure) { legacyCashPayloadError(failure.code) }
+              catch (failure: CategoryFailure) { legacyCashPayloadError(failure.code) }
+            call.respondCashCreation(result)
+        }
         get("/api/v1/cash-ledger/options") {
             call.respond(withContext(Dispatchers.IO) {ledgerOptions.options(bearerToken(call.request.headers[HttpHeaders.Authorization]))})
         }
@@ -1001,8 +1042,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val body = Json.parseToJsonElement(call.receiveText()) as JsonObject
             val direction = body["direction"]
             if (direction is JsonObject || direction is JsonArray) error("category direction is not hashable")
+            val targetId = body["target_id"]?.let { target ->
+                (target as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotEmpty() }
+                    ?: throw CategoryFailure("category.invalid_order")
+            }
             call.respond(withContext(Dispatchers.IO) { categories.reorder(call.token(), call.parameters["category_id"]!!,
-                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"], requestWorkspace = call.attributes[requestPrincipalKey].workspaceId) })
+                direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"],
+                requestWorkspace = call.attributes[requestPrincipalKey].workspaceId, targetId = targetId) })
         }
     }
     LegacyOpenApi.install(router)

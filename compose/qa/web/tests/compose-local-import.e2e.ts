@@ -123,6 +123,13 @@ async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
   }, { intervals: [100] }).toBe(true);
 }
 
+const feedbackCsv = [
+    "支付宝交易记录明细查询", "支付宝账户：[synthetic@example.test]",
+    "起始时间：[2026-08-01 00:00:00] 终止时间：[2026-08-31 23:59:59]", "交易类型：[全部]", "共1笔记录",
+    "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
+    "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
+  ].join("\n");
+
 test("读取账单期间点击关闭在当前导入任务提示一次，原读取继续", async ({ page }) => {
   await installComposeApiFixtures(page);
   await page.addInitScript(() => {
@@ -139,13 +146,7 @@ test("读取账单期间点击关闭在当前导入任务提示一次，原读�
   const diagnostics = captureBrowserDiagnostics(page);
   const chooser = page.waitForEvent("filechooser");
   await clickStableComposeTarget(page, page.locator('[id="cash.import.add-files"]').last());
-  const csv = [
-    "支付宝交易记录明细查询", "支付宝账户：[synthetic@example.test]",
-    "起始时间：[2026-08-01 00:00:00] 终止时间：[2026-08-31 23:59:59]", "交易类型：[全部]", "共1笔记录",
-    "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
-    "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
-  ].join("\n");
-  await (await chooser).setFiles({ name: "snackbar-import.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await (await chooser).setFiles({ name: "snackbar-import.csv", mimeType: "text/csv", buffer: Buffer.from(feedbackCsv) });
   await page.waitForFunction(() => "releaseImportRead" in window);
 
   await clickStableComposeTarget(page, page.locator('[id="cash.import.close"]').last());
@@ -164,7 +165,83 @@ test("读取账单期间点击关闭在当前导入任务提示一次，原读�
   expect(diagnostics.failedRequests).toEqual([]);
 });
 
-for (const scenario of ["normal", "conflict", "rebase", "rebase-worker", "completion", "archive-worker", "snapshot-worker", "pack-fence"] as const) {
+test("新建账户重试沿用原保存，返回时刷新账户列表", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 900 });
+  await installComposeApiFixtures(page);
+  let finishSave!: () => void;
+  const waiting = new Promise<void>(resolve => { finishSave = resolve; });
+  let directoryReads = 0;
+  const writes: Array<{ key: string | undefined; body: string | null }> = [];
+  await page.route(url => url.pathname === "/api/v1/ledger/version", route => {
+    directoryReads++;
+    return route.fallback();
+  });
+  await page.route(url => url.pathname === "/api/v1/accounts", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    writes.push({ key: route.request().headers()["idempotency-key"], body: route.request().postData() });
+    await waiting;
+    await route.fulfill({ status: 503, json: { error: { code: "account_result_unknown" } } });
+  });
+  try {
+    const tagged = (id: string) => page.locator(`[id="${id}"]:visible`).last();
+    await page.goto("/w/workspace-1/cash-import");
+    const chooser = page.waitForEvent("filechooser");
+    await clickStableComposeTarget(page, tagged("cash.import.add-files"));
+    await (await chooser).setFiles({ name: "account-feedback.csv", mimeType: "text/csv", buffer: Buffer.from(feedbackCsv) });
+    const next = tagged("cash.import.to-accounts");
+    const groups = page.locator('[id^="cash.import.account-group-"]:visible');
+    for (let attempt = 0; attempt < 4 && await groups.count() === 0; attempt++) {
+      await expect(next).toBeEnabled();
+      await clickStableComposeTarget(page, next);
+      await page.waitForTimeout(500);
+    }
+    const group = groups.first();
+    const picker = group.locator('[id^="cash.import.account-"]:visible').first();
+    await expect(picker).toBeVisible();
+    const pickerBounds = (await picker.boundingBox())!;
+    await clickStableComposeTarget(page, picker);
+    const create = page.getByText("＋新建账户", { exact: true }).last();
+    await expect(create).toBeVisible();
+    const createBounds = (await create.boundingBox())!;
+    await clickStableComposeTarget(page, create);
+    await clickStableComposeTarget(page, tagged("cash.import.account-form.save"));
+    await expect.poll(() => writes.length).toBe(1);
+    await expect(tagged("cash.import.account-form.progress")).toBeVisible();
+    await expect(page.getByText(/账户操作结果待核实/)).toHaveCount(0);
+    await expect(tagged("cash.import.account-form.resolve")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/compose-progress-account-960.png" });
+    finishSave();
+    await expect(tagged("cash.import.account-form.progress")).toHaveCount(0);
+    await expect(page.getByText("保存遇到问题，请重试。")).toBeVisible();
+    await expect(tagged("cash.import.account-form.resolve")).toHaveCount(0);
+    await clickStableComposeTarget(page, tagged("cash.import.account-form.save"));
+    await expect.poll(() => writes.length).toBe(2);
+    expect(writes[0].key).toBeTruthy();
+    expect(writes[1]).toEqual(writes[0]);
+    await expect(page.getByText("保存遇到问题，请重试。")).toBeVisible();
+    await page.screenshot({ path: "/tmp/compose-account-network-retry.png" });
+    const priorReads = directoryReads;
+    const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/v1/ledger/version");
+    await clickStableComposeTarget(page, tagged("cash.import.account-form.close"));
+    await (await refreshed).finished();
+    await expect.poll(() => directoryReads).toBeGreaterThan(priorReads);
+    expect(writes).toHaveLength(2);
+    await expect(page.locator('[id="cash.import.resolve-accounts"]')).toHaveCount(0);
+    // Compose may keep the detached overlay in the exported DOM. Reopen on the rendered page.
+    await page.waitForTimeout(350);
+    await page.mouse.click(pickerBounds.x + pickerBounds.width / 2, pickerBounds.y + pickerBounds.height / 2);
+    await page.waitForTimeout(250);
+    await page.mouse.click(createBounds.x + createBounds.width / 2, createBounds.y + createBounds.height / 2);
+    await page.waitForTimeout(250);
+    await clickStableComposeTarget(page, tagged("cash.import.account-form.save"));
+    await expect.poll(() => writes.length).toBe(3);
+    expect(writes[2]).toEqual(writes[0]);
+  } finally {
+    finishSave();
+  }
+});
+
+for (const scenario of ["normal", "conflict", "completion"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";

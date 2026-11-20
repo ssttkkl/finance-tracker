@@ -193,19 +193,41 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     fun reorder(token: String?, categoryId: String, direction: String, expectedRevision: Long? = null,
-        revisionInput: JsonElement? = null, requestWorkspace: String? = null): CategoryItem {
-        if (direction !in setOf("before", "after")) throw CategoryFailure("category.invalid_order")
+        revisionInput: JsonElement? = null, requestWorkspace: String? = null, targetId: String? = null): CategoryItem {
+        if (direction !in setOf("before", "after", "last", "before_target") || (direction == "before_target") != (targetId != null)) {
+            throw CategoryFailure("category.invalid_order")
+        }
         return write(token, expectedRevision, revisionInput, requestWorkspace = requestWorkspace) { connection, directory ->
             val row = find(directory, categoryId)
             val siblings = directory.rows.filter { it.parentId == row.parentId }.sortedWith(compareBy<Row> { it.order }.thenBy { it.id })
             val index = siblings.indexOf(row)
-            val otherIndex = index + if (direction == "before") -1 else 1
-            if (otherIndex in siblings.indices) {
-                val other = siblings[otherIndex]
-                val previous = row.order; row.order = other.order; other.order = previous
-                if (other.order != row.order) check(connection.jooq(database.sqlite).update(category).set(category.SORT_ORDER, other.order.toLong())
-                    .set(category.UPDATED_AT, now()).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(other.id)).execute() == 1)
-                row.revision=Math.addExact(row.revision,1)
+            val destination = when {
+                targetId != null -> {
+                    val target = siblings.indexOfFirst { it.id == targetId }
+                    if (target == -1 || target == index) throw CategoryFailure("category.invalid_order")
+                    if (target > index) target - 1 else target
+                }
+                direction == "last" -> siblings.lastIndex
+                direction == "before" -> index - 1
+                else -> index + 1
+            }
+            if (destination in siblings.indices && destination != index) {
+                val ordered = siblings.toMutableList()
+                ordered.add(destination, ordered.removeAt(index))
+                val previousOrders = siblings.map { it.order }
+                val nextOrders = if (targetId != null || direction == "last") {
+                    if (previousOrders.distinct().size == siblings.size) previousOrders else siblings.indices.toList()
+                } else previousOrders
+                val sql = connection.jooq(database.sqlite)
+                for ((position, sibling) in ordered.withIndex()) {
+                    val nextOrder = nextOrders[position]
+                    if (sibling == row || sibling.order == nextOrder) continue
+                    sibling.order = nextOrder
+                    check(sql.update(category).set(category.SORT_ORDER, nextOrder.toLong()).set(category.UPDATED_AT, now())
+                        .where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(sibling.id)).execute() == 1)
+                }
+                row.order = nextOrders[destination]
+                row.revision = Math.addExact(row.revision, 1)
                 persist(connection, directory, row)
                 bump(connection, directory)
             }

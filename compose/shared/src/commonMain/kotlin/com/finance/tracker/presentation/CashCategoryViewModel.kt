@@ -68,7 +68,7 @@ class CashCategoryViewModel(
                 mutableState.value = current.copy(
                     directory = directory,
                     loading = false,
-                    deleteFailure = current.deleteFailure.takeUnless { verifyDeletion },
+                    deleteFailure = if (!verifyDeletion) current.deleteFailure else current.deleteFailure.afterRefreshingFacts(),
                     deleting = current.deleting.takeUnless { verifyDeletion },
                     deleteImpact = current.deleteImpact.takeUnless { verifyDeletion },
                 )
@@ -147,20 +147,31 @@ class CashCategoryViewModel(
         }
     }
 
-    fun move(category: CashCategory, direction: String, canWrite: Boolean) {
+    fun move(category: CashCategory, direction: String, canWrite: Boolean, targetId: String? = null) {
         val current = mutableState.value
         if (!canWrite || current.busy || current.loadingDeleteImpact) return
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(busy = true, errorCode = null)
             try {
                 val directory = current.directory ?: repository.fetchCashCategories()
-                repository.reorderCashCategory(category.id, direction, directory.revision.toLong())
+                repository.reorderCashCategory(category.id, direction, directory.revision, targetId)
                 mutableState.value = mutableState.value.copy(directory = repository.fetchCashCategories(), loading = false)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.UPDATE)
-                mutableState.value = mutableState.value.copy(errorCode = cause.safeErrorCode())
+                val error = cause.safeErrorCode()
+                if (error == "category.revision_conflict") {
+                    try {
+                        refreshFactsForReview()
+                        mutableState.value = mutableState.value.copy(directory = repository.fetchCashCategories())
+                    }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (failure: DomainFailure) {
+                        failure.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.LOAD)
+                    }
+                }
+                mutableState.value = mutableState.value.copy(errorCode = error)
             } finally {
                 mutableState.value = mutableState.value.copy(busy = false)
             }
@@ -212,7 +223,12 @@ class CashCategoryViewModel(
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_CATEGORIES, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(deleteFailure = cause.writeActionFailure())
+                val failure = cause.writeActionFailure()
+                mutableState.value = mutableState.value.copy(deleteFailure = failure)
+                if (failure.unknown || failure.code in setOf("category.not_found", "category.has_children")) {
+                    mutableState.value = mutableState.value.copy(busy = false)
+                    verifyDeletion()
+                }
             } finally {
                 mutableState.value = mutableState.value.copy(busy = false)
             }

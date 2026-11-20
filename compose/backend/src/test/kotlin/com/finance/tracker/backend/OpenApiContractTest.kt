@@ -208,7 +208,7 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(73, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(75, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         assertFalse("get" in paths.getValue("/api/v1/cash-projections").jsonObject)
         assertTrue("delete" in paths.getValue("/api/v1/cash-projections").jsonObject)
         for (retired in listOf("/api/v1/cash-projections/{projection_id}", "/api/v1/evidence/cash-projections/{projection_id}",

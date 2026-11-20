@@ -168,6 +168,54 @@ class ImportTaskViewModelTest {
         assertEquals(1, repo.confirmations.size)
     } }
 
+    @Test fun backgroundRestoreAfterReconnectingOnlyOpensACommittedReceipt() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        repo.batchHandler = { _, _ -> fail("Automatic recovery must not open a batch without a receipt") }
+        vm.restoreCommittedReceipt(); advanceUntilIdle()
+        assertNull(vm.state.value.receipt)
+
+        store.pointer = ImportRecoveryPointer.Receipt("receipt1")
+        repo.receiptFailure = DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
+        vm.restoreCommittedReceipt(); advanceUntilIdle()
+        assertEquals("receipt1", vm.state.value.receiptToFetch)
+        repo.receiptFailure = null
+        vm.restoreCommittedReceipt(); advanceUntilIdle()
+        assertEquals("receipt1", vm.state.value.receipt?.receiptId)
+        assertNull(vm.state.value.receiptToFetch)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun backgroundRestoreUsesAProofStoredBeforeArchivingTheReceipt() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        repo.storedCommittedReceipt = taskWriteSetReceipt()
+        vm.restoreCommittedReceipt(); advanceUntilIdle()
+        assertEquals("receipt1", vm.state.value.receipt?.receiptId)
+        assertNull(vm.state.value.recoveryBatchId)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun aCommittedBatchCanFinishAutomaticallyAfterTheViewCloses() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        val unavailable = DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt())
+            throw ImportCompletionFailure(batch, taskWriteSetReceipt(), unavailable)
+        }
+        vm.restore(); advanceUntilIdle()
+        assertTrue(vm.state.value.completionRetryExhausted)
+        vm.closeView()
+        assertEquals("batch", vm.state.value.recoveryBatchId)
+        repo.batchHandler = { batch, deliver ->
+            deliver(taskWriteSetReceipt())
+            repo.current.copy(sessionId = batch, origin = ImportContextOrigin.LOCAL, state = "committed")
+        }
+        vm.resumeCompletionWhenReady(); advanceUntilIdle()
+        assertEquals(taskWriteSetReceipt(), vm.state.value.receipt)
+        assertNull(vm.state.value.recoveryBatchId)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
     @Test fun refreshFailureAfterDeliveryKeepsTheBatchPointerForCleanupAfterReopening() = runTest { task { vm, repo, store ->
         store.pointer = ImportRecoveryPointer.LocalBatch("batch")
         var saves = 0
@@ -1545,9 +1593,7 @@ class ImportTaskViewModelTest {
         assertEquals(0, repo.contextReads)
         assertTrue(repo.confirmations.isEmpty())
         assertEquals(ImportSubmissionState.UNKNOWN, vm.state.value.submission)
-        vm.resolve(); advanceUntilIdle()
-        assertEquals(ImportSubmissionState.RETRY_ORIGINAL, vm.state.value.submission)
-        vm.retryOriginal(); advanceUntilIdle()
+        vm.continueSubmission { true }; advanceUntilIdle()
         assertEquals(listOf(original), repo.confirmations)
         assertEquals(listOf(TASK_PLAN to "original", TASK_PLAN to "original"), repo.resolveCalls)
     } }
@@ -1714,6 +1760,10 @@ internal class TaskRepository : CashImportLifecycleRepository {
     }
     override suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult {
         resolveCalls += planId to idempotencyKey; return resolutions.removeFirst()
+    }
+    var storedCommittedReceipt: ImportReceipt? = null
+    override suspend fun restoreCommittedBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit) {
+        storedCommittedReceipt?.let { onCommitted(it) }
     }
     override suspend fun receipt(receiptId: String): ImportReceipt { receiptFailure?.let { throw it }; return taskReceipt() }
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {

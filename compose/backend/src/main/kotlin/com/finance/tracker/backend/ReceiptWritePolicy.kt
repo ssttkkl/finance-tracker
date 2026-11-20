@@ -70,11 +70,24 @@ private fun commitOutcome(value: Any?): JsonObject {
     if(codes.size>commitReasonCodes.size || codes.any {it !in commitReasonCodes} || codes.toSet().size!=codes.size || codes.isNotEmpty()!=failures) invalidReceiptSummary()
     return buildJsonObject {put("has_new_failures",failures);put("has_business_writes",writes);put("reason_codes",JsonArray(codes.map(::JsonPrimitive)))}
 }
+internal fun receiptPendingTransactions(value: Any?, code: String = "mutation_summary_invalid"): JsonArray {
+    val ids = receiptList(value)?.map { ref ->
+        val id = receiptRaw(ref) as? String ?: throw IllegalArgumentException(code)
+        if (id.toLongOrNull()?.let { it > 0 && it.toString() == id } != true) throw IllegalArgumentException(code)
+        JsonPrimitive(id)
+    } ?: throw IllegalArgumentException(code)
+    if (ids.toSet().size != ids.size) throw IllegalArgumentException(code)
+    return JsonArray(ids)
+}
+
+internal fun validReceiptPendingCount(count: Int?, transactionCount: Int): Boolean =
+    count != null && count in 0..transactionCount && (count == 0) == (transactionCount == 0)
+
 internal fun normalizeReceiptSummary(value: Any?): JsonObject {
     val map=receiptMap(value) ?: invalidReceiptSummary()
     val counters=setOf("needs_attention_count","pending_item_count","projection_version","account_revision")
     val references=setOf("account_id","retained_transaction_id")
-    val allowed=counters+references+setOf("affected_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome","ledger_seq","write_set_result")
+    val allowed=counters+references+setOf("affected_transaction_ids","pending_transaction_ids","status","summary","committed","projection_refs","account","legacy_by_account","commit_outcome","ledger_seq","write_set_result")
     if(map.keys.any {it !in allowed}) invalidReceiptSummary()
     val normalized=buildJsonObject {for((rawKey,item) in map) {
         val key=rawKey as String
@@ -83,6 +96,7 @@ internal fun normalizeReceiptSummary(value: Any?): JsonObject {
             "ledger_seq" ->receiptLedgerSequence(item)
             in counters ->receiptCount(item)
             in references ->summaryReference(item,true)
+            "pending_transaction_ids" -> receiptPendingTransactions(item)
             "affected_transaction_ids" ->JsonArray((receiptList(item) ?: invalidReceiptSummary()).map {summaryReference(it)})
             "projection_refs" ->JsonArray((receiptList(item) ?: invalidReceiptSummary()).map {raw ->
                 val ref=receiptMap(raw) ?: invalidReceiptSummary()
@@ -105,6 +119,9 @@ internal fun normalizeReceiptSummary(value: Any?): JsonObject {
             else ->invalidReceiptSummary()
         })
     }}
+    (normalized["pending_transaction_ids"] as? JsonArray)?.let {
+        if (!validReceiptPendingCount((normalized["pending_item_count"] as? JsonPrimitive)?.intOrNull, it.size)) invalidReceiptSummary()
+    }
     normalized["account"]?.jsonObject?.let {
         if(normalized["account_id"]!=it["account_id"] || normalized["account_revision"]!=it["account_revision"]) invalidReceiptSummary()
     }

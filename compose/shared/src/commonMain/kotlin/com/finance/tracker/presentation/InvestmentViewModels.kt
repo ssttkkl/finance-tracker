@@ -111,9 +111,6 @@ class InvestmentHoldingsViewModel(
         viewModelScope.launch {
             try {
                 repository.refreshInvestmentPortfolio(options.currency.ifBlank { null }, options.period)
-                if (mutableState.value.refreshing) {
-                    mutableState.value = mutableState.value.copy(refreshMessageCode = "investment_refresh_started")
-                }
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {

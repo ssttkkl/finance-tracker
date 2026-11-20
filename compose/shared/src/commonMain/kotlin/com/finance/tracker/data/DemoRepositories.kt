@@ -240,7 +240,9 @@ class DemoFinanceRepository : FinanceRepository {
             throw demoFailure("invalid_filter", 400)
         }
         val filtered = records.filter { transferRoot(it.id) == it.id }.filter { row ->
-            val displayedAmount = projection(row).amount
+            val view = projection(row)
+            if (filters.importTransactionIds != null && projectionMembers(row.id).none { it in filters.importTransactionIds }) return@filter false
+            val displayedAmount = view.amount
             val amountVisible = !filters.hideZeroAmount || displayedAmount == null || compareDemoDecimals(displayedAmount, "0") != 0
             amountVisible && projectionMembers(row.id).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
         }.sortedWith(compareByDescending<CashRecord> { it.occurredAt }.thenByDescending { it.id })
@@ -506,17 +508,30 @@ class DemoFinanceRepository : FinanceRepository {
         return CashCategoryWriteResult(updated.id, categoryRevision)
     }
 
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult {
-        val index = categories.indexOfFirst { it.id == id }
-        if (index < 0) throw demoFailure("cash_category_not_found", 404)
-        val targetIndex = when (direction.lowercase()) { "up", "before", "previous" -> index - 1; else -> index + 1 }
-        if (targetIndex in categories.indices) {
-            val current = categories[index]
-            val target = categories[targetIndex]
-            categories[index] = target.copy(sortOrder = current.sortOrder)
-            categories[targetIndex] = current.copy(sortOrder = target.sortOrder)
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long, targetId: String?): CashCategoryWriteResult {
+        if (expectedRevision != categoryRevision) throw demoFailure("category.revision_conflict", 409)
+        val row = categories.firstOrNull { it.id == id } ?: throw demoFailure("cash_category_not_found", 404)
+        val siblings = categories.filter { it.parentId == row.parentId }.sortedWith(compareBy<CashCategory> { it.sortOrder }.thenBy { it.id })
+        val index = siblings.indexOf(row)
+        val target = siblings.indexOfFirst { it.id == targetId }
+        val destination = when {
+            targetId != null -> {
+                if (direction != "before_target" || target < 0 || target == index) throw demoFailure("category.invalid_order", 400)
+                if (target > index) target - 1 else target
+            }
+            direction == "last" -> siblings.lastIndex
+            direction == "before" -> index - 1
+            else -> index + 1
         }
-        categoryRevision++
+        if (destination in siblings.indices && index != destination) {
+            val ordered = siblings.toMutableList()
+            ordered.add(destination, ordered.removeAt(index))
+            for ((order, sibling) in ordered.withIndex()) {
+                val storageIndex = categories.indexOfFirst { it.id == sibling.id }
+                categories[storageIndex] = sibling.copy(sortOrder = order)
+            }
+            categoryRevision++
+        }
         return CashCategoryWriteResult(id, categoryRevision)
     }
 

@@ -21,18 +21,24 @@ internal class LedgerSessionImports(
     private val afterAccountWrite: (suspend (String?) -> Unit)? = null,
     private val prepareFacts: (suspend () -> Unit)? = null,
     private val readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = { it() },
+    private val refreshFacts: (suspend () -> Unit)? = null,
 ) {
     internal fun guardedBy(check: suspend (Boolean) -> Unit,
         recover: suspend (suspend () -> LocalCashImportSubmissionResult) -> LocalCashImportSubmissionResult,
         onFailure: suspend (Throwable) -> Nothing = this.onFailure,
         afterAccountWrite: (suspend (String?) -> Unit)? = this.afterAccountWrite,
         prepareFacts: (suspend () -> Unit)? = this.prepareFacts,
-        readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = this.readProjectionRefs): LedgerSessionImports =
-        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, checkWrite, recover, onFailure, afterAccountWrite, prepareFacts, readProjectionRefs)
+        readProjectionRefs: suspend (suspend () -> LocalCashProjectionReferences?) -> LocalCashProjectionReferences? = this.readProjectionRefs,
+        refreshFacts: (suspend () -> Unit)? = this.refreshFacts): LedgerSessionImports =
+        LedgerSessionImports(owner, { requiresFacts -> check(requiresFacts); checkCurrent(requiresFacts) }, checkWrite, recover, onFailure, afterAccountWrite, prepareFacts, readProjectionRefs, refreshFacts)
 
     suspend fun requireScope(principal: String, workspaceId: String) = use { owner.checkImportScope(principal, workspaceId) }
 
     suspend fun accounts() = use(requiresFacts = true) { owner.importAccounts() }
+    suspend fun refreshAccounts(): List<ImportAccountListItemDto> {
+        use { checkNotNull(refreshFacts) { "cash_import_account_refresh_missing" }.invoke() }
+        return accounts()
+    }
     suspend fun account(accountId: String) = use { owner.importAccount(accountId) }
     suspend fun selectionAccount(accountId: String) = use(requiresFacts = true) { owner.importSelectionAccount(accountId) }
     suspend fun createAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {

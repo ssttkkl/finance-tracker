@@ -76,6 +76,14 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             if (base.operationKind != "cash_write_set") throw IllegalArgumentException("mutation_receipt_invalid")
             safe["write_set_result"] = receiptWriteSetResult(safe["write_set_result"], "mutation_receipt_invalid")
         }
+        if ("pending_transaction_ids" in safe) {
+            val entries = receiptPendingTransactions(safe["pending_transaction_ids"], "mutation_receipt_invalid")
+            val count = (safe["pending_item_count"] as? JsonPrimitive)?.intOrNull
+            if (base.operationKind != "cash_write_set" || !validReceiptPendingCount(count, entries.size)) {
+                throw IllegalArgumentException("mutation_receipt_invalid")
+            }
+            safe["pending_transaction_ids"] = entries
+        }
         fun count(raw: JsonElement?,positive: Boolean=false,bounded: Boolean=false) {
             val primitive=raw as? JsonPrimitive
             val number=primitive?.takeUnless {it.isString}?.content?.toBigIntegerOrNull()

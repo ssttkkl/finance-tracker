@@ -79,7 +79,8 @@ internal class SessionCacheRepository(
                 if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
                 if (write && original.local.offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 val workspace = checkNotNull(original.session.activeWorkspaceId)
-                Triple(api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace), refreshFor(original, original.generation), original.generation)
+                val bound = api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace, original.session.user.email)
+                Triple(bound, refreshFor(original, original.generation), original.generation)
             }
             suspend fun checkCurrent() {
                 currentCoroutineContext().ensureActive()
@@ -96,6 +97,10 @@ internal class SessionCacheRepository(
     /** User-requested synchronization may retain an already readable cache only on transport loss. */
     internal suspend fun refreshBrowsingFacts(): Boolean {
         val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+        return refreshBrowsingFacts(original)
+    }
+
+    private suspend fun refreshBrowsingFacts(original: ActiveLocal): Boolean {
         val (generation, epoch, wasReadable) = mutex.withLock {
             if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
             val readable = original.readable
@@ -204,6 +209,8 @@ internal class SessionCacheRepository(
                     if (local !== active || this.generation != generation) throw CancellationException("ledger_session_operation_superseded")
                     result.takeIf { active.readable && active.refreshEpoch == epoch }
                 }
+            }, refreshFacts = {
+                if (!refreshBrowsingFacts(active)) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
             })
     }
 

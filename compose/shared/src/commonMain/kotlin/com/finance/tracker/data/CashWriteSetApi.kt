@@ -63,4 +63,11 @@ private suspend fun FinanceApiClient.writeSetReceiptRequest(method: HttpMethod, 
 internal fun validateCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
     try { com.finance.tracker.business.domain.requireCashWriteSetReceipt(receipt) }
     catch (failure: IllegalStateException) { invalidWriteSetReceipt(failure) }
+    receipt.pendingTransactionIds?.let { ids ->
+        val pending = receipt.pendingItemCount
+        if (pending == null || pending !in 0L..ids.size.toLong() || (pending == 0L) != ids.isEmpty() ||
+            ids.toSet().size != ids.size || ids.any { id -> id.toLongOrNull()?.let { it > 0 && it.toString() == id } != true }) {
+            invalidWriteSetReceipt()
+        }
+    }
 }

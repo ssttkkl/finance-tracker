@@ -128,9 +128,15 @@ class ImportAccountViewModelTest {
         vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
         advanceUntilIdle()
         assertFalse(completed)
-        assertEquals(1, repo.currencyCalls.size)
+        assertEquals(listOf(listOf(original), listOf(original)), repo.currencyCalls)
         assertEquals(listOf(original.idempotencyKey), recovery.keys())
         assertEquals("account_result_unknown", vm.state.value.errorCode)
+        repo.unknownWrite = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertTrue(completed)
+        assertEquals(listOf(original), repo.currencyCalls.last())
+        assertTrue(recovery.keys().isEmpty())
     } }
 
     @Test fun creationPersistsKeyBeforeWireThenReadsCurrentAccountWithoutSelectingIt() = runTest { accountTask { vm, repo, recovery ->
@@ -344,7 +350,7 @@ class ImportAccountViewModelTest {
         assertEquals(listOf(original.key), vm.state.value.pendingKeys)
         vm.create("Replacement", "cash", listOf("USD")); advanceUntilIdle()
         assertEquals(1, repo.writes.size)
-        vm.retryOriginal(original.key); advanceUntilIdle()
+        vm.create("Original", "cash", listOf("CNY")); advanceUntilIdle()
         assertEquals(listOf(original, original), repo.writes)
         vm.detach()
         val restored = ImportAccountViewModel(repo, recovery)
@@ -571,6 +577,28 @@ class ImportAccountViewModelTest {
         assertTrue(vm.state.value.pendingKeys.isEmpty())
         assertTrue(repo.writes.isEmpty())
     } }
+
+    @Test fun bookingRetryKeepsTheOriginalCommandAcrossAReconnectedSession() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val recovery = AccountRecovery()
+            val initial = AccountRepository().apply { unknownWrite = true }
+            val vm = ImportAccountViewModel(initial, recovery, trackRecoveredCreation = true) { "first-account" }
+            vm.restore(); advanceUntilIdle()
+            vm.create("Daily cash", "cash", listOf("CNY")); advanceUntilIdle()
+            val attempted = initial.writes.single()
+
+            val reconnected = AccountRepository()
+            vm.rebindForBooking(reconnected); advanceUntilIdle()
+            assertEquals("Daily cash", vm.state.value.pendingCreation?.name)
+            assertTrue(reconnected.writes.isEmpty())
+
+            vm.create("Daily cash", "cash", listOf("CNY")); advanceUntilIdle()
+            assertEquals(attempted, reconnected.writes.single())
+            assertEquals("1", vm.state.value.createdAccountId)
+            assertTrue(recovery.keys().isEmpty())
+        } finally { Dispatchers.resetMain() }
+    }
 
     private suspend fun TestScope.accountTask(block: suspend TestScope.(ImportAccountViewModel, AccountRepository, AccountRecovery) -> Unit) {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))

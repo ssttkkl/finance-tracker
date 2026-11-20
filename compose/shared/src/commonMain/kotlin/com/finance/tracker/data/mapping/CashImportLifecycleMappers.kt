@@ -69,7 +69,7 @@ internal fun ImportAccountDto.toDomain() = ImportAccount(accountId, name, type, 
 internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId, operationKind, committed, createdAt, status, summary, legacyByAccount,
     needsAttentionCount, pendingItemCount, projectionVersion, retainedTransactionId, accountId, accountRevision, account?.toDomain(),
     commitOutcome?.let { ImportCommitOutcome(it.hasNewFailures, it.hasBusinessWrites, it.reasonCodes) },
-    ledgerSeq?.let(::checkedReceiptLedgerSequence), writeSetResult)
+    ledgerSeq?.let(::checkedReceiptLedgerSequence), writeSetResult, pendingTransactionIds)
 internal fun checkedReceiptLedgerSequence(text: String): String = text.also {
     check(it.toLongOrNull()?.let { number -> number >= 0 && number.toString() == it } == true) { "ledger_version_invalid" }
 }

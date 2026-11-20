@@ -7,7 +7,8 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.time.Instant
 
 /** Only the input adapter constructs this after normalizing the complete filter map and zone. */
-class LocalCashLedgerQueryInput internal constructor(filters: Map<String, String?>, val start: Instant? = null, val end: Instant? = null) {
+class LocalCashLedgerQueryInput internal constructor(filters: Map<String, String?>,
+    val start: Instant? = null, val end: Instant? = null, internal val transactionIds: Set<String>? = null) {
     internal val normalizedFilters: Map<String, String?> = filters.toMap()
     val filters: Map<String, String?> get() = normalizedFilters.toMap()
     internal val minimum = normalizedFilters["amount_min"]?.let(LedgerArithmeticValue::fromCanonical)
@@ -55,6 +56,7 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     private fun accepts(row: Row, input: LocalCashLedgerQueryInput): Boolean {
         val filters = input.normalizedFilters
         val view = row.view
+        if (input.transactionIds != null && row.entry.projection.memberIds.none { it.toString() in input.transactionIds }) return false
         if (filters["state"] != "all" && view.state != filters["state"]) return false
         val confirmation = filters["confirmation_status"]
         if (confirmation != null && (view.attentionCount > 0) != (confirmation == "pending")) return false

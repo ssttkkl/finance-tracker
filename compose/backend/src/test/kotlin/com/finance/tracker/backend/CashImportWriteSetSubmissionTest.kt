@@ -96,7 +96,15 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val alias = service.submit(token, ws, payload(db, ws, original.copy(entryDependencies = observed(facts(db, ws)))), "summary-alias")
         assertActualSummary(alias, mapOf("duplicate" to 1), writes = false)
         val draft = changes(account, "summary-draft").let { source -> source.copy(transactions = source.transactions.map { it.copy(values = it.values.copy(state = "draft")) }) }
-        assertActualSummary(service.submit(token, ws, payload(db, ws, draft), "summary-draft"), mapOf("saved_draft" to 1), pending = 1)
+        val draftRequest = payload(db, ws, draft)
+        val savedDraft = service.submit(token, ws, draftRequest, "summary-draft")
+        assertActualSummary(savedDraft, mapOf("saved_draft" to 1), pending = 1)
+        val pendingTransaction = identityResult(savedDraft).transactions.single().id
+        assertEquals(listOf(pendingTransaction), savedDraft.getValue("pending_transaction_ids").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(savedDraft, service.submit(token, ws, draftRequest, "summary-draft"))
+        val draftReplay = service.submit(token, ws, payload(db, ws, draft.copy(entryDependencies = observed(facts(db, ws)))), "summary-draft-alias")
+        assertActualSummary(draftReplay, mapOf("duplicate" to 1), writes = false)
+        assertEquals(JsonArray(emptyList()), draftReplay["pending_transaction_ids"])
         fun change(record: String, state: String, note: String, key: String): JsonObject {
             val before = facts(db, ws); val parent = before.cashTransactions.single { it.recordId == record }
             val row = observedSource(parent, before, note).let { it.copy(values = it.values.copy(state = state)) }
@@ -138,7 +146,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val readOnlyDependencies = existingEntries(before)
         val request = payload(db, ws, readOnlyDependencies.copy(transactions = listOf(row)))
         val unchanged = service.submit(token, ws, request, "summary-one-affected")
-        assertActualSummary(unchanged, mapOf("duplicate" to 1), pending = 1, attention = 1, writes = false)
+        assertActualSummary(unchanged, mapOf("duplicate" to 1), writes = false)
         val empty = service.submit(token, ws, payload(db, ws, readOnlyDependencies), "summary-read-only")
         assertActualSummary(empty, writes = false)
         val oldIssue = before.cashTransactionIssues.single { it.transactionId == parent.id }
@@ -176,7 +184,7 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         assertEquals("D", facts(db, ws).cashEntries.single().note)
         assertEquals(saved.cashTransactions, facts(db, ws).cashTransactions)
     }
-    @Test fun actualPendingGroupsIncludeUntouchedMembersWithoutInflatingAffectedAttention() = authenticated { db, ws, account, token, _ ->
+    @Test fun duplicateMembersDoNotPresentAnOlderPendingGroupAsNewWork() = authenticated { db, ws, account, token, _ ->
         val service = CashImportWriteSetSubmissionService(db, now = clock)
         val relations = refundRelationInput(db, ws, account, token)
         service.submit(token, ws, payload(db, ws, relations), "summary-pending-merge")
@@ -189,10 +197,10 @@ class CashImportWriteSetSubmissionTest(private val backend: String) {
         val expense = current.cashTransactions.single { it.recordId == "source" }
         val input = existingEntries(current).copy(transactions = listOf(observedSource(expense, current, expense.note)))
         assertActualSummary(service.submit(token, ws, payload(db, ws, input), "summary-pending-expense"),
-            mapOf("duplicate" to 1), pending = 1, attention = 0, writes = false)
+            mapOf("duplicate" to 1), writes = false)
         val withRefund = input.copy(transactions = listOf(observedSource(refund, current, refund.note)))
         assertActualSummary(service.submit(token, ws, payload(db, ws, withRefund), "summary-pending-refund"),
-            mapOf("duplicate" to 1), pending = 1, attention = 1, writes = false)
+            mapOf("duplicate" to 1), writes = false)
         assertEquals(current, facts(db, ws))
     }
     @Test fun actualFactsEntriesBalanceAndReceiptCommitInOneVersionWithoutLimitingOpaqueRefs() = authenticated { db, ws, account, token, user ->

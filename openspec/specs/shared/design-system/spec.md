@@ -302,7 +302,7 @@ A dialog action area MUST present at most one confirming action and one dismissi
 
 #### Scenario: 已关闭的确认收到需要处理的结果
 - **WHEN** 原任务需要核实结果、刷新事实或修正输入
-- **THEN** 所属任务 MUST 持续显示对应状态及可用动作，结果未知时不得重复提交
+- **THEN** 所属任务 MUST 持续显示对应的业务状态及可用动作；写入恢复遵守[写入恢复沿用业务操作](#requirement-写入恢复沿用业务操作)
 
 ### Requirement: Dialog internal measurements follow the Material 3 variant
 Compose modal containers MUST apply the measurement contract for their presentation variant while preserving approved product behavior. Basic Dialogs MUST use a 28 dp corner radius, 280 dp minimum width when the viewport allows it, 560 dp maximum width, and 24 dp outer padding. Their height MUST follow content and available viewport constraints without an arbitrary fixed height cap; when content exceeds available height, only the body MUST scroll while the title and actions remain visible. A Basic Dialog title area MUST use content-driven height, retain the approved top-left close affordance as a product exception, and keep 24 dp inset from its edges. The title/body gap MUST be 16 dp, body/actions gap MUST be 24 dp, and buttons MUST have 8 dp spacing with the action group aligned to the trailing edge. Compact Full-screen Dialogs MUST use a 56 dp header according to the spec table, a 24 dp left close icon, a 1 dp optional divider, 24 dp top and horizontal content insets, and a fixed 56 dp bottom action bar; their container MUST fill the available viewport and MUST NOT exceed 560 dp in width. A modal Side Sheet MUST retain its approved width, have 16 dp top, bottom, and logical-end margins when detached, and keep the 16 dp start inset, 24 dp top inset, and 12 dp spacing between header elements. Its content MUST use 24 dp side insets. Its bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs, DatePickerDialogs, and compact filter ModalBottomSheets MUST retain their component-specific measurements.
@@ -334,3 +334,68 @@ Compose modal containers MUST apply the measurement contract for their presentat
 - **AND** its actions MUST align left with the primary action first
 - **AND** its close icon MUST remain on the left per the approved product contract
 - **AND** its dismissal/commit behavior MUST remain unchanged
+
+### Requirement: 短暂操作反馈使用 Snackbar
+
+Web、Android 和 iOS MUST 在当前可见任务使用 Snackbar 提示需要即时告知的短暂操作结果，例如复制结果、操作明确失败但当前任务可以继续。Snackbar MUST NOT 抢占焦点或要求确认，同一结果只提示一次。当前界面已经明确显示成功时 MUST 省去重复提示，业务规格明确要求反馈该结果时按其规定呈现。
+
+输入修正、阻断任务的状态和后续必做动作 MUST 持续保留在所属位置。Snackbar MUST NOT 成为这些信息或操作的唯一载体。确认弹窗仍打开时 MUST 在弹窗内显示对应错误。Snackbar 如提供动作，MUST 直接服务同一对象的安全处理，例如重试读取。
+
+#### Scenario: 短暂失败后可以留在原处
+
+- **WHEN** 使用者尝试复制或执行其他局部操作，操作明确失败且页面仍可继续使用
+- **THEN** 所属任务 MUST 显示一次 Snackbar，保留原业务入口，不增加确认弹窗
+
+#### Scenario: 当前页面已经显示成功
+
+- **WHEN** 操作成功并已展示新的链接、所选工作区或其他明确结果，且业务规格没有另行要求反馈
+- **THEN** MUST 让使用者直接使用或查看结果，省去重复成功提示
+
+### Requirement: 同一操作使用一个活动进度提示
+
+共享界面 MUST 在可见任务或对应对象所在位置展示实际进行中的进度。进度已由按钮、条目或当前任务的控件表达时，MUST NOT 为同一操作叠加另一处进度指示、Snackbar 或“处理中”等重复文字。按钮 MUST 保留原业务动作名称。进度控件 MUST 保留无障碍名称及进度语义。权限限制 MUST 使用适用状态，不能显示为活动请求。影响用户判断的业务阶段、可量化的进度和需要用户执行的动作 MAY 用简短文字说明。
+
+#### Scenario: 保存账户与核对结果
+
+- **WHEN** 导入账户保存或核对请求正在执行
+- **THEN** 当前表单 MUST 显示进度，且不因在途操作拥有恢复身份而显示等待用户处理的提示
+- **AND** 请求结束后结果仍不明确时 MUST 显示当前状态，由对应的业务动作接续原请求
+
+#### Scenario: 适用的进度提示已经可见
+
+- **WHEN** 工作区目标行、刷新按钮或最上层导入任务已明确显示在途操作
+- **THEN** 同一操作 MUST 不再显示重复进度提示，失败与待处理提示按对应合同保留
+
+### Requirement: 操作提示只展示业务所需信息
+
+界面 MUST 用用户熟悉的业务名称描述受影响的操作、已知结果及当前可用动作。普通反馈 MUST NOT 展示排查所需的内部信息，例如接口、请求标识、响应状态或调用栈。输入或业务条件需要用户处理时，MUST 指出具体对象和可执行的修正动作。系统 MUST NOT 为了给出具体原因而猜测未确认的事实。
+
+#### Scenario: 保存遇到短暂问题
+
+- **WHEN** 短暂故障影响保存，使用者可以通过原动作安全接续
+- **THEN** 界面 MUST 给出简短保存提示及原“保存”动作，技术细节保留在诊断信息中
+
+### Requirement: 写入恢复沿用业务操作
+
+系统 MUST 承担已确认写入的结果查询、重放判断及数据刷新。支持安全接续时，MUST 沿用当前任务的“保存”“确认导入”等原业务动作，按原用户、工作区、操作对象、操作标识和提交内容接续。只有服务端保证幂等时才允许重发原请求。MUST NOT 要求使用者通过独立的“核实结果”“再检查一次”“重试原请求”等动作处理写入结果，也不得把返回与这些动作组成技术恢复选项。
+
+界面 MUST 遵守[操作提示只展示业务所需信息](#requirement-操作提示只展示业务所需信息)。确认已保存、确认未保存、结果仍不明确时，分别按已知事实呈现。暂时不能继续时保留已确认决定及必要恢复信息，阻止完成依赖该结果的流程。业务允许返回时，返回仍是普通导航，MUST NOT 被当作取消、撤销或完成尚未明确的写入。
+
+无法安全接续原写入时，系统 MUST 先主动刷新有权读取的当前业务内容。一次刷新只能证明当前事实，不能作为原写入的成功或失败证明。刷新本身失败时，MAY 提供明确对象的普通刷新或读取重试。确需使用者更正输入、选择对象，或就变化后的影响作出新的业务决定时，MUST 展示具体差异及相应业务动作。
+
+#### Scenario: 新建账户的响应丢失
+
+- **WHEN** 新建账户请求出错且无法确定是否已经创建
+- **THEN** 表单 MUST 保留原输入，以“保存遇到问题，请重试。”等简短文字说明，并通过原“保存”接续同一次操作
+- **AND** “返回”回到“选择对应账户”并由系统刷新账户列表。原保存未确认时 MUST 阻止完成依赖它的导入
+
+#### Scenario: 删除或批量分类后无法确认结果
+
+- **WHEN** 已确认的删除或批量分类无法确定结果，且该操作不支持安全重发
+- **THEN** 系统 MUST 自动刷新原操作范围的当前内容，按当前事实更新界面，不要求使用者先核实旧操作
+- **AND** 如果确需发起新的操作，MUST 基于最新对象和影响重新确认
+
+#### Scenario: 原决定无需重做
+
+- **WHEN** 短暂故障后原操作可以安全接续，且对象、输入和影响没有变化
+- **THEN** MUST 保留原业务动作与决定，不新增确认弹窗或技术恢复菜单

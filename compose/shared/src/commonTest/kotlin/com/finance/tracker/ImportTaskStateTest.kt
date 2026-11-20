@@ -5,10 +5,11 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
-    @Test fun localBatchRejectionsKeepTheResultPageRecoveryActionWithoutOfferingCancellation() {
+    @Test fun retryableRequestsKeepTheirConfirmationActionWithoutOfferingCancellation() {
         val remote = ImportTaskUiState(frozenCommand = ImportFrozenCommand("plan", 1, "key"),
             submission = ImportSubmissionState.RETRY_ORIGINAL, errorCode = "commit_failed")
-        assertFalse(remote.showRecoveryAction)
+        assertTrue(remote.showRecoveryAction)
+        assertFalse(remote.copy(internalFailure = IllegalStateException("bug")).showRecoveryAction)
         val local = remote.copy(recoveryBatchId = "batch")
         assertTrue(local.showRecoveryAction)
         assertNotNull(local.retryOriginal().activeRequest)

@@ -79,7 +79,7 @@ private class RecordingCashCategoryRepository : CashCategoryRepository {
     }
     override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long) =
         createCashCategory(name, parentId, description, expectedRevision).copy(id = id)
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long, targetId: String?) = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String) = CashCategoryDeleteImpact(id, 1, 1, 0, 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult {
         deletedId = id

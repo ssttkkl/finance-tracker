@@ -710,6 +710,14 @@ export async function installComposeApiFixtures(
       writes.push(values);
       return json({ record: { ...cashRecord, ...values, id: "record-created" } });
     }
+    if (["/api/v1/cash-records/commands", "/api/v1/cashflow/transfer/commands"].includes(pathname) && method === "POST") {
+      writes.push(JSON.parse(body ?? "{}"));
+      return json({
+        receipt_id: "00000000-0000-4000-8000-000000000001", committed: true,
+        operation_kind: pathname.includes("transfer") ? "cash_create_transfer" : "cash_create_manual",
+        ledger_seq: "0", created_at: "2026-11-19T00:00:00Z",
+      }, 201);
+    }
     if (pathname === "/api/v1/cash-records/record-1" && method === "GET") {
       return json({ transaction_id: "record-1", state: "posted", row_revision: 1, record_origin: "import",
         confirmation_status: "confirmed", fields: cashRecord, editable_fields: [], issues: [], relations: [],

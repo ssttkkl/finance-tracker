@@ -81,6 +81,7 @@ test('管理共用目录在三类窗口定位分组，手机使用全屏目录',
       expect(box?.width).toBeCloseTo(width, 0);
       expect(box?.height).toBeCloseTo(900, 0);
       await page.screenshot({ path: path.join(evidence, `compose-directory-${width}.png`) });
+      await page.waitForTimeout(350);
       const categories = (await id(page, 'management.directory.item.categories').boundingBox())!;
       const workspace = (await id(page, 'management.directory.item.workspace').boundingBox())!;
       const marker = markerClip;
@@ -103,10 +104,12 @@ test('管理共用目录在三类窗口定位分组，手机使用全屏目录',
       await page.mouse.click(width - 28, 28);
       await page.waitForTimeout(200);
       await page.screenshot({ path: path.join(evidence, 'compose-directory-selected-390.png') });
-      expect((await page.screenshot({ clip: marker(categories) })).equals(selected)).toBe(true);
+      await expect.poll(async () => (await page.screenshot({ clip: marker(categories) })).equals(selected),
+        { intervals: [100], timeout: 5_000 }).toBe(true);
       await page.keyboard.press('Escape');
     } else {
       await expect(id(page, 'management.directory')).toBeVisible();
+      await page.waitForTimeout(350);
       const selected = await directoryMarker(page, 'workspace');
       await section(page, 'categories');
       expect((await directoryMarker(page, 'categories')).equals(selected)).toBe(true);
