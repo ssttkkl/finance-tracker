@@ -33,14 +33,14 @@
 - [x] 6.4 `FT_COMPOSE_DEMO_MODE=true ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache` 通过且生成 `COMPOSE_DEMO_MODE: Boolean = true`；`python3 compose/tests/test_build_wasm_web.py` 11 项通过。
 - [x] 6.5 `openspec validate --all --strict` 通过；`git diff --check` 通过。
 - [x] 6.6 `:shared:testAndroidHostTest` 与 `:shared:iosSimulatorArm64Test` 的 `LedgerSessionImportsTest` 定向运行通过，覆盖 commonTest 改动的双平台编译与平台化断言。
-- [ ] 6.7 远端 PR #123 的 `Compose client`、`Compose shared and native checks`、`Compose Web E2E` 重新运行并通过。
+- [x] 6.7 远端 PR #123 的 `Compose client`、`Compose shared and native checks`、`Compose Web E2E` 与 `Backend (Kotlin)` 全部通过（提交 `9261eccb`）。`Compose shared and native checks` 首次运行有 2 项 Worker 用例瞬时失败，同一提交的 `Compose client` 与重跑通过；`Backend (Kotlin)` 的既有 `CcxtSdkLifecycleTest` 时序失败也在重跑通过。保留为 CI 资源竞争下的残余风险。
 
 ## 7. 发布
 
 - [x] 7.1 本次没有用户可见文案、业务术语或数据格式变化；用户决策限定为修复 PR 检查失败，没有值得沉淀的新通用规则。
 - [x] 7.2 已归档本 change 为 `2026-11-20-fix-web-compute-worker-ci-checks`；本次没有需要同步的主规格 delta。
-- [ ] 7.3 提交并推送当前分支，等待 PR #123 远端检查。
+- [x] 7.3 已提交为 `9261eccb` 并推送 `dazzling-husky`，PR #123 必需检查全部通过。
 
 ## 验证基线
 
-分支 `dazzling-husky`，代码基线 `690f3df335799ed6c94417d28d5569c9a4240cdb`，比较基线 `origin/main`=`315d710429244fe6a6d5b19486a738464f93f8f2`。2026-11-20 UTC 在 macOS 本机完成上述本地验证：`:shared:wasmJsTest` 覆盖 1037 项；Node 检查 43 项；完整 Playwright Chromium 151 套件运行于 `http://127.0.0.1:5187/`，54 项通过、8 项跳过、0 失败；管理页布局用例在字体等待与稳定边界两版分别重复 6 轮和 2 轮通过。远端 PR 检查结果待推送后记录。
+分支 `dazzling-husky`，代码基线 `690f3df335799ed6c94417d28d5569c9a4240cdb`，比较基线 `origin/main`=`315d710429244fe6a6d5b19486a738464f93f8f2`。2026-11-20 UTC 在 macOS 本机完成上述本地验证：`:shared:wasmJsTest` 覆盖 1037 项；Node 检查 43 项；完整 Playwright Chromium 151 套件运行于 `http://127.0.0.1:5187/`，54 项通过、8 项跳过、0 失败；管理页布局用例在字体等待与稳定边界两版分别重复 6 轮和 2 轮通过。远端 PR 检查于 2026-11-20 UTC 全部通过；详见 6.7。
