@@ -2,6 +2,8 @@
 
 离线时保留缓存账本、详情和本地表单，保存、分类、删除及维护确认受连接资格限制，原角色不变；刷新保留在 FAB 菜单。连接说明与显式核验见[共享规则](../shared/feature-map.md)。
 
+Compose Wasm 在后台从当前账本缓存生成流水列表、筛选和月度汇总，翻页复用同一版本。后台处理失败时保留当前已显示的流水，可通过现有按钮重试。当筛选或版本已变化，上一批流水仅供查看，当前查询成功后恢复选择和批量操作。
+
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)
 
 现金收支支持三类关系硬约束、派生业务标签和稳定收支引用；主动关联搜索返回所选关系类型下可选的现金部分。实现与验证范围见 [关系治理任务](../../openspec/changes/archive/2026-10-30-govern-cash-relation-model/tasks.md) 和 [UI 审查修复](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。

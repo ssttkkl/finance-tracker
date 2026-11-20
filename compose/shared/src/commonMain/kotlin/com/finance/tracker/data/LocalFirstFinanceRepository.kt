@@ -16,7 +16,9 @@ internal class LocalFirstFinanceRepository(
     override suspend fun refreshCashLedgerForReview() {
         if (!refreshBrowsing()) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
     }
-    override suspend fun ledgerVersion(): Long? = local { it.page(limit = 1)?.projectionVersion }
+
+    override suspend fun ledgerVersion(): Long? = local { it.ledgerVersion() }
+
     override suspend fun fetchCashPage(
         filters: CashFilters,
         cursor: String?,

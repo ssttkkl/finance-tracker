@@ -43,7 +43,8 @@ internal suspend fun createWebLedgerFactCache(scope: LedgerCacheScope, existingO
                     finish()
                 }
             },
-            releaseStorage = { withContext(NonCancellable) { finish() } })
+            releaseStorage = { withContext(NonCancellable) { finish() } },
+            retainSnapshotText = true)
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
             try { opened?.close()?.await(); driver?.close() }

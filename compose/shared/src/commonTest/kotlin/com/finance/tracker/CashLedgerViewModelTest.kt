@@ -62,6 +62,10 @@ class CashLedgerViewModelTest {
                 override suspend fun refreshCashLedgerForReview() {
                     if (!strictReviewAvailable) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 }
+
+                override suspend fun refreshCashLedger() {
+                    throw DomainFailure(CASH_LEDGER_WORKER_FAILED, 0, FailureCategory.RECOVERABLE)
+                }
             }
             val viewModel = CashLedgerViewModel(repository, base)
             viewModel.toggleSelection("row-1", true)
@@ -72,9 +76,11 @@ class CashLedgerViewModelTest {
 
             viewModel.refresh()
             advanceUntilIdle()
+            assertEquals(CASH_LEDGER_WORKER_FAILED, viewModel.state.value.listLoadErrorCode)
             viewModel.reviewActionResult()
             advanceUntilIdle()
             assertTrue(viewModel.state.value.needsActionReview)
+            assertEquals(CASH_LEDGER_WORKER_FAILED, viewModel.state.value.listLoadErrorCode)
             assertEquals("network_unavailable", viewModel.state.value.actionReviewErrorCode)
             viewModel.toggleSelection("row-1", true)
             viewModel.classifySelection(canWrite = true)
@@ -85,6 +91,7 @@ class CashLedgerViewModelTest {
             viewModel.reviewActionResult()
             advanceUntilIdle()
             assertFalse(viewModel.state.value.needsActionReview)
+            assertNull(viewModel.state.value.listLoadErrorCode)
             assertTrue(viewModel.state.value.selectedIds.isEmpty())
         } finally {
             Dispatchers.resetMain()

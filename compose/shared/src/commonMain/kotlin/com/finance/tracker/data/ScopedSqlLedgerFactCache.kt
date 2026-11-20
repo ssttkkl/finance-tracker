@@ -4,6 +4,8 @@ import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.domain.LedgerCacheScope
+import com.finance.tracker.domain.LedgerSnapshotTextCache
+import com.finance.tracker.domain.PreparedLedgerSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -21,7 +23,8 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private val closeDriver: suspend () -> Unit,
     private val eraseStorage: suspend () -> Unit,
     private val releaseStorage: suspend () -> Unit,
-) : LedgerStorage {
+    private val retainSnapshotText: Boolean,
+) : LedgerStorage, LedgerSnapshotTextCache {
     private val mutex = Mutex()
     private val closed = MutableStateFlow(false)
     private var driverClosed = false
@@ -31,10 +34,13 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
     private var importStore: SqlLedgerImportBatchStore? = null // Access only while holding mutex.
+    private data class RetainedSnapshot(val text: String, val ledgerVersion: Long)
+    private var retainedSnapshot: RetainedSnapshot? = null // Scoped owner and storage mutex.
 
     override val imports: LedgerImportBatches = object : LedgerImportBatches {
         override suspend fun list(): List<String> = withImports { it.list(scope) }
         override suspend fun read(batchId: String): List<LocalCashImportFile>? = withImports { it.read(scope, batchId) }
+        override suspend fun readEncoded(batchId: String): List<String>? = withImports { it.readEncoded(scope, batchId) }
         override suspend fun save(batchId: String, files: List<LocalCashImportFile>) {
             val frozen = files.toList()
             withImports { it.save(scope, batchId, frozen) }
@@ -50,6 +56,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
         override suspend fun remove(batchId: String) = withImports { it.remove(scope, batchId) }
         override suspend fun readReview(batchId: String): com.finance.tracker.business.domain.LocalCashImportReview? =
             withImports { it.readReview(scope, batchId) }
+        override suspend fun readEncodedReview(batchId: String) = withImports { it.readEncodedReview(scope, batchId) }
         override suspend fun saveReview(batchId: String, input: com.finance.tracker.business.domain.LocalCashImportReview) =
             withImports { it.saveReview(scope, batchId, input) }
         override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = withImports { it.readSubmission(scope, batchId) }
@@ -59,19 +66,22 @@ internal class ScopedSqlLedgerFactCache private constructor(
             withImports { it.recordBaseRejection(scope, batchId, expected) }
         override suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?) =
             withImports { it.retireRejectedSubmission(scope, batchId, expected, newerBase, replacement) }
-        override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) {
-            val frozen = LocalCashImportSubmission.freezeReceipt(receipt)
-            withImports { it.recordReceipt(scope, batchId, frozen) }
-        }
+        override suspend fun recordReceipt(batchId: String, receipt: com.finance.tracker.business.contracts.CashMutationReceiptDto) =
+            withImports { it.recordReceipt(scope, batchId, receipt) }
         override suspend fun archiveResult(batchId: String, serverItems: List<com.finance.tracker.business.contracts.CashMutationResultDto>?) = withImports { it.archiveResult(scope, batchId, serverItems) }
+        override suspend fun archiveResultPages(batchId: String, pages: List<String>) = withImports { it.archiveResultPages(scope, batchId, pages) }
         override suspend fun readResult(receiptId: String) = withImports { it.readResult(scope, receiptId) }
         override suspend fun readResultByBatchId(batchId: String) = withImports { it.readResultByBatchId(scope, batchId) }
         override suspend fun readResultByKey(key: String) = withImports { it.readResultByKey(scope, key) }
-        override suspend fun completeSubmission(batchId: String) = withImports { batches ->
-            val facts = store.read(scope)
+        override suspend fun completeSubmission(batchId: String) = completeSubmission(batchId, null)
+        override suspend fun completeSubmission(batchId: String, archived: LocalCashImportResult?) = withImports { batches ->
+            val version = if (retainSnapshotText) {
+                currentSnapshotText()
+                retainedSnapshot?.ledgerVersion?.toString()
+            } else store.read(scope)?.ledgerSeq
             currentCoroutineContext().ensureActive()
             requireActive()
-            batches.completeSubmission(scope, batchId, facts?.ledgerSeq)
+            batches.completeSubmission(scope, batchId, version, archived)
         }
     }
 
@@ -90,10 +100,11 @@ internal class ScopedSqlLedgerFactCache private constructor(
     companion object {
         /** closeDriver must await actual connection shutdown, including Worker/VFS handles. */
         suspend fun open(scope: LedgerCacheScope, driver: SqlDriver, closeDriver: suspend () -> Unit,
-            eraseStorage: suspend () -> Unit, releaseStorage: suspend () -> Unit = {}): ScopedSqlLedgerFactCache = try {
+            eraseStorage: suspend () -> Unit, releaseStorage: suspend () -> Unit = {},
+            retainSnapshotText: Boolean = false): ScopedSqlLedgerFactCache = try {
             val store = SqlLedgerSnapshotStore.open(driver)
             currentCoroutineContext().ensureActive()
-            ScopedSqlLedgerFactCache(scope, driver, store, closeDriver, eraseStorage, releaseStorage)
+            ScopedSqlLedgerFactCache(scope, driver, store, closeDriver, eraseStorage, releaseStorage, retainSnapshotText)
         } catch (failure: Throwable) {
             withContext(NonCancellable) {
                 try { closeDriver() }
@@ -103,11 +114,52 @@ internal class ScopedSqlLedgerFactCache private constructor(
         }
     }
 
+    override suspend fun readSnapshotText(scope: LedgerCacheScope): String? {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val text = currentSnapshotText()
+            requireActive()
+            text
+        }
+    }
+
+    override suspend fun readSnapshotVersion(scope: LedgerCacheScope): Long? {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val version = if (retainSnapshotText) {
+                currentSnapshotText()
+                retainedSnapshot?.ledgerVersion
+            } else store.read(scope)?.ledgerSeq?.toLong()
+            requireActive()
+            version
+        }
+    }
+
+    override suspend fun readPreparedSnapshot(scope: LedgerCacheScope): PreparedLedgerSnapshot? {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val text = currentSnapshotText() ?: return@withLock null
+            val sequence = retainedSnapshot?.ledgerVersion?.toString() ?: store.decode(scope, text).ledgerSeq
+            requireActive()
+            PreparedLedgerSnapshot(text, scope.workspaceId, sequence)
+        }
+    }
+
+    private suspend fun currentSnapshotText(): String? = retainedSnapshot?.text ?: store.readText(scope)?.also { text ->
+        if (retainSnapshotText) {
+            val version = validateCachedLedgerVersion(scope.workspaceId, text) ?: store.decode(scope, text).ledgerSeq.toLong()
+            retainedSnapshot = RetainedSnapshot(text, version)
+        }
+    }
+
     override suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? {
         requireScope(scope)
         return mutex.withLock {
             requireActive()
-            val snapshot = store.read(scope)
+            val snapshot = if (retainSnapshotText) currentSnapshotText()?.let { store.decode(scope, it) } else store.read(scope)
             requireActive()
             snapshot
         }
@@ -117,8 +169,33 @@ internal class ScopedSqlLedgerFactCache private constructor(
         requireScope(scope)
         mutex.withLock {
             requireActive()
-            store.replace(scope, snapshot)
+            retainedSnapshot = null // A failed acknowledgement can follow a successful storage write.
+            val text = store.replace(scope, snapshot)
+            if (retainSnapshotText) retainedSnapshot = RetainedSnapshot(text, snapshot.ledgerSeq.toLong())
             requireActive()
+        }
+    }
+
+    override suspend fun replaceSnapshot(scope: LedgerCacheScope, snapshot: PreparedLedgerSnapshot) {
+        requireScope(scope)
+        check(snapshot.workspaceId == scope.workspaceId) { "ledger_snapshot_workspace_mismatch" }
+        val version = checkNotNull(snapshot.ledgerSeq.toLongOrNull()?.takeIf { it >= 0 }) { "ledger_version_invalid" }
+        mutex.withLock {
+            requireActive()
+            retainedSnapshot = null
+            store.replaceText(scope, snapshot.text)
+            if (retainSnapshotText) retainedSnapshot = RetainedSnapshot(snapshot.text, version)
+            requireActive()
+        }
+    }
+
+    override suspend fun matchesOfflineSession(scope: LedgerCacheScope, token: String): Boolean {
+        requireScope(scope)
+        return mutex.withLock {
+            requireActive()
+            val matches = sessionStore().read(scope, token) != null
+            requireActive()
+            matches
         }
     }
 
@@ -126,9 +203,9 @@ internal class ScopedSqlLedgerFactCache private constructor(
         requireScope(scope)
         return mutex.withLock {
             requireActive()
-            val facts = store.read(scope)
+            val hasFacts = if (retainSnapshotText) currentSnapshotText() != null else store.read(scope) != null
             requireActive()
-            if (facts == null) return@withLock null
+            if (!hasFacts) return@withLock null
             val session = sessionStore().read(scope, token)
             requireActive()
             session
@@ -139,7 +216,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
         requireScope(scope)
         mutex.withLock {
             requireActive()
-            check(store.read(scope) != null) { "ledger_cache_missing" }
+            check(if (retainSnapshotText) currentSnapshotText() != null else store.read(scope) != null) { "ledger_cache_missing" }
             requireActive()
             sessionStore().save(scope, token, session)
             requireActive()
@@ -161,6 +238,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
         mutex.withLock {
             check(termination == null || termination == requested) { "ledger_cache_close_mode_invalid" }
             termination = requested
+            retainedSnapshot = null
             if (!driverClosed) { closeDriver(); driverClosed = true }
             if (requested == Termination.ERASE) {
                 if (!erased) { eraseStorage(); erased = true }

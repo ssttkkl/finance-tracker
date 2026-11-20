@@ -93,6 +93,7 @@ internal class LedgerSessionRestoration(
     override suspend fun page(filters: CashFiltersDto, timeZoneId: String?,
         cursor: String?, startIndex: Int?, expectedLedgerSeq: Long?, limit: Int): CashPageDto? =
         readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
+    override suspend fun ledgerVersion() = readReady { it.ledgerVersion() }
 
     override suspend fun imports(): LedgerSessionImports? = readReady { owner ->
         LedgerSessionImports(owner, { _ ->

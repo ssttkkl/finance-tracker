@@ -90,9 +90,7 @@ for (const missing of ["wasm", "gc", "legacy-eh"] as const) {
     expect(appRequests).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await diagnostics.settle();
-    expect(diagnostics.consoleErrors).toEqual([
-      expect.stringMatching(/^\[Finance Tracker runtime\] \{[^}]*\bkind: startup, wasmSupported: false\b/),
-    ]);
+    expect(diagnostics.consoleErrors).toEqual([]);
     expect(diagnostics.failedRequests).toEqual([]);
     expect(diagnostics.staticHttpErrors).toEqual([]);
   });

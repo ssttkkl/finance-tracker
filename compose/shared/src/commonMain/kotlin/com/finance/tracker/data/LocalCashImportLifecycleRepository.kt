@@ -188,9 +188,8 @@ internal class LocalCashImportLifecycleRepository(
         val original = binding.imports.importSubmission(batchId)
         val command = task.mutex.withLock { task.command }
         val result = try { task.coordinator.resume { displayedReceipt ->
-            val archived = checkNotNull(binding.imports.importResultByBatchId(batchId)) { "cash_import_result_missing" }
-            check(archived.displayReceipt() == displayedReceipt) { "cash_import_receipt_changed" }
-            val displayed = archived.displayReceipt().toDomain()
+            check(original?.resultInput != null) { "cash_import_result_missing" }
+            val displayed = displayedReceipt.toDomain()
             delivered = displayed
             onCommitted(displayed)
         } } catch (changed: CashImportPlanError) {
@@ -206,7 +205,7 @@ internal class LocalCashImportLifecycleRepository(
             throw changed
         }
         result.recoveryFailure?.let { failure ->
-            val displayed = try {
+            val displayed = delivered ?: try {
                 binding.imports.importResultByBatchId(batchId)?.displayReceipt()?.toDomain() ?: result.receipt.toDomain()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (readFailure: Exception) { failure.addSuppressed(readFailure); result.receipt.toDomain() }
@@ -281,25 +280,17 @@ internal class LocalCashImportLifecycleRepository(
         if (limit !in 1..200) invalidLocalImportInput()
         val binding = binding()
         val archived = checkNotNull(binding.imports.importResult(receiptId)) { "cash_import_result_missing" }
-        val actual = checkNotNull(archived.serverItems()) { "cash_import_results_incomplete" }
-        val items = actual.filter { it.resultKind == kind.name.lowercase() }.map {
+        val result = try { readCashImportArchivePage(archived, kind.name.lowercase(), offset, limit) }
+        catch (failure: IllegalArgumentException) {
+            if (failure.message == "import_payload_invalid") invalidLocalImportInput()
+            throw failure
+        }
+        val page = result.items.map {
             ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef,
                 it.transactionId, it.relationId, it.accountId)
-        } + if (kind == ImportResultKind.ROW) archived.rows().mapIndexed { index, raw ->
-            val row = raw.jsonObject
-            val action = row.getValue("planned_action").jsonPrimitive.content
-            ImportResultItem("local-row:$index", "row", row.getValue("row_ref").jsonPrimitive.content,
-                if (action == "skip") "skipped" else "duplicate", row.textOrNull("code"), null, row.textOrNull("operation_ref"),
-                row.textOrNull("transaction_id"), null, null)
-        } else archived.relationFailures().mapIndexed { index, raw ->
-            val failure = raw.jsonObject
-            ImportResultItem("local-relation:$index", "relation", failure.textOrNull("suggestion_id") ?: "local-relation:$index",
-                "failed", failure.getValue("code").jsonPrimitive.content, null, null, null, null, null)
         }
-        if (offset > items.size) invalidLocalImportInput()
-        val page = items.drop(offset).take(limit)
         val current = binding.imports.importProjectionRefs(page.mapNotNull { it.transactionId })
-        ImportResultPage(page, (offset + page.size).takeIf { it < items.size }?.toString(),
+        ImportResultPage(page, result.nextAfter,
             current?.refs.orEmpty().map { ImportProjectionRef(it.transactionId, it.projectionId) }, current?.projectionVersion ?: 0)
     }
 
@@ -342,19 +333,19 @@ private val localImportJson = Json { ignoreUnknownKeys = true; encodeDefaults = 
 private fun newLocalImportId(): String = Random.nextBytes(24).joinToString("") { it.toUByte().toString(16).padStart(2, '0') }
 private fun invalidLocalImportInput(): Nothing = throw DomainFailure("import_payload_invalid", 0, FailureCategory.RECOVERABLE)
 private fun JsonObject.textOrNull(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
-private val localFileInputFailures = setOf("import_payload_invalid", "import_file_unsupported_type", "import_file_size_unavailable", "import_file_too_large")
+private val localFileInputFailures = setOf("import_payload_invalid", "import_file_unsupported_type", "import_file_size_unavailable", "import_file_too_large", "import_file_read_failed", "cash_import_file_worker_failed")
 
 private class LocalImportFileReadFailure(cause: kotlinx.io.IOException) : Exception("import_file_read_failed", cause)
-private fun localImportFileSource(original: FileSource): FileSource {
-    if (original !is BoundedFileSource) return original
-    return object : BoundedFileSource {
-        override val name = original.name
-        override val mediaType = original.mediaType
-        override val size = original.size
-        override val lastModifiedAtMillis = original.lastModifiedAtMillis
-        override suspend fun read(): ByteArray = try { original.read() }
-            catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
-        override suspend fun readBounded(maxBytes: Int): ByteArray = try { original.readBounded(maxBytes) }
-            catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
-    }
+private fun localImportFileSource(original: FileSource): FileSource =
+    if (original is BoundedFileSource) LocalImportFileSource(original) else original
+
+internal class LocalImportFileSource(val original: BoundedFileSource) : BoundedFileSource {
+    override val name = original.name
+    override val mediaType = original.mediaType
+    override val size = original.size
+    override val lastModifiedAtMillis = original.lastModifiedAtMillis
+    override suspend fun read(): ByteArray = try { original.read() }
+        catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
+    override suspend fun readBounded(maxBytes: Int): ByteArray = try { original.readBounded(maxBytes) }
+        catch (failure: kotlinx.io.IOException) { throw LocalImportFileReadFailure(failure) }
 }

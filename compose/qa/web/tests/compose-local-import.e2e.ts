@@ -1,4 +1,5 @@
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,110 @@ import { captureBrowserDiagnostics, clickStableComposeTarget, installComposeApiF
 
 // Each persistent context belongs to a separate browser process and has its own trace.
 test.use({ trace: "off" });
+
+function isCashImportPreviewWorker(worker: { url(): string }) {
+  const url = new URL(worker.url());
+  return !url.hash && /^\/cash-import-worker\/assets\/[a-f0-9]{64}\/entry\.mjs$/.test(url.pathname);
+}
+
+test("现金导入 Worker 在浏览器断网后可取消并重建", async ({ page, context }) => {
+  await page.goto("/health");
+  const clientUrl = "/cash-import-worker/client.mjs";
+  const warming = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
+  await page.evaluate(async (url) => { await import(url); }, clientUrl);
+  const original = await warming;
+  await expect.poll(() => original.evaluate(() => typeof self.onmessage)).toBe("function");
+  const count = 1_000;
+  const ledgerSeq = "9007199254740993";
+  const payload = syntheticPreviewPayload(count, ledgerSeq);
+  await context.setOffline(true);
+  const restarting = page.waitForEvent("worker", { predicate: isCashImportPreviewWorker });
+  const result = await page.evaluate(async ({ clientUrl, payload }) => {
+    const { openPreview, readPreview, freezeConfirmation, inspectBatch } = await import(clientUrl);
+    const cancelled = openPreview(payload);
+    cancelled.cancel();
+    await cancelled.result.catch(() => {});
+    let frames = 0;
+    let clicks = 0;
+    let complete = false;
+    const countFrame = () => {
+      if (complete) return;
+      frames++;
+      requestAnimationFrame(countFrame);
+    };
+    requestAnimationFrame(countFrame);
+    document.body.addEventListener("click", () => clicks++, { once: true });
+    setTimeout(() => document.body.click(), 20);
+    const response = await openPreview(payload).result;
+    complete = true;
+    const header = JSON.parse(response.header);
+    const page = JSON.parse((await readPreview(JSON.stringify({ mode: "items", start: 50, limit: 50 }), response.items).result).payload);
+    const detail = JSON.parse((await readPreview(JSON.stringify({ mode: "detail", id: header.items[0].preview_item_id }),
+      response.detail).result).payload);
+    const frozen = await freezeConfirmation(response.confirmation).result;
+    const writeSet = JSON.parse(frozen.body);
+    if (JSON.parse(frozen.resultInput).version !== 1) throw new Error("Missing frozen result material");
+    const legacyBatch = await inspectBatch(JSON.stringify(["preserved UTF-16: \uD800"])).result;
+    const invalidBatch = await inspectBatch('{"version":1,"files":[],"attempt":"2"}').result;
+    return { legacyBatch, invalidBatch, frames, clicks, ledgerSeq: writeSet.base_ledger_seq, rows: writeSet.changes.transactions.length,
+      exactAmount: writeSet.changes.transactions.every((row: { values: { amount: string } }) => row.values.amount === "-10.0001"),
+      headerChars: response.header.length, firstPage: header.items.length, secondPage: page.items.length, total: page.total_count,
+      detailMatches: detail.preview_item_id === header.items[0].preview_item_id,
+      shared: response.confirmation instanceof SharedArrayBuffer && response.items instanceof SharedArrayBuffer };
+  }, { clientUrl, payload });
+  expect(await restarting).not.toBe(original);
+  expect(result).toMatchObject({ ledgerSeq, rows: count, clicks: 1, exactAmount: true, firstPage: 50, secondPage: 50,
+    total: count, detailMatches: true, shared: true,
+    legacyBatch: { files: ["preserved UTF-16: \uD800"], attempt: 0 },
+    invalidBatch: { code: "internal_error", phase: "inspectBatch" } });
+  expect(result.headerChars).toBeLessThan(100_000);
+  expect(result.frames).toBeGreaterThan(1);
+});
+
+function syntheticPreviewPayload(count: number, ledgerSeq: string) {
+  const method = "支付宝余额";
+  const owner = "synthetic";
+  const source = "alipay";
+  const sourceAccountRef = createHash("sha256")
+    .update(JSON.stringify(["funding-group-v1", source, "payment_method", owner, method])).digest("hex");
+  const rows = Array.from({ length: count }, (_, i) => {
+    const id = `TEST-${i}`;
+    return {
+      position: i + 1,
+      fields: {
+        amount: "-10.0001", currency: "CNY", occurred_at: "2026-08-15T02:00:00Z",
+        record_type: "consumption", record_subtype: "not_applicable", counterparty: `合成商户 ${i}`,
+        note: "合成账单", source_payload: { 交易订单号: id, "收/付款方式": method, "收/支": "支出", 交易状态: "交易成功" },
+      },
+      payment_method: method, provider_id: id, issue_codes: [], error_code: null, disposition: "normalized",
+      source_account_identifier: null, document_position: null,
+      source_explanation: { txn_id: id, payment_method: method, platform_status: "交易成功", _alipay_direction: "支出" },
+    };
+  });
+  const facts = {
+    accounts: [{ id: "10", name: "合成账户", type: "cash", active: true, currencies: ["CNY"], revision: ledgerSeq }],
+    account_aliases: [], statement_account_mappings: [], cash_categories: [], cash_transactions: [],
+    cash_transaction_components: [], cash_source_bindings: [], cash_source_empty_pages: [], transaction_relations: [],
+    cash_relation_candidates: [], cash_transaction_issues: [], cash_issue_candidates: [], cash_entries: [],
+    cash_entry_members: [], cash_investment_funding_relations: [], category_directory_revision: "0",
+  };
+  return JSON.stringify({
+    files: [{
+      fileRef: "f", digest: "f".repeat(64), status: "parsed", filename: "synthetic.csv", size: count, sourceType: source,
+      document: {
+        source_type: source, table_key: "csv", parser_version: "p", rows, source_account_identifier: owner,
+        source_account_label: null, coverage: { start: null, end: null, complete: false, evidence: "", filters: {}, strategyVersion: "v" },
+        declared_count: count, observed_count: count, source_nickname: null,
+      },
+    }],
+    snapshot: { workspace_id: "w", ledger_seq: ledgerSeq, rules_version: "cash-rules-v1", facts },
+    planId: "synthetic", batchId: "batch", revision: 2, timezone: "Asia/Shanghai",
+    choices: {
+      account_selections: [{ source_account_ref: sourceAccountRef, account_id: "10", expected_account_revision: "$EXACT_REVISION" }],
+      row_choices: [], relation_choices: [], entry_choices: [],
+    },
+  }).replace('"$EXACT_REVISION"', ledgerSeq);
+}
 
 async function waitForCanvasToSettle(page: import("@playwright/test").Page) {
   let previousFrame: Buffer | undefined;
@@ -28,13 +133,13 @@ const feedbackCsv = [
 test("读取账单期间点击关闭在当前导入任务提示一次，原读取继续", async ({ page }) => {
   await installComposeApiFixtures(page);
   await page.addInitScript(() => {
-    const read = FileReader.prototype.readAsArrayBuffer;
-    FileReader.prototype.readAsArrayBuffer = function (file) {
-      if (file instanceof File && file.name === "snackbar-import.csv") {
-        Object.assign(window, { releaseImportRead: () => read.call(this, file) });
-      } else {
-        read.call(this, file);
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, transfer) {
+      if (message.operation === "captureFile" && message.payload.file.name === "snackbar-import.csv") {
+        Object.assign(window, { releaseImportRead: () => post.call(this, message, transfer ?? []) });
+        return;
       }
+      return post.call(this, message, transfer ?? []);
     };
   });
   await page.goto("/w/workspace-1/cash-import");
@@ -134,8 +239,11 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
 
 for (const scenario of ["normal", "conflict", "completion"] as const) {
 const recheckAfterConflict = scenario === "conflict";
+const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";
-test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : interruptCompletion ? "，已保存后恢复结果整理" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+const interruptArchive = scenario === "archive-worker";
+const interruptSnapshot = scenario === "snapshot-worker";
+test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -183,9 +291,11 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   let diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
   const oldImportRequests: string[] = [];
   const writeKeys: string[] = [];
+  const receiptLookups: string[] = [];
   const observeRequests = (target: Page) => target.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (/\/cash-import\/(sessions|plans)(?:\/|$)/.test(path)) oldImportRequests.push(path);
+    if (path === "/api/v1/cash-mutations/receipts/by-key") receiptLookups.push(request.url());
     if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
       writeKeys.push(request.headers()["idempotency-key"] ?? "");
     }
@@ -241,9 +351,40 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号",
     "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
   ].join("\n");
+  const previewWorker = () => page.workers().find(isCashImportPreviewWorker);
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  if (scenario === "normal") {
+    await previewWorker()!.evaluate(() => {
+      const handle = self.onmessage!;
+      self.onmessage = function (event) {
+        if (event.data?.operation === "captureFile" && event.data.payload.file.name === "retry.csv") {
+          throw new Error("synthetic file Worker crash");
+        }
+        return handle.call(this, event);
+      };
+    });
+  }
   const chooser = page.waitForEvent("filechooser");
   await clickStableComposeTarget(page, page.locator('[id="cash.import.add-files"]:visible').last());
-  await (await chooser).setFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  const files = [{ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(csv) }];
+  if (scenario === "normal") files.push({ name: "retry.csv", mimeType: "text/csv",
+    buffer: Buffer.from(csv.replace("0000123,merchant-1", "0000124,merchant-2")) });
+  await (await chooser).setFiles(files);
+  if (scenario === "normal") {
+    const readyFile = (name: string) => page.locator('[id^="cash.import.file-"]:visible')
+      .filter({ hasText: name });
+    const retryFile = page.locator('[id^="cash.import.local-file-"]:visible')
+      .filter({ hasText: "retry.csv" }).locator('[id^="cash.import.retry-local-"]:visible');
+    await expect(retryFile).toBeVisible();
+    await expect(readyFile("synthetic.csv")).toBeVisible();
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-file-worker-failed.png") });
+    await clickStableComposeTarget(page, retryFile);
+    await expect(readyFile("retry.csv")).toBeVisible();
+    await expect(readyFile("synthetic.csv")).toBeVisible();
+    await clickStableComposeTarget(page, readyFile("retry.csv").locator('[id^="cash.import.remove-file-"]:visible'));
+  }
+  await expect(page.locator('[id^="cash.import.remove-file-"]:visible')).toHaveCount(1);
   const next = page.locator('[id="cash.import.to-accounts"]:visible').last();
   await expect(next).toBeEnabled();
   await clickStableComposeTarget(page, next);
@@ -260,7 +401,25 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // CMP-10623 can leave the disposed popup in the exported semantics mirror.
   // Click the previously measured real canvas action after the popup finishes closing.
   await waitForCanvasToSettle(page);
-  await page.mouse.click(reviewBounds.x + reviewBounds.width / 2, reviewBounds.y + reviewBounds.height / 2);
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  const crashWorker = scenario === "normal" ? previewWorker() : undefined;
+  const crashed = crashWorker && new Promise<void>((resolve) => crashWorker.once("close", () => resolve()));
+  await crashWorker?.evaluate(() => {
+    self.onmessage = () => { throw new Error("synthetic preview Worker crash"); };
+  });
+  const clickReviewAction = () => page.mouse.click(reviewBounds.x + reviewBounds.width - 16, reviewBounds.y + reviewBounds.height / 2);
+  await clickReviewAction();
+  if (crashed) {
+    await crashed;
+    await waitForCanvasToSettle(page);
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-worker-failed.png") });
+    // The retry occupies the same trailing action slot. The stale popup semantics
+    // can still hide that slot from locators after the canvas has closed the popup.
+    const restarted = page.waitForEvent("worker", { predicate: (worker) => worker.url() === crashWorker?.url() });
+    await clickReviewAction();
+    await restarted;
+  }
   await waitForCanvasToSettle(page);
   expect(offlineRequests.filter((path) => path !== "/api/v1/auth/session")).toEqual([]);
   expect(writeKeys).toEqual([]);
@@ -279,8 +438,14 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   // Startup deliberately verifies the session while disconnected. Account preparation
   // and a new local preview must issue no requests after the cached task is restored.
   const restoredRequestCount = offlineRequests.length;
-  await clickStableComposeTarget(page, restoredReview);
-  await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+  await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+  await context.setOffline(true);
+  try {
+    await clickStableComposeTarget(page, restoredReview);
+    await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeDisabled();
+  } finally {
+    await context.setOffline(false);
+  }
   await expect(page.getByText("当前断网，只能浏览本地数据；联网后将重新同步", { exact: true }).last()).toBeVisible();
   const blockedConfirm = await page.locator('[id="cash.import.confirm"]:visible').last().boundingBox();
   if (!blockedConfirm) throw new Error("Missing disabled confirmation bounds");
@@ -315,6 +480,37 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await clickStableComposeTarget(page, page.locator('[id="cash.import.review"]:visible').last());
   await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
   expect(writeKeys).toEqual([]);
+  const crashConfirmation = scenario === "normal" || interruptArchive;
+  let archiveCrash: Promise<void> | undefined;
+  if (crashConfirmation) {
+    await expect.poll(() => previewWorker()?.evaluate(() => typeof self.onmessage)).toBe("function");
+    const worker = previewWorker()!;
+    if (interruptArchive) archiveCrash = new Promise(resolve => worker.once("close", () => resolve()));
+    await worker.evaluate((failOn) => {
+      const handle = self.onmessage!;
+      self.onmessage = function (event) {
+        if (event.data?.operation === failOn) throw new Error("synthetic confirmation Worker crash");
+        return handle.call(this, event);
+      };
+    }, interruptArchive ? "assembleArchive" : "freezeConfirmation");
+  }
+  if (interruptSnapshot) await page.evaluate(() => {
+    let interruptedReceipt = false;
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, transfer) {
+      if (message?.operation === "encodeSubmission" && message.payload.receipt && !interruptedReceipt) {
+        interruptedReceipt = true;
+        Object.assign(window, { interruptedReceipt });
+        queueMicrotask(() => this.dispatchEvent(new ErrorEvent("error", { message: "synthetic receipt Worker crash" })));
+        return;
+      }
+      if (message?.operation === "prepareSnapshot") {
+        queueMicrotask(() => this.dispatchEvent(new ErrorEvent("error", { message: "synthetic snapshot Worker crash" })));
+        return;
+      }
+      return postMessage.call(this, message, transfer ?? []);
+    };
+  });
   if (interruptCompletion) await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -359,28 +555,131 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     expect(writeKeys).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("local-csv-conflict-reviewed.png") });
   }
+  if (unchangedAfterConflict) {
+    diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404, 409] });
+    const other = await page.request.post(`${baseURL}/api/v1/accounts`, {
+      headers: { ...setupHeaders, "Idempotency-Key": crypto.randomUUID() },
+      data: { name: "无关的现金账户", type: "cash", currencies: ["CNY"] },
+    });
+    expect(other.ok()).toBe(true);
+    await page.evaluate((crash) => {
+      const rebaseAttempts: string[] = [];
+      Object.assign(window, { rebaseAttempts });
+      const postMessage = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function (message, transfer) {
+        if (message?.operation === "rebaseImport") {
+          rebaseAttempts.push(message.payload.base);
+          if (crash && rebaseAttempts.length === 1) {
+            queueMicrotask(() => this.dispatchEvent(new ErrorEvent("error", { message: "synthetic rebase Worker crash" })));
+            return;
+          }
+        }
+        return postMessage.call(this, message, transfer ?? []);
+      };
+    }, scenario === "rebase-worker");
+    if (scenario === "rebase-worker") {
+      const rejected = page.waitForResponse((response) => response.request().method() === "POST"
+        && new URL(response.url()).pathname === "/api/v1/cash-import/write-set" && response.status() === 409);
+      await page.mouse.click(1350, 1072);
+      expect((await rejected).status()).toBe(409);
+      const resume = page.locator('[id="cash.import.resolve"]:visible').last();
+      await expect(resume).toBeEnabled({ timeout: 30_000 });
+      expect(writeKeys).toHaveLength(1);
+      await page.screenshot({ path: info.outputPath("local-csv-rebase-worker-retry.png") });
+    }
+  }
+  if (scenario === "pack-fence") {
+    await page.evaluate(() => {
+      const hooks = window as Window & { releasePackedWrite?: () => void; packedWriteReady?: boolean };
+      const post = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function (message, transfer) {
+        if (message.operation === "packJsonRequest") {
+          this.addEventListener("message", event => {
+            if (event.data?.requestId === message.requestId && event.data.result?.blob) hooks.packedWriteReady = true;
+          }, { once: true });
+          hooks.releasePackedWrite = () => post.call(this, message, transfer ?? []);
+          return;
+        }
+        return post.call(this, message, transfer ?? []);
+      };
+    });
+    await page.mouse.click(1350, 1072);
+    await page.waitForFunction(() => Boolean((window as Window & { releasePackedWrite?: () => void }).releasePackedWrite));
+    await page.evaluate(() => {
+      localStorage.setItem("finance-tracker:session-token", "superseded-synthetic-session");
+      (window as Window & { releasePackedWrite: () => void }).releasePackedWrite();
+    });
+    await page.waitForFunction(() => (window as Window & { packedWriteReady?: boolean }).packedWriteReady === true);
+    await page.waitForTimeout(750);
+    expect(writeKeys).toEqual([]);
+    return;
+  }
   const saved = page.waitForResponse((response) => response.request().method() === "POST"
-    && new URL(response.url()).pathname === "/api/v1/cash-import/write-set", { timeout: 30_000 });
+    && new URL(response.url()).pathname === "/api/v1/cash-import/write-set"
+    && (!unchangedAfterConflict || response.status() !== 409), { timeout: 30_000 });
   // The real confirm button in the captured 1440 x 1100 review canvas sits here;
   // the previous mapping footer has different bounds, and its DOM mirror is stale.
-  await page.mouse.click(1350, 1072);
+  if (scenario === "rebase-worker") {
+    await clickStableComposeTarget(page, page.locator('[id="cash.import.resolve"]:visible').last());
+  } else await page.mouse.click(1350, 1072);
+  if (scenario === "normal") {
+    const retry = page.locator('[id="cash.import.resolve"]:visible').last();
+    await expect(retry).toBeEnabled();
+    expect(writeKeys).toEqual([]);
+    await page.screenshot({ path: info.outputPath("local-csv-confirmation-worker-failed.png") });
+    await clickStableComposeTarget(page, retry);
+  }
   const response = await saved;
   expect(response.status()).toBe(200);
   const receipt = await response.json();
   expect(receipt.committed).toBe(true);
   expect(receipt.summary.created_posted).toBe(1);
-  if (interruptCompletion) {
+  if (unchangedAfterConflict) {
+    const attempts = await page.evaluate(() => (window as Window & { rebaseAttempts: string[] }).rebaseAttempts);
+    expect(attempts).toHaveLength(scenario === "rebase-worker" ? 2 : 1);
+    expect(new Set(attempts).size).toBe(1);
+    expect(writeKeys).toEqual([writeKeys[0], `${writeKeys[0]}:attempt:1`]);
+  }
+  if (interruptSnapshot) {
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toBeVisible({ timeout: 30_000 });
+    expect(await page.evaluate(() => (window as Window & { interruptedReceipt?: boolean }).interruptedReceipt)).toBe(true);
+    await page.screenshot({ path: info.outputPath("local-csv-snapshot-worker-interrupted.png") });
+    await page.addInitScript(() => {
+      const operations: string[] = [];
+      Object.assign(window, { recoveryWorkerOps: operations });
+      const postMessage = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function (message, transfer) {
+        operations.push(message?.operation);
+        return postMessage.call(this, message, transfer ?? []);
+      };
+    });
+    await page.reload();
+    await expect(result).toBeVisible({ timeout: 30_000 });
+    await expect(result.getByText("账本已保存，结果整理尚未完成。", { exact: true })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() =>
+      (window as Window & { recoveryWorkerOps: string[] }).recoveryWorkerOps.includes("inspectSubmission"))).toBe(true);
+    expect(writeKeys).toHaveLength(1);
+    expect(receiptLookups).toHaveLength(1);
+  }
+  if (interruptCompletion || interruptArchive) {
+    await archiveCrash;
     const result = page.locator('[id="cash.import.result"]:visible').last();
     await expect(result).toBeVisible({ timeout: 30_000 });
-    const ledger = page.locator('[id="cash.import.return"]:visible').last();
-    await expect(ledger).toHaveText("返回账本");
-    await expect(result.getByText("继续整理结果", { exact: true })).toHaveCount(0);
-    expect(completionFailures.length).toBeGreaterThan(0);
+    const pending = result.getByText("账本已保存，结果整理尚未完成。", { exact: true });
+    const resume = page.locator('[id="cash.import.resolve"]:visible').last();
     expect(writeKeys).toHaveLength(1);
-    await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
-    blockCompletionRefresh = false;
-    await expect(ledger).toHaveText("查看账本", { timeout: 50_000 });
-    await expect(ledger).toBeEnabled();
+    if (interruptCompletion) {
+      await expect(pending).toBeVisible();
+      expect(completionFailures.length).toBeGreaterThan(0);
+    }
+    if (await pending.isVisible()) {
+      await expect(resume).toHaveText("继续整理结果");
+      await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
+      blockCompletionRefresh = false;
+      if (await resume.isEnabled()) await clickStableComposeTarget(page, resume);
+    }
+    await expect(pending).toHaveCount(0);
     await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
     expect(writeKeys).toHaveLength(1);
     await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });
@@ -393,7 +692,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   expect(snapshot.facts.cash_transactions[0].counterparty).toBe("合成商户");
   expect(snapshot.facts.cash_transactions[0].amount).toMatch(/^-20(?:\.0+)?$/);
   await waitForCanvasToSettle(page);
-  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  expect(writeKeys).toHaveLength((recheckAfterConflict || unchangedAfterConflict) ? 2 : 1);
   if (recheckAfterConflict) expect(writeKeys[1]).toBe(`${writeKeys[0]}:attempt:1`);
   expect(writeKeys[0]).not.toBe("");
   expect(oldImportRequests).toEqual([]);
@@ -402,9 +701,10 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
-  const expectedApiErrors = recheckAfterConflict ? [
+  const expectedApiErrors = recheckAfterConflict || unchangedAfterConflict ? [
     "404 /api/v1/cash-mutations/receipts/by-key", "409 /api/v1/cash-import/write-set",
     "404 /api/v1/cash-mutations/receipts/by-key", "404 /api/v1/cash-mutations/receipts/by-key",
+    ...(scenario === "rebase-worker" ? ["404 /api/v1/cash-mutations/receipts/by-key", "404 /api/v1/cash-mutations/receipts/by-key"] : []),
   ] : ["404 /api/v1/cash-mutations/receipts/by-key",
     ...completionFailures.map((path) => "503 " + path)];
   expect(diagnostics.expectedApiErrors).toEqual(expectedApiErrors);
@@ -439,7 +739,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await page.goto(`${baseURL}/w/${workspace}/cash-import`);
   await expect(page.locator('[id="cash.import.result"]:visible')).toHaveCount(1, { timeout: 30_000 });
   await expect(page.locator('[id="cash.import.return"]:visible')).toBeEnabled();
-  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  expect(writeKeys).toHaveLength((recheckAfterConflict || unchangedAfterConflict) ? 2 : 1);
   expect(coldRequests.length).toBeGreaterThan(0);
   expect(coldRequests.every((path) => path === "/api/v1/auth/session")).toBe(true);
   expect(coldPageErrors).toEqual([]);
@@ -453,7 +753,7 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
   expect(diagnostics.expectedApiErrors).toEqual([]);
-  expect(writeKeys).toHaveLength(recheckAfterConflict ? 2 : 1);
+  expect(writeKeys).toHaveLength((recheckAfterConflict || unchangedAfterConflict) ? 2 : 1);
   expect(oldImportRequests).toEqual([]);
   await info.attach("local-import-protocol", { body: JSON.stringify({ oldImportRequests, writeKeys, receipt,
     browserRestarted: true, completionFailures, onlineCatalogRequests, onlineWorkspace: workspace, coldRequests, coldPageErrors, reverifiedWorkspace: workspace }, null, 2), contentType: "application/json" });

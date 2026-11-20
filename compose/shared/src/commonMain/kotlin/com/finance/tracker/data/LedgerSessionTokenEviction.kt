@@ -72,7 +72,7 @@ internal class LedgerSessionTokenEviction(
         val owner = LedgerCacheErasureOwner(
             acquire = { openCache(scope, directory, current).also { acquired = it } },
             beforeErasure = {
-                val matches = checkNotNull(acquired).readOfflineSession(scope, token) != null
+                val matches = checkNotNull(acquired).matchesOfflineSession(scope, token)
                 directory.current(current)
                 selected = matches
             },

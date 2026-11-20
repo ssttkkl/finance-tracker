@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashPdfParseResultDto
+import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.business.domain.pythonCodePointCount
 import com.finance.tracker.domain.BoundedFileSource
 import com.finance.tracker.domain.FileReadLimitExceeded
@@ -17,6 +18,12 @@ internal suspend fun FinanceApiClient.parseCashPdf(input: CashImportUploadInput,
     val body = cashStatementParseBody(input, "pdf", "application/pdf")
     return request(HttpMethod.Post,"/api/v1/cash-import/pdf/parse",body,bodyContentType=body.contentType,
         clearUnauthorizedToken=false,credentials=credentials)
+}
+
+internal suspend fun FinanceApiClient.parseCashPdfText(input: CashImportUploadInput, credentials: ApiCredentialSnapshot?): String {
+    val body = cashStatementParseBody(input, "pdf", "application/pdf")
+    return request(HttpMethod.Post, "/api/v1/cash-import/pdf/parse", body, bodyContentType = body.contentType,
+        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, decodeResponse = { it })
 }
 
 /** The same bounded single-file transport for request-only statement decoders. */
@@ -51,7 +58,6 @@ internal fun validateCashStatementInput(input: CashImportUploadInput, extensions
         throw ApiFailure("import_file_unsupported_type", 0)
 }
 
-internal const val CASH_STATEMENT_MAX_BYTES = 100 * 1024 * 1024
 
 internal suspend fun readCashStatementBytes(file: com.finance.tracker.domain.FileSource): ByteArray {
     val limit = CASH_STATEMENT_MAX_BYTES

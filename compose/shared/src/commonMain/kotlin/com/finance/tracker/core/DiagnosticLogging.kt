@@ -150,6 +150,8 @@ private val SAFE_ERROR_CODES = setOf(
     "authentication_required",
     "workspace_forbidden",
     "api_request_failed",
+    CASH_LEDGER_WORKER_FAILED,
+    "cash_ledger_worker_internal",
     "api_origin_invalid",
     "invalid_credentials",
     "invalid_portfolio_decimal",

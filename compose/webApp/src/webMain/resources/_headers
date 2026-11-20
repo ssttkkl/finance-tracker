@@ -1,3 +1,9 @@
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+
+/cash-import-worker/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/cash-import-worker/client.mjs
+  Cache-Control: no-cache

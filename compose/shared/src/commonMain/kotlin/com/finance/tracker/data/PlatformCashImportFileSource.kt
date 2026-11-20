@@ -7,7 +7,7 @@ import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.size
 
-class PlatformCashImportFileSource(private val file: PlatformFile) : BoundedFileSource {
+class PlatformCashImportFileSource(internal val file: PlatformFile) : BoundedFileSource {
     override val name: String get() = file.name
     override val mediaType: String? get() = file.mimeType()?.toString()
     override val size: Long? get() = file.size().takeIf { it >= 0 }

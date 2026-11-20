@@ -2,7 +2,6 @@ package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
-import com.finance.tracker.business.domain.LocalCashImportPlanReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -29,7 +28,7 @@ internal class LocalCashImportTask(
     private var recovering = false
     private var completed: LocalCashImportSubmissionResult? = null
 
-    private class Plan(val id: String, val calculation: LocalCashImportCalculation, val reader: LocalCashImportPlanReader) {
+    private class Plan(val id: String, val preview: OpenedCashImportPreview) {
         var recoveryStarted = false
     }
 
@@ -101,8 +100,9 @@ internal class LocalCashImportTask(
         if (!closing) {
             val files = mutableFiles(allowMissing = true)
             ensureRevisionAvailable()
+            val summaries = summarizeCashImportFiles(files)
             cancellationHasBatch = observed != null
-            beforeCancellation = CashImportSessionDto(batchId, state = "cancelled", files = localCashImportContextFiles(files),
+            beforeCancellation = CashImportSessionDto(batchId, state = "cancelled", files = summaries,
                 sourceAccounts = emptyList(), canPreview = false)
             // Fence already parsing files even if deletion fails or its caller is cancelled.
             closing = true
@@ -117,32 +117,25 @@ internal class LocalCashImportTask(
     suspend fun preview(expectedRevision: Long, previousPlanId: String?, input: JsonObject, timezoneName: String = "UTC"): JsonObject {
         val frozen = Json.parseToJsonElement(input.toString()).jsonObject
         return mutex.withLock {
-            mutableFiles()
+            checkMutable()
+            val files = imports.importFileEncodings(batchId)
+            observeFileEncodings(files)
+            requireNoSubmission()
+            if (files == null) throw CashImportPlanError("plan_not_found")
             requireRevision(expectedRevision)
             if (previousPlanId != currentPlan?.id) throw CashImportPlanError("plan_changed")
             ensureRevisionAvailable()
-            val previous = currentPlan?.calculation?.previousReviewFor(frozen) ?: imports.importReview(batchId)
-            val calculation = imports.calculateImport(batchId, frozen, previous)
-            val id = nextPlanId()
-            check(id.isNotEmpty() && id != currentPlan?.id) { "cash_import_plan_identity_invalid" }
-            val items = calculation.plan.getValue("items").jsonArray
-            val plan = JsonObject(calculation.plan + mapOf(
-                "plan_id" to JsonPrimitive(id), "session_id" to JsonPrimitive(batchId),
-                "session_revision" to JsonPrimitive(revision + 1), "expires_at" to JsonNull,
-                "item_counts" to buildJsonObject {
-                    for (status in listOf("confirmed", "pending")) put(status,
-                        items.count { it.jsonObject.getValue("confirmation_status").jsonPrimitive.content == status })
-                },
-            ))
-            val reader = localCashImportPlanReader(plan)
-            reader.validateReadable()
-            val view = reader.view(timezoneName)
+            val previous = currentPlan?.preview?.previousReview(frozen) ?: imports.importReview(batchId)
+            val identity = CashImportPreviewIdentity({
+                nextPlanId().also { id -> check(id.isNotEmpty() && id != currentPlan?.id) { "cash_import_plan_identity_invalid" } }
+            }, batchId, revision + 1, timezoneName)
+            val preview = imports.openImportPreview(batchId, frozen, previous, identity)
             // A failed acknowledgement cannot pair the old executable request with a newly persisted review.
             currentPlan = null
-            imports.saveImportReview(batchId, calculation.review)
+            imports.saveImportReview(batchId, preview.review)
             revision++
-            currentPlan = Plan(id, calculation, reader)
-            view
+            currentPlan = Plan(identity.planId, preview)
+            preview.initialView
         }
     }
 
@@ -153,17 +146,17 @@ internal class LocalCashImportTask(
     }
     suspend fun detail(planId: String, itemId: String): JsonObject = read(planId) { it.detail(itemId) }
     suspend fun processing(planId: String, cursor: String? = null, limit: Int = 50): JsonObject = read(planId) {
-        it.page("processing_details", cursor, limit = limit)
+        it.page("processing_details", cursor, null, limit, null, false)
     }
 
     /** The encrypted store binds this batch to the original request before any HTTP may start. */
     suspend fun freeze(planId: String, expectedRevision: Long) = mutex.withLock {
-        synchronizeFiles()
+        observeFileEncodings(imports.importFileEncodings(batchId))
         if (closing || completed != null || recovering) throw CashImportPlanError("plan_changed")
         requireRevision(expectedRevision)
         val plan = requirePlan(planId)
-        if (plan.calculation.plan.getValue("can_commit").jsonPrimitive.boolean != true) throw CashImportPlanError("plan_changed")
-        imports.prepareImportSubmission(batchId, plan.calculation.request, LocalCashImportResultInput.freeze(plan.calculation.plan))
+        val frozen = plan.preview.confirmation(batchId)
+        imports.prepareImportSubmission(batchId, frozen)
     }
 
     /**
@@ -204,11 +197,11 @@ internal class LocalCashImportTask(
         }
     }
 
-    private suspend fun read(planId: String, action: (LocalCashImportPlanReader) -> JsonObject): JsonObject = mutex.withLock {
+    private suspend fun read(planId: String, action: suspend (OpenedCashImportPreview) -> JsonObject): JsonObject = mutex.withLock {
         imports.checkActive()
         invalidateRetiredPlan()
         if (closing || completed != null) throw CashImportPlanError("plan_not_found")
-        action(requirePlan(planId).reader)
+        action(requirePlan(planId).preview).also { imports.checkActive() }
     }
 
     private fun requirePlan(id: String): Plan = currentPlan?.takeIf { it.id == id } ?: throw CashImportPlanError("plan_not_found")
@@ -218,17 +211,29 @@ internal class LocalCashImportTask(
     private fun ensureRevisionAvailable() { check(revision < Long.MAX_VALUE) { "cash_import_revision_exhausted" } }
 
     private suspend fun mutableFiles(allowMissing: Boolean = false): List<LocalCashImportFile> {
-        if (closing || completed != null || recovering) throw CashImportPlanError("plan_changed")
+        checkMutable()
         val files = synchronizeFiles()
-        if (imports.importSubmission(batchId) != null) throw CashImportPlanError("plan_changed")
+        requireNoSubmission()
         return files ?: if (allowMissing) emptyList() else throw CashImportPlanError("plan_not_found")
+    }
+
+    private fun checkMutable() {
+        if (closing || completed != null || recovering) throw CashImportPlanError("plan_changed")
+    }
+
+    private suspend fun requireNoSubmission() {
+        if (imports.importSubmission(batchId) != null) throw CashImportPlanError("plan_changed")
     }
 
     private suspend fun synchronizeFiles(): List<LocalCashImportFile>? {
         val files = imports.importFiles(batchId)
-        val encoded = files?.map { it.encode() }
+        observeFileEncodings(files?.map(LocalCashImportFile::encode))
+        return files
+    }
+
+    private suspend fun observeFileEncodings(encoded: List<String>?) {
         if (!initialized || encoded != observed) {
-            if (files != null || initialized) {
+            if (encoded != null || initialized) {
                 ensureRevisionAvailable()
                 revision++
             }
@@ -237,7 +242,6 @@ internal class LocalCashImportTask(
             currentPlan = null
         }
         invalidateRetiredPlan()
-        return files
     }
 
     private suspend fun invalidateRetiredPlan() {

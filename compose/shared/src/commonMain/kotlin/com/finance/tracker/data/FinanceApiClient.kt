@@ -39,6 +39,7 @@ internal val apiJson = Json {
 internal class FinanceTransportFailure(cause: Throwable, message: String = cause.message ?: "network_unavailable") : IOException(message, cause)
 
 internal object NoRequestBody
+internal class FrozenJsonBody(val text: String)
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
 internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
@@ -61,6 +62,7 @@ class FinanceApiClient private constructor(
         return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail)
     }
 
+    internal val allowsBrowserJsonTransport: Boolean = shared?.allowsBrowserJsonTransport ?: (engine == null)
     internal val credentialMutex: Mutex = shared?.credentialMutex ?: Mutex()
     private val transportFailures: PlatformTransportFailureTracker = shared?.transportFailures ?: PlatformTransportFailureTracker()
     internal fun isTrackedTransportFailure(failure: Throwable): Boolean = transportFailures.matches(failure)
@@ -90,32 +92,18 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     credentials: ApiCredentialSnapshot? = null,
     preserveHttpRejectionOnBodyFailure: Boolean = false,
     requireResponseBody: Boolean = false,
+    browserJson: Boolean = false,
+    noinline beforeSend: suspend () -> Unit = {},
+    noinline decodeResponse: ((String) -> T)? = null,
 ): T {
     val fixedCredentials = credentials ?: boundCredentials
     val origin = normalizeApiOrigin(fixedCredentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (fixedCredentials == null) readToken() else fixedCredentials.token
     check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
-    val statement = httpClient.prepareRequest(origin + path) {
-        this.method = method
-        if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
-        expectedWorkspace?.let { header("X-FT-Workspace-ID", it) }
-        extraHeaders.forEach { (name, value) -> header(name, value) }
-        if (body !== NoRequestBody) {
-            val requestContentType = bodyContentType ?: ContentType.Application.Json
-            contentType(requestContentType)
-            if (body is JsonElement && requestContentType == ContentType.Application.Json) {
-                setBody(TextContent(body.toString(), ContentType.Application.Json))
-            } else {
-                setBody(body)
-            }
-        }
-    }
     var rejectedStatus: Int? = null
-    val readResponse: suspend (HttpResponse) -> T = readResponse@{ response ->
-        if (preserveHttpRejectionOnBodyFailure && response.status.value !in 200..299) rejectedStatus = response.status.value
-        val responseText = response.bodyAsText()
-        if (response.status.value !in 200..299) {
-            val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
+    val readPayload: suspend (Int, String) -> T = readPayload@{ status, responseText ->
+        if (status !in 200..299) {
+            val code = apiErrorCode(status, responseText) ?: "request_failed"
             val receiptId = runCatching {
                 ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
                     ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
@@ -124,27 +112,63 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
                 ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
                     ?.takeIf { it in setOf("unknown", "not_committed") }
             }.getOrNull()
-            val failure = ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState,
+            val failure = ApiFailure(code, status, receiptId = receiptId, commitState = commitState,
                 diagnostic = apiErrorDiagnostic(responseText))
             rejectHttpFailure(failure, token, clearUnauthorizedToken)
         }
-        if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
-            if (requireResponseBody) throw ApiFailure("request_failed", response.status.value,
+        if (status == HttpStatusCode.NoContent.value || responseText.isBlank()) {
+            if (requireResponseBody) throw ApiFailure("request_failed", status,
                 cause = kotlinx.serialization.SerializationException("response_body_required"))
             @Suppress("UNCHECKED_CAST")
-            return@readResponse EmptyResultDto() as T
+            return@readPayload EmptyResultDto() as T
         }
         try {
-            apiJson.decodeFromString<T>(responseText)
+            decodeResponse?.invoke(responseText) ?: apiJson.decodeFromString<T>(responseText)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
-            throw ApiFailure("request_failed", response.status.value, cause = failure)
+            throw ApiFailure("request_failed", status, cause = failure)
         }
     }
     return try {
+        if (browserJson && allowsBrowserJsonTransport) {
+            val headers = buildMap {
+                if (token != null) put(HttpHeaders.Authorization, "Bearer $token")
+                expectedWorkspace?.let { put("X-FT-Workspace-ID", it) }
+                putAll(extraHeaders)
+                if (body !== NoRequestBody) put(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            }
+            val jsonBody = if (body === NoRequestBody) null else (body as FrozenJsonBody).text
+            val response = fetchLargeBrowserJson(origin + path, method.value, headers, jsonBody, beforeSend) { status ->
+                if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
+            }
+            if (response != null) return readPayload(response.status, response.text)
+        }
+        val statement = httpClient.prepareRequest(origin + path) {
+            this.method = method
+            if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
+            expectedWorkspace?.let { header("X-FT-Workspace-ID", it) }
+            extraHeaders.forEach { (name, value) -> header(name, value) }
+            if (body !== NoRequestBody) {
+                val requestContentType = bodyContentType ?: ContentType.Application.Json
+                contentType(requestContentType)
+                if (body is JsonElement && requestContentType == ContentType.Application.Json) {
+                    setBody(TextContent(body.toString(), ContentType.Application.Json))
+                } else if (body is FrozenJsonBody) {
+                    setBody(TextContent(body.text, ContentType.Application.Json))
+                } else {
+                    setBody(body)
+                }
+            }
+        }
+        val readResponse: suspend (HttpResponse) -> T = { response ->
+            val status = response.status.value
+            if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
+            readPayload(status, response.bodyAsText())
+        }
+        beforeSend()
         if (preserveHttpRejectionOnBodyFailure) statement.execute(readResponse)
-        else readResponse(statement.execute()) // Preserve ordinary reads/writes' saved-response and unknown-result semantics.
+        else readResponse(statement.execute())
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
@@ -158,6 +182,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
                     token, clearUnauthorizedToken)
             }
         }
+        if (failure is FinanceTransportFailure) throw failure
         if (trackedTransportFailure || failure is IOException || failure is HttpRequestTimeoutException) {
             currentCoroutineContext().ensureActive()
             throw FinanceTransportFailure(failure, if (trackedTransportFailure) "network_unavailable" else failure.message ?: "network_unavailable")

@@ -48,6 +48,6 @@ internal fun cashPageQuery(cursor: String?, limit: Int): List<Pair<String, Strin
     return listOf("cursor" to cursor, "limit" to limit.toString())
 }
 internal fun cashKeyHeaders(key: String): Map<String, String> {
-    if (!key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))) invalidCashInput()
+    if (!com.finance.tracker.business.domain.isCashWriteSetKey(key)) invalidCashInput()
     return mapOf("Idempotency-Key" to key)
 }

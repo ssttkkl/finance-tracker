@@ -7,10 +7,11 @@ const release = "0123456789abcdef0123456789abcdef01234567";
 const source = readFileSync(new URL("../../../webApp/src/wasmJsMain/resources/startup.js", import.meta.url), "utf8")
   .replace("__FT_WEB_RELEASE__", release);
 
-function start({ blocked = false, dsn = "", collectorFailure = false } = {}) {
+function start({ blocked = false, dsn = "", collectorFailure = false, wasm = true } = {}) {
   const records = new Map();
   const listeners = {};
   const consoleEvents = [];
+  const consoleErrors = [];
   const scripts = [];
   const sent = [];
   let options;
@@ -29,6 +30,7 @@ function start({ blocked = false, dsn = "", collectorFailure = false } = {}) {
         scripts.push(element.src);
         if (element.src === "/sentry-browser.min.js") element.load();
       } },
+      getElementById: () => ({ setAttribute() {}, removeAttribute() {} }),
     },
     Sentry: {
       init(value) { options = value; },
@@ -39,9 +41,9 @@ function start({ blocked = false, dsn = "", collectorFailure = false } = {}) {
     },
     console: {
       info: (_prefix, event) => consoleEvents.push(event),
-      error: (_prefix, event) => consoleEvents.push(event),
+      error: (_prefix, event) => { consoleErrors.push(event); consoleEvents.push(event); },
     },
-    WebAssembly: { validate: () => true, instantiateStreaming() {}, Tag() {} },
+    WebAssembly: wasm ? { validate: () => true, instantiateStreaming() {}, Tag() {} } : undefined,
     isSecureContext: true,
     crossOriginIsolated: false,
     SharedArrayBuffer: undefined,
@@ -49,7 +51,7 @@ function start({ blocked = false, dsn = "", collectorFailure = false } = {}) {
   };
   context.window = context;
   runInNewContext(source.replace("__FT_WEB_SENTRY_DSN__", dsn), context);
-  return { context, listeners, records, consoleEvents, scripts, sent, options };
+  return { context, listeners, records, consoleEvents, consoleErrors, scripts, sent, options };
 }
 
 test("startup records release and capabilities before loading Wasm", () => {
@@ -62,6 +64,19 @@ test("startup records release and capabilities before loading Wasm", () => {
   assert.equal(boot.sharedArrayBuffer, false);
   assert.equal(boot.opfs, true);
   assert.ok(scripts.includes("/webApp.js"));
+});
+
+test("unsupported Wasm is a handled compatibility outcome, not a console error", () => {
+  const { consoleEvents, consoleErrors, scripts, sent } = start({ wasm: false, dsn: "https://public@example.test/1" });
+
+  assert.equal(consoleErrors.length, 0);
+  assert.equal(consoleEvents.length, 1);
+  assert.equal(consoleEvents[0].kind, "startup");
+  assert.equal(consoleEvents[0].wasmSupported, false);
+  assert.ok(!scripts.includes("/webApp.js"));
+  assert.ok(!scripts.includes("/cash-import-worker/client.mjs"));
+  assert.ok(sent.some((event) => event.message === "finance_tracker.web.startup"
+    && event.tags.reason === "wasm_unsupported"));
 });
 
 test("diagnostics are local, bounded, and only record safe fields", () => {
