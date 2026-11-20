@@ -24,21 +24,28 @@ internal class SqlLedgerSnapshotStore private constructor(private val driver: Sq
         }
     }
 
-    suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? {
-        val text = driver.executeQuery(null, """
+    suspend fun read(scope: LedgerCacheScope): LedgerSnapshotDto? =
+        readText(scope)?.let { decode(scope, it) }
+
+    fun decode(scope: LedgerCacheScope, text: String): LedgerSnapshotDto =
+        Json.decodeFromString<LedgerSnapshotDto>(text).also { validate(scope, it) }
+
+    suspend fun readText(scope: LedgerCacheScope): String? =
+        driver.executeQuery(null, """
             SELECT snapshot_json FROM ledger_cache_snapshots
             WHERE api_origin = ? AND principal = ? AND workspace_id = ?
         """.trimIndent(), { cursor ->
             QueryResult.Value(if (cursor.next().value) checkNotNull(cursor.getString(0)) else null)
-        }, 3) { bindScope(scope) }.await() ?: return null
-        return Json.decodeFromString<LedgerSnapshotDto>(text).also { validate(scope, it) }
-    }
+        }, 3) { bindScope(scope) }.await()
 
-    suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto) {
+    suspend fun replace(scope: LedgerCacheScope, snapshot: LedgerSnapshotDto): String {
         validate(scope, snapshot)
         // One TEXT value keeps the facts, ledger sequence and rule version in the same atomic write.
         // IDs, decimal lexemes and open JSON never pass through the Web driver's Double bindings.
-        val text = Json.encodeToString(snapshot)
+        return Json.encodeToString(snapshot).also { replaceText(scope, it) }
+    }
+
+    suspend fun replaceText(scope: LedgerCacheScope, text: String) {
         driver.execute(null, """
             INSERT INTO ledger_cache_snapshots (api_origin, principal, workspace_id, snapshot_json)
             VALUES (?, ?, ?, ?)

@@ -17,10 +17,6 @@ test("生产 Web 诊断用请求 ID 关联登录响应和本地运行条件", as
 
   await page.goto(`/w/${workspace}/`);
   const submit = page.locator('[id="auth.submit"]:visible').last();
-  const fillLogin = async (value: string) => {
-    await typeIntoComposeInput(page, '[id="auth.email"]', email, { replace: true });
-    await typeIntoComposeInput(page, '[id="auth.password"]', value, { replace: true });
-  };
   const submitAndReadId = async (status: number) => {
     const pending = page.waitForResponse((response) =>
       new URL(response.url()).pathname === "/api/v1/auth/login" && response.status() === status);
@@ -32,12 +28,13 @@ test("生产 Web 诊断用请求 ID 关联登录响应和本地运行条件", as
   };
 
   const rejectedPassword = "Invalid-synthetic-QA-password";
-  await fillLogin(rejectedPassword);
+  await typeIntoComposeInput(page, '[id="auth.email"]', email);
+  await typeIntoComposeInput(page, '[id="auth.password"]', rejectedPassword);
   const rejectedId = await submitAndReadId(401);
   await expect(page.locator('[id="auth.error"]').last()).toContainText("邮箱或密码不正确");
   await page.screenshot({ path: info.outputPath("login-rejected.png") });
 
-  await fillLogin(password);
+  await typeIntoComposeInput(page, '[id="auth.password"]', password, { replace: true });
   const acceptedId = await submitAndReadId(200);
   await expect(page.locator('[id="ledger.screen"]:visible').last()).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath("ledger.png") });

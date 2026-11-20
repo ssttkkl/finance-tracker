@@ -1,13 +1,10 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
-import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
-import io.ktor.http.content.TextContent
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 
-internal val cashWriteSetJson = Json { encodeDefaults = true; explicitNulls = true }
+internal val cashWriteSetJson = com.finance.tracker.business.domain.cashWriteSetJson
 private const val WRITE_SET_RECEIPTS = "/api/v1/cash-mutations/receipts"
 
 internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: String, input: CashWriteSetRequestDto,
@@ -17,12 +14,12 @@ internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: Stri
 }
 
 internal suspend fun FinanceApiClient.submitFrozenCashImportWriteSet(workspaceId: String, input: LocalCashImportSubmission,
-    credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
+    credentials: ApiCredentialSnapshot, beforeSend: suspend () -> Unit = {}): CashMutationReceiptDto {
     val path = scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set")
     val headers = cashKeyHeaders(input.idempotencyKey)
     // Freeze caller-owned JSON containers before the first suspension; exact serializers preserve numeric tokens.
-    val body = TextContent(input.requestBody, ContentType.Application.Json)
-    return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers)
+    val body = FrozenJsonBody(input.requestBody)
+    return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers, beforeSend)
 }
 
 internal suspend fun FinanceApiClient.readCashImportWriteSetReceipt(workspaceId: String, receiptId: String,
@@ -56,17 +53,14 @@ private fun invalidWriteSetReceipt(cause: Throwable = SerializationException("ca
     throw ApiFailure("request_failed", 200, cause = cause)
 
 private suspend fun FinanceApiClient.writeSetReceiptRequest(method: HttpMethod, path: String, credentials: ApiCredentialSnapshot,
-    body: Any = NoRequestBody, headers: Map<String, String> = emptyMap()): CashMutationReceiptDto {
+    body: Any = NoRequestBody, headers: Map<String, String> = emptyMap(), beforeSend: suspend () -> Unit = {}): CashMutationReceiptDto {
     val receipt: CashMutationReceiptDto = request(method, path, body, headers, clearUnauthorizedToken = false,
-        credentials = credentials, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true)
+        credentials = credentials, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true, browserJson = method == HttpMethod.Post, beforeSend = beforeSend)
     validateCashWriteSetReceipt(receipt)
     return receipt
 }
 
 internal fun validateCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
-    val sequence = receipt.ledgerSeq
-    if (!receipt.committed || receipt.operationKind != "cash_write_set" || receipt.planId != null ||
-        receipt.writeSetResult == null || sequence == null || receipt.receiptId.isBlank()) invalidWriteSetReceipt()
-    try { checkedReceiptLedgerSequence(sequence) }
+    try { com.finance.tracker.business.domain.requireCashWriteSetReceipt(receipt) }
     catch (failure: IllegalStateException) { invalidWriteSetReceipt(failure) }
 }

@@ -9,10 +9,21 @@ suspend fun FinanceApiClient.parseCashXls(input: CashImportUploadInput): CashXls
 }
 
 internal suspend fun FinanceApiClient.parseCashXls(input: CashImportUploadInput, credentials: ApiCredentialSnapshot?): CashXlsParseResultDto {
-    if (input.password != null) throw ApiFailure("import_payload_invalid", 0)
-    if (input.sourceHint?.replace('-', '_')?.let { it != "ccb_debit" } == true)
-        throw ApiFailure("statement_source_unsupported", 0)
+    validateXlsOptions(input)
     val body = cashStatementParseBody(input, "xls", "application/vnd.ms-excel")
     return request(HttpMethod.Post, "/api/v1/cash-import/xls/parse", body,
         bodyContentType = body.contentType, clearUnauthorizedToken = false, credentials = credentials)
+}
+
+internal suspend fun FinanceApiClient.parseCashXlsText(input: CashImportUploadInput, credentials: ApiCredentialSnapshot?): String {
+    validateXlsOptions(input)
+    val body = cashStatementParseBody(input, "xls", "application/vnd.ms-excel")
+    return request(HttpMethod.Post, "/api/v1/cash-import/xls/parse", body, bodyContentType = body.contentType,
+        clearUnauthorizedToken = false, credentials = credentials, requireResponseBody = true, decodeResponse = { it })
+}
+
+private fun validateXlsOptions(input: CashImportUploadInput) {
+    if (input.password != null) throw ApiFailure("import_payload_invalid", 0)
+    if (input.sourceHint?.replace('-', '_')?.let { it != "ccb_debit" } == true)
+        throw ApiFailure("statement_source_unsupported", 0)
 }

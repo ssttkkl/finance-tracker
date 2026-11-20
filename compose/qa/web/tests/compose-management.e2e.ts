@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { activeSession, buildLedgerSnapshot, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics, clickStableComposeTarget } from './compose-fixtures';
+import { activeSession, buildLedgerSnapshot, installComposeApiFixtures, typeIntoComposeInput, captureBrowserDiagnostics, clickStableComposeTarget, stableComposeBounds } from './compose-fixtures';
 
 const root = '/w/workspace-1';
 const id = (page: Page, value: string) => page.locator(`[id="${value}"]`).last();
@@ -250,8 +250,7 @@ test('管理分类空状态之外的加载过程与旧规格小屏边界', async
   for (const width of [320, 375, 414]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${root}/workspace-management`);
-    await expect(id(page, 'workspace-management.name')).toBeVisible();
-    const field = (await id(page, 'workspace-management.name').boundingBox())!;
+    const field = await stableComposeBounds(page, id(page, 'workspace-management.name'));
     expect(field.x).toBeGreaterThanOrEqual(0);
     expect(field.x + field.width).toBeLessThanOrEqual(width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -263,9 +262,8 @@ test('管理局部操作遵循表单布局，三种窗口保持文字与分组�
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${root}/workspace-management`);
-    await expect(id(page, 'workspace-management.name')).toBeVisible();
-    const name = (await id(page, 'workspace-management.name').boundingBox())!;
-    const save = (await id(page, 'management.save-name').boundingBox())!;
+    const name = await stableComposeBounds(page, id(page, 'workspace-management.name'));
+    const save = await stableComposeBounds(page, id(page, 'management.save-name'));
     if (width < 600) expect(save.y).toBeGreaterThanOrEqual(name.y + name.height);
     else {
       expect(save.x).toBeGreaterThanOrEqual(name.x + name.width);

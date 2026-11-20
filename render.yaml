@@ -40,6 +40,12 @@ services:
       - path: /*
         name: Cross-Origin-Embedder-Policy
         value: require-corp
+      - path: /cash-import-worker/client.mjs
+        name: Cache-Control
+        value: no-cache
+      - path: /cash-import-worker/assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
     envVars:
       - key: FT_API_ORIGIN
         value: https://finance-tracker-4gxf.onrender.com

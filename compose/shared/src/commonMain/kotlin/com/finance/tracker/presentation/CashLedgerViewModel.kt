@@ -54,6 +54,7 @@ class CashLedgerViewModel(
                                     page = page.copy(items = emptyList()),
                                     filterOptions = page.filterOptions,
                                     projectionVersion = page.projectionVersion,
+                                    displayedListRevision = revision,
                                     listLoadErrorCode = null,
                                 )
                             }
@@ -65,11 +66,13 @@ class CashLedgerViewModel(
                         onFirstPageError = { cause ->
                             val current = mutableState.value
                             if (current.filters == filters && current.listRevision == revision) {
+                                val code = cause.safeErrorCode()
+                                val retain = code == CASH_LEDGER_WORKER_FAILED
                                 mutableState.value = current.copy(
                                     selectedIds = emptySet(),
-                                    page = null,
-                                    projectionVersion = 0,
-                                    listLoadErrorCode = cause.safeErrorCode(),
+                                    page = current.page.takeIf { retain },
+                                    projectionVersion = if (retain) current.projectionVersion else 0,
+                                    listLoadErrorCode = code,
                                 )
                             }
                         }
@@ -121,11 +124,12 @@ class CashLedgerViewModel(
     }
 
     fun updateFilters(filters: CashFilters) {
-        if (filters == mutableState.value.filters) return
-        mutableState.value = mutableState.value.copy(
+        val current = mutableState.value
+        if (filters == current.filters) return
+        mutableState.value = current.copy(
             filters = filters,
-            page = null,
-            projectionVersion = 0,
+            page = current.page.takeIf { cashLedgerUsesBackgroundQueries },
+            projectionVersion = if (cashLedgerUsesBackgroundQueries) current.projectionVersion else 0,
             listLoadErrorCode = null,
             selectedIds = emptySet(),
             listRevision = mutableState.value.listRevision + 1,
@@ -175,7 +179,11 @@ class CashLedgerViewModel(
     private fun refreshFacts(reviewAction: Boolean) {
         val current = state.value
         if (current.refreshingFacts || current.classifyBusy || current.deleteProjectionBusy || current.loadingDeleteImpact) return
-        mutableState.value = current.copy(refreshingFacts = true, listLoadErrorCode = null, actionReviewErrorCode = null)
+        mutableState.value = current.copy(
+            refreshingFacts = true,
+            listLoadErrorCode = current.listLoadErrorCode.takeIf { reviewAction },
+            actionReviewErrorCode = null,
+        )
         viewModelScope.launch {
             try {
                 if (reviewAction) {
@@ -218,7 +226,9 @@ class CashLedgerViewModel(
     }
 
     fun toggleSelection(id: String, selected: Boolean) {
-        val selectedIds = mutableState.value.selectedIds.toMutableSet()
+        val current = mutableState.value
+        if (current.displayingPreviousRows) return
+        val selectedIds = current.selectedIds.toMutableSet()
         if (selected) selectedIds += id else selectedIds -= id
         mutableState.value = mutableState.value.copy(selectedIds = selectedIds)
     }
@@ -246,7 +256,9 @@ class CashLedgerViewModel(
 
     fun classifySelection(canWrite: Boolean) {
         val current = mutableState.value
-        if (!canWrite || current.refreshingFacts || current.classifyBusy || current.deleteProjectionBusy || current.loadingDeleteImpact || current.needsActionReview || current.selectedIds.isEmpty() || current.selectedCategory.isEmpty()) return
+        if (!canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
+            current.deleteProjectionBusy || current.loadingDeleteImpact || current.needsActionReview ||
+            current.selectedIds.isEmpty() || current.selectedCategory.isEmpty()) return
         val ids = current.selectedIds.toList()
         val categoryId = current.selectedCategory.takeUnless { it == UNCATEGORIZED_SELECTION }
         viewModelScope.launch {
@@ -267,7 +279,9 @@ class CashLedgerViewModel(
 
     fun requestDeleteSelection(canWrite: Boolean) {
         val current = mutableState.value
-        if (!canWrite || current.refreshingFacts || current.classifyBusy || current.loadingDeleteImpact || current.deleteProjectionBusy || current.needsActionReview || current.selectedIds.isEmpty()) return
+        if (!canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
+            current.loadingDeleteImpact || current.deleteProjectionBusy || current.needsActionReview ||
+            current.selectedIds.isEmpty()) return
         val ids = current.selectedIds.toList()
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(loadingDeleteImpact = true, deleteFailure = null)
@@ -295,7 +309,7 @@ class CashLedgerViewModel(
     fun confirmDeleteSelection(canWrite: Boolean) {
         val current = mutableState.value
         val selection = deletePreviewSelection ?: return
-        if (current.deleteProjectionImpact == null || !canWrite || current.refreshingFacts || current.classifyBusy ||
+        if (current.deleteProjectionImpact == null || !canWrite || current.displayingPreviousRows || current.refreshingFacts || current.classifyBusy ||
             current.deleteProjectionBusy || current.needsActionReview || current.deleteFailure?.short == false) return
         if (selection.first != current.selectedIds || selection.second != current.projectionVersion) {
             mutableState.value = current.copy(
@@ -329,8 +343,8 @@ class CashLedgerViewModel(
     private fun refreshListing(clearSelection: Boolean) {
         val current = mutableState.value
         mutableState.value = current.copy(
-            page = null,
-            projectionVersion = 0,
+            page = current.page.takeIf { cashLedgerUsesBackgroundQueries },
+            projectionVersion = if (cashLedgerUsesBackgroundQueries) current.projectionVersion else 0,
             listLoadErrorCode = null,
             selectedIds = if (clearSelection) emptySet() else current.selectedIds,
             listRevision = current.listRevision + 1,

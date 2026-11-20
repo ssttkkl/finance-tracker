@@ -3,7 +3,7 @@ import { access, mkdir, readFile, readdir, rename, writeFile } from "node:fs/pro
 import path from "node:path";
 
 const stampVersion = 1;
-const inputDirectories = ["shared/src", "webApp/src"];
+const inputDirectories = ["shared/src", "webApp/src", "cashImportWorker/src", "business-domain/src", "business-contracts/src"];
 const inputFiles = [
   "gradlew",
   "build.gradle.kts",
@@ -15,6 +15,9 @@ const inputFiles = [
   "gradle/wrapper/gradle-wrapper.properties",
   "shared/build.gradle.kts",
   "webApp/build.gradle.kts",
+  "cashImportWorker/build.gradle.kts",
+  "business-domain/build.gradle.kts",
+  "business-contracts/build.gradle.kts",
   "webApp/third-party/sentry-browser-LICENSE.txt",
 ];
 

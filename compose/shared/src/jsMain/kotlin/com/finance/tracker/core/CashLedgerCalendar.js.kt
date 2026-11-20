@@ -32,3 +32,6 @@ internal actual fun cashLedgerPlatformStartOfDay(date: String, timeZoneId: Strin
     val text = LedgerTemporalModule.Temporal.PlainDate.from(date).toZonedDateTime(timeZoneId).toInstant().toString() as String
     return Instant.parse(text)
 }
+
+internal actual fun createBackgroundCashLedger(workspace: String): BackgroundCashLedger? = null
+internal actual val cashLedgerUsesBackgroundQueries: Boolean = false

@@ -16,6 +16,8 @@
 
 ### 实现与验证证据
 
+Compose Wasm 在计算 Worker 生成持仓分组、排序和汇总。持仓行按可见范围组合与计算，行情刷新中保留当前显示。
+
 持仓筛选、估值和表现已实现。各窗口共用非全屏基础对话框，正文滚动与关闭操作分区，关闭入口在左属于产品例外；尺寸及间距见 [UI 设计规范](../shared/ui-design-rules.md) 和实现证据。既有 Web E2E、Android compact／regular／wide 主题布局 QA 通过；iPad 11 已验估值／详情，iPad 13 wide 已验深色布局。
 
 - [`InvestmentScreens.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)

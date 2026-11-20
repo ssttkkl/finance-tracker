@@ -99,10 +99,16 @@ internal class LedgerSessionImports(
         val frozen = Json.parseToJsonElement(input.toString()).jsonObject
         return use(requiresFacts = true) { owner.calculateImport(batchId, frozen, previous) }
     }
+    suspend fun openImportPreview(batchId: String, input: JsonObject, previous: LocalCashImportReview?, identity: CashImportPreviewIdentity) =
+        use(requiresFacts = true) { owner.openImportPreview(batchId, input, previous, identity) }
+
+    suspend fun importFileEncodings(batchId: String) = use { owner.importFileEncodings(batchId) }
+
     suspend fun prepareImportSubmission(batchId: String, request: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null) {
-        val frozen = LocalCashImportSubmission.freeze(batchId, request, resultInput)
-        use { checkWrite(); owner.prepareImportSubmission(batchId, frozen.request(), frozen.resultInput) }
+        prepareImportSubmission(batchId, LocalCashImportSubmission.freeze(batchId, request, resultInput))
     }
+    suspend fun prepareImportSubmission(batchId: String, frozen: LocalCashImportSubmission) =
+        use { checkWrite(); owner.prepareImportSubmission(batchId, frozen) }
     suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
         val original = owner.importSubmission(batchId)
         if (original != null && original.receipt() == null) checkWrite()

@@ -219,7 +219,10 @@ internal fun CashLedgerScreen(
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
     val appendError = (pagedRows.loadState.append as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val prependError = (pagedRows.loadState.prepend as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
-    val fullRefreshError = state.listLoadErrorCode?.let { ledgerErrorText(it) }
+    val backgroundReadFailed = state.listLoadErrorCode == CASH_LEDGER_WORKER_FAILED
+    val retainList = backgroundReadFailed && state.page != null && pagedRows.itemCount > 0
+    val refreshError = state.listLoadErrorCode?.let { ledgerErrorText(it) }
+    val fullRefreshError = refreshError.takeUnless { retainList }
     val reviewError = state.actionReviewErrorCode?.let { ledgerErrorText(it) }
     val classifyFailure = state.classificationFailure
     val deleteFailure = state.deleteFailure
@@ -252,11 +255,12 @@ internal fun CashLedgerScreen(
             if (notice == message) notice = null
         }
     }
-    val selectionMode = state.selectedIds.isNotEmpty()
+    val selectionMode = !state.displayingPreviousRows && state.selectedIds.isNotEmpty()
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
-    val pageLoadError = (prependError ?: appendError).takeIf { listReady }
-    val isPullRefreshing = state.refreshingFacts
+    val pageLoadError = (refreshError.takeIf { retainList } ?: prependError ?: appendError).takeIf { listReady }
+    val isPullRefreshing = state.refreshingFacts || (state.displayingPreviousRows &&
+        (refreshError == null || pagedRows.loadState.refresh is LoadState.Loading))
     val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     val requestListRefresh = {
         if (listReady && !selectionMode && !state.refreshingFacts) {
@@ -377,7 +381,7 @@ internal fun CashLedgerScreen(
                         StateMessage(fullRefreshError, isError = true) {
                             TextButton(
                                 onClick = {
-                                    viewModel.refresh()
+                                    if (backgroundReadFailed) pagedRows.retry() else viewModel.refresh()
                                 },
                                 modifier = Modifier.testTag(SemanticIds.ledgerRetry),
                             ) {
@@ -448,8 +452,8 @@ internal fun CashLedgerScreen(
                             CashProjectionRow(
                                 item = row,
                                 options = state.options,
-                                checked = row.projectionId in state.selectedIds,
-                                canWrite = canWrite,
+                                checked = selectionMode && row.projectionId in state.selectedIds,
+                                canWrite = canWrite && !state.displayingPreviousRows,
                                 sizeClass = sizeClass,
                                 selectionMode = selectionMode,
                                 lastInMonth = monthEnd,
@@ -660,7 +664,7 @@ internal fun CashLedgerScreen(
                     value = batchCategoryDraft,
                     options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
                     onSelected = { batchCategoryDraft = it },
-                    enabled = canWrite && !state.classifyBusy,
+                    enabled = canWrite && selectionMode && !state.classifyBusy,
                     semanticId = SemanticIds.ledgerCategoryPicker,
                 )
                 }
@@ -672,7 +676,7 @@ internal fun CashLedgerScreen(
                         viewModel.setSelectedCategory(batchCategoryDraft)
                         viewModel.classifySelection(canWrite && connection.canSubmit)
                     },
-                    enabled = canWrite && connection.canSubmit && !state.classifyBusy && batchCategoryDraft.isNotEmpty(),
+                    enabled = canWrite && connection.canSubmit && selectionMode && !state.classifyBusy && batchCategoryDraft.isNotEmpty(),
                     modifier = Modifier.testTag(SemanticIds.ledgerCategoryApply),
                 ) { Text(localizedText("ledger_category_apply")) }
             },
@@ -699,7 +703,7 @@ internal fun CashLedgerScreen(
             error = deleteProjectionError.takeUnless { deleteFailure?.short == false },
             busy = state.deleteProjectionBusy,
             destructive = true,
-            confirmEnabled = canWrite && connection.canSubmit && !state.needsActionReview && deleteFailure?.short != false,
+            confirmEnabled = canWrite && connection.canSubmit && selectionMode && !state.needsActionReview && deleteFailure?.short != false,
             semanticId = "ledger.delete-projection",
             supportingContent = {
                 SessionConnectionNotice()
@@ -860,7 +864,7 @@ internal fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact:
 @Composable
 internal fun ledgerErrorText(code: String): String = userError(
     DomainFailure(
-        code = code,
+        code = if (code == CASH_LEDGER_WORKER_FAILED) "request_failed" else code,
         status = 0,
         category = if (code == "unknown_error") FailureCategory.UNKNOWN else FailureCategory.RECOVERABLE,
     ),

@@ -163,6 +163,8 @@
     }
 
     var wasmSupported = supportsWasmRuntime();
+    // Choosing the compatibility notice is a handled outcome, not a runtime error; the same
+    // condition still reaches Sentry through reportError below.
     record("startup", {
         wasmSupported: wasmSupported,
         secureContext: window.isSecureContext === true,
@@ -170,7 +172,7 @@
         sharedArrayBuffer: typeof SharedArrayBuffer === "function",
         webLocks: !!navigator.locks,
         opfs: supportsOpfs()
-    }, !wasmSupported);
+    }, false);
 
     if (!wasmSupported || !window.crossOriginIsolated || typeof SharedArrayBuffer !== "function") {
         var reason = !wasmSupported ? "wasm_unsupported" : "isolation_unavailable";
@@ -182,6 +184,11 @@
         document.getElementById("browser-unsupported").removeAttribute("hidden");
         return;
     }
+
+    var importWorkerClient = document.createElement("script");
+    importWorkerClient.type = "module";
+    importWorkerClient.src = "/cash-import-worker/client.mjs";
+    document.body.appendChild(importWorkerClient);
 
     sources.forEach(function (source) {
         var script = document.createElement("script");

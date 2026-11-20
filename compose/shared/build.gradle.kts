@@ -186,6 +186,14 @@ tasks.matching { it.name.endsWith("BrowserTest") }.configureEach {
     }).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
+val cashImportWorkerBundle = project(":webApp").layout.buildDirectory.dir("generated/cashImportWorker/cash-import-worker")
+tasks.named<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>("wasmJsBrowserTest") {
+    // Browser integration tests exercise the same versioned compute Worker bundle that Web ships.
+    dependsOn(":webApp:stageCashImportWorker")
+    inputs.dir(cashImportWorkerBundle).withPathSensitivity(PathSensitivity.RELATIVE)
+    environment("FT_CASH_IMPORT_WORKER_ROOT", cashImportWorkerBundle.get().asFile.absolutePath)
+}
+
 // Package dependency notices on all application targets, including JS/Wasm bundles.
 val prepareCommonComposeResources by tasks.registering(Sync::class) {
     from(layout.projectDirectory.dir("src/commonMain/composeResources"))

@@ -45,11 +45,24 @@ class LocalCashImportReview private constructor(private val text: String) {
         /** Keep only live typed targets and choice context; each input still freezes only its actual selections. */
         fun forPreview(plan: Map<String, Any?>): (JsonObject) -> LocalCashImportReview {
             @Suppress("UNCHECKED_CAST")
-            val context = copyLocalCashValue(localCashImportChoiceContextFromPlan(plan) +
-                ("entry_targets" to (plan["entry_targets"] ?: emptyMap<String, Any?>()))) as Map<String, Any?>
-            return { input -> freeze(JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
-                .associateWith { input[it] ?: JsonArray(emptyList()) }), context) }
+            val context = copyLocalCashValue(previewContext(plan)) as Map<String, Any?>
+            return previewReview(context)
         }
+
+        fun encodePreviewContext(plan: Map<String, Any?>): JsonElement = freezeTarget(previewContext(plan))
+
+        fun restorePreviewReview(encoded: JsonElement): (JsonObject) -> LocalCashImportReview {
+            @Suppress("UNCHECKED_CAST")
+            val context = restoreTarget(encoded) as Map<String, Any?>
+            return previewReview(context)
+        }
+
+        private fun previewContext(plan: Map<String, Any?>): Map<String, Any?> =
+            localCashImportChoiceContextFromPlan(plan) + ("entry_targets" to (plan["entry_targets"] ?: emptyMap<String, Any?>()))
+
+        private fun previewReview(context: Map<String, Any?>): (JsonObject) -> LocalCashImportReview =
+            { input -> freeze(JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
+                .associateWith { input[it] ?: JsonArray(emptyList()) }), context) }
 
         /** Freeze the complete result at confirmation; recovery never substitutes facts from a later snapshot. */
         fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto): LocalCashImportReview {

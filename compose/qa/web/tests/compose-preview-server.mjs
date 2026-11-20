@@ -92,7 +92,12 @@ createServer((request, response) => {
     : path.join(resourceRoot, "index.html");
   const filePath = candidate && existsSync(candidate) ? candidate : path.join(resourceRoot, "index.html");
   const body = readFileSync(filePath);
+  const cacheHeaders = {};
+  if (candidate && /^\/cash-import-worker\/assets\/[a-f0-9]{64}\//.test(pathname))
+    cacheHeaders["cache-control"] = "public, max-age=31536000, immutable";
+  if (pathname === "/cash-import-worker/client.mjs") cacheHeaders["cache-control"] = "no-cache";
   response.writeHead(200, {
+    ...cacheHeaders,
     ...isolationHeaders,
     "content-type": mimeTypes[path.extname(filePath)] ?? "application/octet-stream",
     "content-length": body.byteLength,
