@@ -19,6 +19,15 @@ internal interface LedgerImportBatches {
     suspend fun saveReview(batchId: String, input: LocalCashImportReview)
     suspend fun readSubmission(batchId: String): LocalCashImportSubmission?
     suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission)
+    suspend fun recordTransport(batchId: String, expected: LocalCashImportSubmission, transport: String) {
+        error("cash_import_transport_unsupported")
+    }
+    suspend fun clearTransport(batchId: String, expected: LocalCashImportSubmission) {
+        error("cash_import_transport_unsupported")
+    }
+    suspend fun discardUnprovableSubmission(batchId: String, expected: LocalCashImportSubmission) {
+        error("cash_import_submission_retirement_unsupported")
+    }
     suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission)
     suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?)
     suspend fun recordReceipt(batchId: String, receipt: CashMutationReceiptDto)

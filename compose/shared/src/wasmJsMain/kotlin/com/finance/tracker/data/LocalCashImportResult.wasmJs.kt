@@ -51,7 +51,7 @@ internal actual suspend fun readStoredCashImportSubmission(body: String): LocalC
         checkNotNull(response.key) { "cash_import_worker_submission_invalid" },
         checkNotNull(response.request) { "cash_import_worker_submission_invalid" },
         response.receipt, response.baseRejected, response.resultInput,
-        checkNotNull(response.base) { "cash_import_worker_submission_invalid" },
+        checkNotNull(response.base) { "cash_import_worker_submission_invalid" }, response.transport,
     )
 }
 
@@ -70,6 +70,7 @@ internal external interface SubmissionWorkerResponse : ImportComputeResponse {
     val receipt: String?
     val baseRejected: Boolean
     val resultInput: String?
+    val transport: String?
 }
 
 internal actual val archiveCashImportPagesInWorker = true

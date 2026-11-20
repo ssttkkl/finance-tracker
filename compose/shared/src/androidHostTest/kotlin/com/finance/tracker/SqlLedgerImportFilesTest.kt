@@ -45,6 +45,29 @@ class SqlLedgerImportFilesTest {
 
     private val scope = LedgerCacheScope("https://import.example.test", "synthetic", "workspace")
 
+    @Test fun compactTransportIsPersistedBeforeSendAndDroppedAfterAReceipt() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            val store = SqlLedgerImportBatchStore.open(driver)
+            val f = LocalCashImportRebaseFixture()
+            store.save(scope, "batch", listOf(f.files.single()))
+            store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", f.request))
+            val prepared = assertNotNull(store.readSubmission(scope, "batch"))
+            val compact = JsonObject(Json.parseToJsonElement(prepared.requestBody).jsonObject +
+                ("command_version" to JsonPrimitive(2)) +
+                ("request_digest" to JsonPrimitive(com.finance.tracker.business.domain.cashWriteSetRequestDigest(prepared.request())))).toString()
+            store.recordTransport(scope, "batch", prepared, compact)
+            assertEquals(compact, store.readSubmission(scope, "batch")?.transportBody)
+            assertFailsWith<IllegalStateException> {
+                SqlLedgerImportBatchStore.open(driver).recordTransport(scope, "batch", prepared, compact + " ")
+            }
+            store.discardUnprovableSubmission(scope, "batch", assertNotNull(store.readSubmission(scope, "batch")))
+            assertNull(store.readSubmission(scope, "batch"))
+            store.prepareSubmission(scope, "batch", LocalCashImportSubmission.freeze("batch", f.request))
+            store.recordReceipt(scope, "batch", localCashWriteSetReceiptFixture())
+            assertNull(store.readSubmission(scope, "batch")?.transportBody)
+        }
+    }
+
     @Test fun appendsMergeCurrentFilesAndExactRetriesDoNotInvalidateANewerReview() = runTest {
         JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
             val store = SqlLedgerImportBatchStore.open(driver)

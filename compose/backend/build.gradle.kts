@@ -19,6 +19,7 @@ dependencies {
     implementation("io.ktor:ktor-server-core:${libs.versions.ktor.get()}")
     implementation("io.ktor:ktor-server-netty:${libs.versions.ktor.get()}")
     implementation("io.ktor:ktor-server-content-negotiation:${libs.versions.ktor.get()}")
+    implementation("io.ktor:ktor-server-compression:${libs.versions.ktor.get()}")
     implementation("io.ktor:ktor-server-status-pages:${libs.versions.ktor.get()}")
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("io.sentry:sentry:8.65.0")

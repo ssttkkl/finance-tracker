@@ -62,6 +62,12 @@ internal class ScopedSqlLedgerFactCache private constructor(
         override suspend fun readSubmission(batchId: String): LocalCashImportSubmission? = withImports { it.readSubmission(scope, batchId) }
         override suspend fun prepareSubmission(batchId: String, input: LocalCashImportSubmission) =
             withImports { it.prepareSubmission(scope, batchId, input) }
+        override suspend fun recordTransport(batchId: String, expected: LocalCashImportSubmission, transport: String) =
+            withImports { it.recordTransport(scope, batchId, expected, transport) }
+        override suspend fun clearTransport(batchId: String, expected: LocalCashImportSubmission) =
+            withImports { it.clearTransport(scope, batchId, expected) }
+        override suspend fun discardUnprovableSubmission(batchId: String, expected: LocalCashImportSubmission) =
+            withImports { it.discardUnprovableSubmission(scope, batchId, expected) }
         override suspend fun recordBaseRejection(batchId: String, expected: LocalCashImportSubmission) =
             withImports { it.recordBaseRejection(scope, batchId, expected) }
         override suspend fun retireRejectedSubmission(batchId: String, expected: LocalCashImportSubmission, newerBase: String, replacement: LocalCashImportSubmission?) =

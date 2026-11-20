@@ -5765,13 +5765,102 @@
           },
           "changes": {
             "$ref": "#/components/schemas/CashWriteSet"
+          },
+          "command_version": {
+            "type": "integer",
+            "enum": [
+              2
+            ],
+            "description": "Absent means the original identity command (version 1); version 2 requires request_digest and may add coverage_table/replay_groups."
+          },
+          "coverage_table": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {},
+            "description": "Batch-unique coverage values referenced by coverage_ref."
+          },
+          "replay_groups": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "transactions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Zero-based position in the full logical transactions array."
+                      },
+                      "id": {
+                        "type": "string",
+                        "description": "Existing cash_transactions.id whose complete fragment is verified."
+                      },
+                      "revision": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "id",
+                      "revision"
+                    ]
+                  },
+                  "description": "Positions in the full logical changes.transactions array."
+                },
+                "entry": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Zero-based position in the full logical entries array."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Existing cash_entries.id whose complete fragment is verified."
+                    },
+                    "revision": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "id",
+                    "revision"
+                  ]
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "transactions",
+                "entry",
+                "digest"
+              ]
+            }
+          },
+          "request_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the canonical full logical command; required for command_version 2 and checked before writes."
           }
         },
         "required": [
           "base_ledger_seq",
           "rules_version",
           "changes"
-        ]
+        ],
+        "description": "Logical write set (identity JSON) or a compact transport with command_version 2. The command digest covers the exact received JSON after decompression; coverage_table and replay_groups are verified and expanded against the locked baseline before any write. Request bodies may use Content-Encoding: gzip."
       },
       "CashWriteVersionedReference": {
         "type": "object",
@@ -6544,7 +6633,12 @@
           "strategy_version": {
             "type": "string"
           },
-          "coverage": {}
+          "coverage": {},
+          "coverage_ref": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based coverage_table index used instead of coverage."
+          }
         },
         "required": [
           "target",
@@ -6556,8 +6650,20 @@
           "identity_key",
           "identity_strength",
           "stable_evidence_key",
-          "strategy_version",
-          "coverage"
+          "strategy_version"
+        ],
+        "description": "Exactly one of coverage (identity command) or coverage_ref (version 2 transport) is present.",
+        "oneOf": [
+          {
+            "required": [
+              "coverage"
+            ]
+          },
+          {
+            "required": [
+              "coverage_ref"
+            ]
+          }
         ]
       },
       "CashStatementMappingWrite": {
@@ -7866,10 +7972,18 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["direction", "expected_revision"],
+                "required": [
+                  "direction",
+                  "expected_revision"
+                ],
                 "properties": {
                   "direction": {
-                    "enum": ["before", "after", "last", "before_target"],
+                    "enum": [
+                      "before",
+                      "after",
+                      "last",
+                      "before_target"
+                    ],
                     "description": "Without a target, before and after move by one place; last moves to the end of the sibling group."
                   },
                   "target_id": {
@@ -13392,6 +13506,81 @@
       }
     },
     "/api/v1/cash-import/write-set": {
+      "options": {
+        "operationId": "discoverCashImportWriteSetTransport",
+        "summary": "Discover supported write-set command versions and request encodings",
+        "tags": [
+          "cash-import"
+        ],
+        "description": "Authenticated transport probe. The write-set POST remains the only submission operation; identity JSON stays the compatible fallback for every command version.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Supported command versions and wire encodings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "command_versions",
+                    "request_encodings",
+                    "response_encodings"
+                  ],
+                  "properties": {
+                    "command_versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "request_encodings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "identity",
+                          "gzip"
+                        ]
+                      }
+                    },
+                    "response_encodings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "identity",
+                          "gzip"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Workspace mismatch or read-only role"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
       "post": {
         "operationId": "submitCashImportWriteSet",
         "summary": "Submit a complete file import write set",
@@ -13418,6 +13607,19 @@
               "minLength": 1
             },
             "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          },
+          {
+            "in": "header",
+            "name": "Content-Encoding",
+            "required": false,
+            "description": "Transport encoding of the request body.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "identity",
+                "gzip"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -13503,6 +13705,36 @@
           },
           "503": {
             "description": "Recognized temporary storage failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed compressed request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Decoded or expanded command exceeds 64 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request Content-Encoding",
             "content": {
               "application/json": {
                 "schema": {

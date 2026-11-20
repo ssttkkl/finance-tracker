@@ -61,16 +61,17 @@ private fun archiveResponse(body: String, receipt: String, input: String, summar
 
 @JsExport
 fun inspectCashImportSubmission(body: String): JsAny = inspectStoredCashImportSubmission(body).let { (stored, base) ->
-    submissionResponse(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput, base)
+    submissionResponse(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput, base, stored.transport)
 }
 
 private fun submissionResponse(key: String, request: String, receipt: String?, baseRejected: Boolean,
-    resultInput: String?, base: String): JsAny =
-    js("({ key, request, receipt, baseRejected, resultInput, base })")
+    resultInput: String?, base: String, transport: String?): JsAny =
+    js("({ key, request, receipt, baseRejected, resultInput, base, transport })")
 
 @JsExport
-fun encodeCashImportSubmission(key: String, request: String, receipt: String?, rejected: Boolean, resultInput: String?): String =
-    cashWriteSetJson.encodeToString(StoredCashImportSubmission(key, request, receipt, rejected, resultInput))
+fun encodeCashImportSubmission(key: String, request: String, receipt: String?, rejected: Boolean, resultInput: String?,
+    transport: String?): String =
+    cashWriteSetJson.encodeToString(StoredCashImportSubmission(key, request, receipt, rejected, resultInput, transport))
 
 @JsExport
 fun inspectCashImportBatch(body: String): JsAny = decodeStoredImportBatch(body).let { batch ->

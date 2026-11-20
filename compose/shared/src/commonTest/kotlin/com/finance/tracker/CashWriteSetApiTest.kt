@@ -105,6 +105,36 @@ class CashWriteSetApiTest {
             assertEquals(0, store.reads); assertEquals(0, store.clears)
         } finally { api.close() }
     }
+    @Test fun authenticatedCapabilityProbeIsCachedOnlyAfterSuccess() = runTest {
+        CashImportTransportCache.resetForTest()
+        var calls = 0
+        val body = """{"command_versions":[1,2],"request_encodings":["identity","gzip"],"response_encodings":["gzip"]}"""
+        val api = FinanceApiClient({ "unused" }, Store(), MockEngine { request ->
+            calls++
+            assertEquals(HttpMethod.Options, request.method)
+            assertEquals("/api/v1/cash-import/write-set", request.url.encodedPath)
+            assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
+            assertEquals("Bearer original-token", request.headers[HttpHeaders.Authorization])
+            respond(body, headers = headers)
+        })
+        try {
+            val first = api.cashImportTransportCapabilities("workspace", credentials)
+            assertTrue(first!!.supportsCompactCommand)
+            assertTrue(first.supportsGzipRequest)
+            assertEquals(first, api.cashImportTransportCapabilities("workspace", credentials))
+            assertEquals(1, calls)
+        } finally { api.close(); CashImportTransportCache.resetForTest() }
+        var failures = 0
+        val failing = FinanceApiClient({ "unused" }, Store(), MockEngine {
+            failures++; respond("{}", HttpStatusCode.NotFound, headers = headers)
+        })
+        try {
+            assertNull(failing.cashImportTransportCapabilities("workspace", credentials))
+            assertNull(failing.cashImportTransportCapabilities("workspace", credentials))
+            assertEquals(2, failures)
+        } finally { failing.close(); CashImportTransportCache.resetForTest() }
+    }
+
     @Test fun lostResponseCanBeReadByOriginalKeyWithoutAutomaticResubmission() = runTest {
         var posts = 0; var gets = 0
         val api = FinanceApiClient({ "unused" }, Store(), MockEngine { request ->

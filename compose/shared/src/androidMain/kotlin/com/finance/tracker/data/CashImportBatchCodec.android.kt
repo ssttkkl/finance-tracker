@@ -30,7 +30,7 @@ internal actual suspend fun captureRemoteCashStatement(api: FinanceApiClient, in
     format: com.finance.tracker.business.domain.CashStatementFormat, credentials: ApiCredentialSnapshot?): LocalCashImportFile? = null
 
 internal actual suspend fun fetchLargeBrowserJson(url: String, method: String, headers: Map<String, String>,
-    body: String?, beforeSend: suspend () -> Unit, onStatus: (Int) -> Unit): LargeBrowserJson? = null
+    body: String?, compress: Boolean, beforeSend: suspend () -> Unit, onStatus: (Int) -> Unit): LargeBrowserJson? = null
 
 internal actual suspend fun readValidatedCashImportFiles(files: List<String>): List<LocalCashImportFile> = files.map(LocalCashImportFile::decode)
 

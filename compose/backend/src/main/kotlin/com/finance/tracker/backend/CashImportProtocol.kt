@@ -206,19 +206,61 @@ internal object CashImportProtocol {
         return strictText(boundedBytes(call.receiveChannel(), limit))
     }
 
-    private suspend fun boundedBytes(channel: ByteReadChannel, limit: Int): ByteArray {
+    private suspend fun boundedBytes(channel: ByteReadChannel, limit: Int, overflowCode: String = "import_payload_invalid"): ByteArray {
         require(limit >= 0)
         val packet = channel.readRemaining(limit.toLong() + 1)
         val bytes = packet.readByteArray()
-        if (bytes.size > limit) fail()
+        if (bytes.size > limit) fail(overflowCode)
         return bytes
     }
 
-    suspend fun <T> jsonInput(call: ApplicationCall, limit: Int = MAX_PLAN_INPUT_BYTES, validate: (ByteArray) -> T): T =
-        jsonInput(call.receiveChannel(), limit, validate)
+    suspend fun <T> jsonInput(call: ApplicationCall, limit: Int = MAX_PLAN_INPUT_BYTES, allowGzip: Boolean = false,
+        validate: (ByteArray) -> T): T {
+        val encoding = call.request.headers[io.ktor.http.HttpHeaders.ContentEncoding]
+        if (!allowGzip && encoding != null && encoding.trim().lowercase() !in setOf("", "identity")) {
+            fail("unsupported_content_encoding")
+        }
+        return jsonInput(call.receiveChannel(), limit, if (allowGzip) encoding else null, validate)
+    }
 
-    suspend fun <T> jsonInput(channel: ByteReadChannel, limit: Int = MAX_PLAN_INPUT_BYTES, validate: (ByteArray) -> T): T {
-        val bytes = boundedBytes(channel, limit)
+    suspend fun <T> jsonInput(channel: ByteReadChannel, limit: Int = MAX_PLAN_INPUT_BYTES, validate: (ByteArray) -> T): T =
+        jsonInput(channel, limit, null, validate)
+
+    private suspend fun <T> jsonInput(channel: ByteReadChannel, limit: Int, contentEncoding: String?, validate: (ByteArray) -> T): T {
+        val bytes = decodeBoundedBody(channel, contentEncoding, limit)
         return withContext(Dispatchers.IO) { validate(bytes) }
+    }
+
+    /** The wire encoding is transport only: limits and the command digest always apply to the decoded UTF-8 body. */
+    private suspend fun decodeBoundedBody(channel: ByteReadChannel, contentEncoding: String?, limit: Int): ByteArray {
+        val encoding = contentEncoding?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: "identity"
+        if (encoding !in setOf("identity", "gzip")) fail("unsupported_content_encoding")
+        val raw = boundedBytes(channel, limit, overflowCode = "payload_too_large")
+        return when (encoding) {
+            "identity" -> raw
+            "gzip" -> gunzipBounded(raw, limit)
+            else -> fail("unsupported_content_encoding")
+        }
+    }
+
+    private fun gunzipBounded(raw: ByteArray, limit: Int): ByteArray {
+        val output = java.io.ByteArrayOutputStream(minOf(raw.size, limit))
+        try {
+            java.util.zip.GZIPInputStream(raw.inputStream()).use { input ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    if (read == 0) continue
+                    if (output.size() + read > limit) fail("payload_too_large")
+                    output.write(buffer, 0, read)
+                }
+            }
+        } catch (failure: CashImportProtocolError) {
+            throw failure
+        } catch (_: java.io.IOException) {
+            fail("content_encoding_invalid")
+        }
+        return output.toByteArray()
     }
 }

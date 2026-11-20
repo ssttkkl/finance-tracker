@@ -115,6 +115,8 @@ internal class LedgerSessionImports(
     }
     suspend fun prepareImportSubmission(batchId: String, frozen: LocalCashImportSubmission) =
         use { checkWrite(); owner.prepareImportSubmission(batchId, frozen) }
+    suspend fun recordImportTransport(batchId: String, expected: LocalCashImportSubmission, transport: String) =
+        use { checkWrite(); owner.recordImportTransport(batchId, expected, transport) }
     suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
         val original = owner.importSubmission(batchId)
         if (original != null && original.receipt() == null) checkWrite()

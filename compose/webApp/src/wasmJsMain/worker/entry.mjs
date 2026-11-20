@@ -38,15 +38,28 @@ const operations = new Map([
     failure: internalError,
   }],
   ["encodeSubmission", {
-    run: ({ key, request, receipt, rejected, resultInput }) =>
-      ({ body: encodeCashImportSubmission(key, request, receipt ?? null, rejected, resultInput ?? null) }),
+    run: ({ key, request, receipt, rejected, resultInput, transport }) =>
+      ({ body: encodeCashImportSubmission(key, request, receipt ?? null, rejected, resultInput ?? null, transport ?? null) }),
     failure: internalError,
   }],
   ["rebaseImport", {
     run: ({ workspace, base, review, files, snapshot }) => rebaseCashImport(workspace, base, review, files, snapshot),
     failure: internalError,
   }],
-  ["packJsonRequest", { run: (body) => ({ blob: new Blob([body], { type: "application/json" }) }), failure: internalError }],
+  ["packJsonRequest", {
+    run: async (payload) => {
+      const body = typeof payload === "string" ? payload : payload?.body ?? "";
+      const compress = typeof payload === "object" && payload?.compress === true;
+      if (!compress || typeof CompressionStream === "undefined") {
+        return { blob: new Blob([body], { type: "application/json" }), compressed: false };
+      }
+      const encoded = new Blob([body], { type: "application/json" });
+      const compressed = await new Response(encoded.stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+      if (compressed.byteLength >= encoded.size) return { blob: encoded, compressed: false };
+      return { blob: new Blob([compressed], { type: "application/json" }), compressed: true };
+    },
+    failure: internalError,
+  }],
   ["investmentDisplay", { run: ({ portfolio, account, options }) => ({ body: calculatePortfolioDisplay(portfolio, account ?? null, options) }), failure: internalError }],
   ["encodeFiles", { run: (files) => ({ body: encodeInitialCashImportFiles(files) }), failure: internalError }],
   ["summarizeFiles", { run: (files) => ({ body: summarizeCapturedCashImportFiles(files) }), failure: internalError }],

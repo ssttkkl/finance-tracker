@@ -172,10 +172,54 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         check(batch.files.isNotEmpty()) { "cash_import_files_empty" }
         val existing = command(batchId, batch)
         if (existing != null) {
-            check(existing.requestBody == input.requestBody && existing.resultInput?.encode() == input.resultInput?.encode()) { "cash_import_submission_changed" }
+            // Transport is a derived optimization, not part of the command identity.
+            check(existing.requestBody == input.requestBody && existing.resultInput?.encode() == input.resultInput?.encode()) {
+                "cash_import_submission_changed"
+            }
             return
         }
         update(scope, batchId, previous, batch.copy(submission = encodeStoredImportSubmission(input.forAttempt(attemptKey(batchId, batch.attempt)))))
+    }
+
+    suspend fun recordTransport(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission, transport: String) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = readStoredImportBatch(previous)
+        val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
+        check(expected.receiptBody == null && !expected.baseRejected && original.idempotencyKey == expected.idempotencyKey &&
+            original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode() &&
+            original.transportBody == expected.transportBody) { "cash_import_submission_changed" }
+        if (original.transportBody == transport) return
+        check(original.transportBody == null) { "cash_import_submission_changed" }
+        update(scope, batchId, previous, batch.copy(submission = encodeStoredImportSubmission(original.withTransport(transport))))
+    }
+
+    /** The server rejected the selected transport before any write; keep the same identity and retry identity JSON. */
+    suspend fun clearTransport(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = readStoredImportBatch(previous)
+        val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
+        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey &&
+            original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode()) {
+            "cash_import_submission_changed"
+        }
+        if (original.transportBody == null) return
+        update(scope, batchId, previous, batch.copy(submission = encodeStoredImportSubmission(original.withoutTransport())))
+    }
+
+    /** A verified not-committed proof failure returns the batch to review with a fresh attempt identity. */
+    suspend fun discardUnprovableSubmission(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
+        validateId(batchId)
+        val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
+        val batch = readStoredImportBatch(previous)
+        val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
+        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey &&
+            original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode()) {
+            "cash_import_submission_changed"
+        }
+        check(batch.attempt < Int.MAX_VALUE) { "cash_import_attempt_exhausted" }
+        update(scope, batchId, previous, batch.copy(attempt = batch.attempt + 1, submission = null))
     }
 
     suspend fun recordBaseRejection(scope: LedgerCacheScope, batchId: String, expected: LocalCashImportSubmission) {
@@ -183,9 +227,8 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
         val batch = readStoredImportBatch(previous)
         val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
-        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode()) {
-            "cash_import_submission_changed"
-        }
+        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody &&
+            original.resultInput?.encode() == expected.resultInput?.encode()) { "cash_import_submission_changed" }
         val rejected = original.withBaseRejection()
         if (original.baseRejected) return
         update(scope, batchId, previous, batch.copy(submission = encodeStoredImportSubmission(rejected)))
@@ -199,7 +242,8 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val batch = readStoredImportBatch(previous)
         val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
         check(original.baseRejected && original.receiptBody == null && expected.receiptBody == null &&
-            original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode()) { "cash_import_submission_changed" }
+            original.idempotencyKey == expected.idempotencyKey && original.requestBody == expected.requestBody &&
+            original.resultInput?.encode() == expected.resultInput?.encode()) { "cash_import_submission_changed" }
         fun base(text: String) = checkNotNull(text.toLongOrNull()?.takeIf { it >= 0 && it.toString() == text }) { "cash_import_base_invalid" }
         check(base(newerBase) > base(original.baseLedgerSeq)) { "cash_import_base_not_stale" }
         check(batch.attempt < Int.MAX_VALUE) { "cash_import_attempt_exhausted" }
