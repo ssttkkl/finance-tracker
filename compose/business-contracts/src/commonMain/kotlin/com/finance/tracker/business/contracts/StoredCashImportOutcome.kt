@@ -1,5 +1,6 @@
 package com.finance.tracker.business.contracts
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -11,4 +12,5 @@ data class StoredResult(val version: Int, val batchId: String, val submissionKey
 
 @Serializable
 data class StoredCashImportSubmission(val key: String, val request: String, val receipt: String? = null,
-    val baseRejected: Boolean = false, val resultInput: String? = null)
+    val baseRejected: Boolean = false, val resultInput: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val transport: String? = null)

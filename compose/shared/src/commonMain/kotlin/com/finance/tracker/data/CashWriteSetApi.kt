@@ -18,8 +18,27 @@ internal suspend fun FinanceApiClient.submitFrozenCashImportWriteSet(workspaceId
     val path = scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set")
     val headers = cashKeyHeaders(input.idempotencyKey)
     // Freeze caller-owned JSON containers before the first suspension; exact serializers preserve numeric tokens.
-    val body = FrozenJsonBody(input.requestBody)
+    val body = cashImportRequestBody(input, credentials)
     return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers, beforeSend)
+}
+
+private const val CASH_IMPORT_GZIP_MIN_BYTES = 16 * 1024
+
+/** Use the persisted compact transport when present; compression is chosen only from cached server capability. */
+private suspend fun FinanceApiClient.cashImportRequestBody(input: LocalCashImportSubmission,
+    credentials: ApiCredentialSnapshot): FrozenJsonBody {
+    val text = input.transportBody ?: input.requestBody
+    val bytes = text.encodeToByteArray()
+    val key = CashImportTransportCache.key(credentials.apiOrigin, credentials.token)
+    val capabilities = CashImportTransportCache.cached(key)
+    if (capabilities?.supportsGzipRequest != true || bytes.size < CASH_IMPORT_GZIP_MIN_BYTES) return FrozenJsonBody(text)
+    val encoding = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { encodeCashImportRequest(bytes) }
+    return when (encoding) {
+        is CashImportRequestEncoding.Native ->
+            if (encoding.gzip.size < bytes.size) FrozenJsonBody(text, gzip = encoding.gzip) else FrozenJsonBody(text)
+        CashImportRequestEncoding.Browser -> FrozenJsonBody(text, compressInBrowser = true)
+        CashImportRequestEncoding.Identity -> FrozenJsonBody(text)
+    }
 }
 
 internal suspend fun FinanceApiClient.readCashImportWriteSetReceipt(workspaceId: String, receiptId: String,

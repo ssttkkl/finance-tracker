@@ -4,6 +4,7 @@ import io.ktor.server.application.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -82,6 +83,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
+    // Large import receipts, parser JSON and ledger snapshots are dominated by repeated JSON keys.
+    // Compress only when the caller advertised it; Ktor keeps identity, Vary and Content-Length correct.
+    install(Compression) {
+        mode = CompressionConfig.Mode.CompressResponse
+        gzip { priority = 1.0 }
+        minimumSize(1024)
+        matchContentType(ContentType.Application.Json)
+    }
     install(StatusPages) {
         exception<Throwable> { call, failure ->
             if (failure is kotlinx.coroutines.CancellationException || failure is VirtualMachineError ||
@@ -348,9 +357,24 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             })
         }
         exception<CashImportProtocolError> { call, failure ->
-            val status = if (failure.code == "upload_too_large") HttpStatusCode.PayloadTooLarge else HttpStatusCode.UnprocessableEntity
-            val code = when (failure.code) { "upload_too_large", "idempotency_key_required" -> failure.code; else -> "import_payload_invalid" }
-            val message = when (failure.code) { "upload_too_large" -> "上传内容过多，请减少文件后重试。"; "idempotency_key_required" -> "未能确认本次操作，请重试。"; else -> "导入信息有误，请检查后重试。" }
+            val status = when (failure.code) {
+                "upload_too_large", "payload_too_large" -> HttpStatusCode.PayloadTooLarge
+                "unsupported_content_encoding" -> HttpStatusCode.UnsupportedMediaType
+                "content_encoding_invalid" -> HttpStatusCode.BadRequest
+                else -> HttpStatusCode.UnprocessableEntity
+            }
+            val code = when (failure.code) {
+                "upload_too_large", "payload_too_large", "idempotency_key_required",
+                "unsupported_content_encoding", "content_encoding_invalid" -> failure.code
+                else -> "import_payload_invalid"
+            }
+            val message = when (failure.code) {
+                "upload_too_large", "payload_too_large" -> "上传内容过多，请减少文件后重试。"
+                "unsupported_content_encoding" -> "当前客户端使用了不支持的压缩方式，请升级后重试。"
+                "content_encoding_invalid" -> "上传内容已损坏，请重试。"
+                "idempotency_key_required" -> "未能确认本次操作，请重试。"
+                else -> "导入信息有误，请检查后重试。"
+            }
             call.respond(status, buildJsonObject { put("error", buildJsonObject {
                 put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
                 put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) }) })
@@ -514,8 +538,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val services = ReadServices(database, clock)
-    val methods = "GET, POST, PUT, PATCH, DELETE"
-    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID, X-FT-Account-IDs"
+    val methods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    val allowedHeaders = "Accept, Accept-Language, Authorization, Content-Encoding, Content-Language, Content-Type, Idempotency-Key, If-Match, X-FT-Statement-Password, X-FT-Workspace-ID, X-FT-Account-IDs"
     val localOrigin = Regex("^http://(?:127\\.0\\.0\\.1|localhost):[0-9]+$")
     intercept(ApplicationCallPipeline.Plugins) {
         val origin = call.request.headers[HttpHeaders.Origin]
@@ -543,8 +567,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 call.response.headers.append(HttpHeaders.AccessControlExposeHeaders, REQUEST_ID_HEADER)
             }
             val path = call.request.path()
-            if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/auth") && call.request.httpMethod != HttpMethod.Options) {
-                val write = call.request.httpMethod !in listOf(HttpMethod.Get, HttpMethod.Head)
+            if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/auth")) {
+                val write = call.request.httpMethod !in listOf(HttpMethod.Get, HttpMethod.Head, HttpMethod.Options)
                 val principal = withContext(Dispatchers.IO) { services.requireContext(bearerToken(call.request.headers[HttpHeaders.Authorization])) }
                 val expectedWorkspace = call.request.headers.getAll("X-FT-Workspace-ID")
                 if (expectedWorkspace != null && (expectedWorkspace.size != 1 || expectedWorkspace.single().isEmpty() ||

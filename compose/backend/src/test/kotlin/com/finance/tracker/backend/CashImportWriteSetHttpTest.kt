@@ -36,6 +36,12 @@ class CashImportWriteSetHttpTest(private val backend: String) {
     private val array = JsonArray(emptyList())
     private val clock = { Instant.parse("2026-11-14T00:00:00Z") }
     private val json = Json { encodeDefaults = true }
+    private fun gzip(bytes: ByteArray): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(output).use { it.write(bytes) }
+        return output.toByteArray()
+    }
+    private fun gzipSize(text: String): Int = gzip(text.encodeToByteArray()).size
     private fun sequence(db: Database, workspace: String) = db.read { c ->
         c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
     }
@@ -86,6 +92,12 @@ class CashImportWriteSetHttpTest(private val backend: String) {
     private fun payload(db: Database, workspace: String, changes: CashWriteSetDto = CashWriteSetDto(), rules: String = CASH_RULES_VERSION) =
         json.encodeToJsonElement(CashWriteSetRequestDto(sequence(db, workspace).toString(), rules, changes)).jsonObject
 
+    private suspend fun ApplicationTestBuilder.submitGzip(workspace: String, token: String, body: String, key: String): HttpResponse =
+        client.post("/api/v1/cash-import/write-set?workspace_id=$workspace") {
+            bearerAuth(token); header("Idempotency-Key", key)
+            header(HttpHeaders.ContentEncoding, "gzip"); contentType(ContentType.Application.Json)
+            setBody(io.ktor.http.content.ByteArrayContent(gzip(body.encodeToByteArray()), ContentType.Application.Json))
+        }
     private suspend fun ApplicationTestBuilder.submit(workspace: String?, token: String?, body: String, key: String? = "original"): HttpResponse =
         client.post("/api/v1/cash-import/write-set" + (workspace?.let { "?workspace_id=$it" } ?: "")) {
             if (token != null) bearerAuth(token)
@@ -268,7 +280,18 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(utc, reader.monthlySummaries(), "The default timezone remains UTC")
             assertEquals(shanghai, reader.monthlySummaries("Asia/Shanghai"), "Reading another timezone must not change the frozen review")
             val input = json.encodeToString(CashWriteSetRequestDto(source.ledgerSeq, CASH_RULES_VERSION, changes))
-            val saved = response(submit(ws, token, input, "monthly-first"), 200)
+            val firstCompact = com.finance.tracker.business.domain.compactCashWriteSetTransport(
+                CashWriteSetRequestDto(source.ledgerSeq, CASH_RULES_VERSION, changes), source.facts)!!
+            val firstCompactText = firstCompact.toString()
+            assertTrue(firstCompactText.encodeToByteArray().size < input.encodeToByteArray().size,
+                "First-import compact transport must shrink the decoded command")
+            println("FT_IMPORT_SIZES first_full=${input.encodeToByteArray().size} first_compact=${firstCompactText.encodeToByteArray().size} " +
+                "first_gzip=${gzipSize(firstCompactText)}")
+            assertTrue(firstCompact.getValue("coverage_table").jsonArray.size < changes.sourceBindings.size)
+            assertNull(firstCompact["replay_groups"], "The empty baseline has nothing to replay")
+            assertTrue(gzipSize(firstCompactText) < input.encodeToByteArray().size / 5,
+                "Compact first upload must save at least 80% with gzip")
+            val saved = response(submit(ws, token, firstCompactText, "monthly-first"), 200)
             assertEquals(JsonPrimitive(377), saved.getValue("summary").jsonObject["created_posted"])
             assertEquals(377, facts(db, ws).cashTransactions.size)
             assertLedger()
@@ -295,7 +318,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(changes.relations.size, savedRelations.size)
             assertEquals(facts(db, ws).transactionRelations.map { it.id }.toSet(), savedRelations.map { it.getValue("relation_id").jsonPrimitive.content }.toSet())
             val after = facts(db, ws); val afterSequence = sequence(db, ws)
-            assertEquals(saved, response(submit(ws, token, input, "monthly-first"), 200))
+            assertEquals(saved, response(submit(ws, token, firstCompactText, "monthly-first"), 200))
             assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
             val refreshed = snapshot()
             val (reimportPlan, reimport) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, refreshed, review,
@@ -305,9 +328,31 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(759, reimportRows.size)
             assertTrue(reimportRows.all { it["planned_action"] in setOf("duplicate", "duplicate_in_batch") },
                 "Fresh reimport must classify every original row as a duplicate rather than skip it")
-            val repeated = response(submit(ws, token, json.encodeToString(CashWriteSetRequestDto(refreshed.ledgerSeq, CASH_RULES_VERSION, reimport)), "monthly-fresh"), 200)
+            val reimportRequest = CashWriteSetRequestDto(refreshed.ledgerSeq, CASH_RULES_VERSION, reimport)
+            val reimportText = json.encodeToString(reimportRequest)
+            val reimportCompact = com.finance.tracker.business.domain.compactCashWriteSetTransport(reimportRequest, refreshed.facts)!!
+            val compactText = reimportCompact.toString()
+            assertTrue(reimportCompact.getValue("replay_groups").jsonArray.isNotEmpty(),
+                "A fully unchanged reimport must use verified repeated entries")
+            assertTrue(compactText.encodeToByteArray().size < reimportText.encodeToByteArray().size / 4,
+                "Repeated entries must remove most of the decoded command: ${compactText.length} vs ${reimportText.length}")
+            println("FT_IMPORT_SIZES reimport_full=${reimportText.encodeToByteArray().size} reimport_compact=${compactText.encodeToByteArray().size} " +
+                "reimport_gzip=${gzipSize(compactText)} replay_groups=${reimportCompact.getValue("replay_groups").jsonArray.size} " +
+                "bindings=${changes.sourceBindings.size} coverage=${firstCompact.getValue("coverage_table").jsonArray.size}")
+            val repeated = response(submit(ws, token, reimportText, "monthly-fresh"), 200)
             val summary = repeated.getValue("summary").jsonObject
             for (field in listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft")) assertEquals(JsonPrimitive(0), summary[field], field)
+            assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
+            val compactRepeated = response(submitGzip(ws, token, compactText, "monthly-compact"), 200)
+            assertEquals(JsonPrimitive("no_changes"), repeated["status"])
+            assertEquals(JsonPrimitive("no_changes"), compactRepeated["status"])
+            assertEquals(repeated.getValue("summary"), compactRepeated.getValue("summary"))
+            assertEquals(repeated.getValue("ledger_seq"), compactRepeated.getValue("ledger_seq"))
+            assertEquals(repeated.getValue("write_set_result"), compactRepeated.getValue("write_set_result"),
+                "Expanded compact receipts must keep every actual identity and order")
+            assertEquals(repeated.getValue("commit_outcome"), compactRepeated.getValue("commit_outcome"))
+            assertTrue(gzipSize(compactText) < reimportText.encodeToByteArray().size / 5,
+                "Compact reimport upload must save at least 80% with gzip")
             assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
         }
     }

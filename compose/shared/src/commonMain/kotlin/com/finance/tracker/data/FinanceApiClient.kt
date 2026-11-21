@@ -39,7 +39,7 @@ internal val apiJson = Json {
 internal class FinanceTransportFailure(cause: Throwable, message: String = cause.message ?: "network_unavailable") : IOException(message, cause)
 
 internal object NoRequestBody
-internal class FrozenJsonBody(val text: String)
+internal class FrozenJsonBody(val text: String, val gzip: ByteArray? = null, val compressInBrowser: Boolean = false)
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
 internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
@@ -139,7 +139,9 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
                 if (body !== NoRequestBody) put(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             }
             val jsonBody = if (body === NoRequestBody) null else (body as FrozenJsonBody).text
-            val response = fetchLargeBrowserJson(origin + path, method.value, headers, jsonBody, beforeSend) { status ->
+            val browserBody = body as? FrozenJsonBody
+            val response = fetchLargeBrowserJson(origin + path, method.value, headers, jsonBody,
+                browserBody?.compressInBrowser == true, beforeSend) { status ->
                 if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
             }
             if (response != null) return readPayload(response.status, response.text)
@@ -154,6 +156,9 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
                 contentType(requestContentType)
                 if (body is JsonElement && requestContentType == ContentType.Application.Json) {
                     setBody(TextContent(body.toString(), ContentType.Application.Json))
+                } else if (body is FrozenJsonBody && body.gzip != null) {
+                    header(HttpHeaders.ContentEncoding, "gzip")
+                    setBody(io.ktor.http.content.ByteArrayContent(body.gzip, ContentType.Application.Json))
                 } else if (body is FrozenJsonBody) {
                     setBody(TextContent(body.text, ContentType.Application.Json))
                 } else {

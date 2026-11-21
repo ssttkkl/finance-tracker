@@ -9,6 +9,8 @@ import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.business.domain.cashWriteSetJson
+import com.finance.tracker.business.domain.compactCashWriteSetTransport
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.CashFundingGroup
 import com.finance.tracker.business.domain.CashFundingSuggestion
@@ -324,6 +326,12 @@ internal class LedgerSessionCacheOwner(
     suspend fun prepareImportSubmission(batchId: String, frozen: LocalCashImportSubmission) =
         withImportFiles { it.prepareSubmission(batchId, frozen) }
 
+    suspend fun recordImportTransport(batchId: String, expected: LocalCashImportSubmission, transport: String) =
+        withImportFiles { it.recordTransport(batchId, expected, transport) }
+
+    suspend fun discardUnprovableImport(batchId: String, expected: LocalCashImportSubmission) =
+        withImportFiles { it.discardUnprovableSubmission(batchId, expected) }
+
     /** Recovery and up to three explicit-baseline rebases. Unknown results always retain the same operation. */
     suspend fun resumeImportSubmission(batchId: String, calculate: LocalCashImportCalculator? = null): LocalCashImportSubmissionResult =
         submissionMutex.withLock {
@@ -368,10 +376,18 @@ internal class LedgerSessionCacheOwner(
                 // Absence is not a non-commit proof. Only the exact original operation is retried.
                 requireImportSession()
                 if (original.baseRejected) throw BaseRejection(ApiFailure("ledger_base_changed", 409, commitState = "not_committed"))
-                try { api.submitFrozenCashImportWriteSet(scope.workspaceId, original, credentials, ::requireImportSession) }
+                val prepared = prepareImportTransport(batchId, original)
+                try { submitImportCommand(batchId, prepared) }
                 catch (rejection: ApiFailure) {
+                    if (rejection.status == 422 && rejection.code == "write_set_replay_mismatch" && rejection.commitState == "not_committed") {
+                        val receipt = try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, prepared.idempotencyKey, credentials) }
+                        catch (missing: ApiFailure) { if (missing.status == 404 && missing.code == "receipt_not_found") null else throw missing }
+                        if (receipt != null) return receipt
+                        withImportFiles { it.discardUnprovableSubmission(batchId, prepared) }
+                        throw CashImportPlanError("write_set_replay_mismatch", "not_committed")
+                    }
                     if (rejection.status == 409 && rejection.code == "ledger_base_changed" && rejection.commitState == "not_committed") {
-                        try { withImportFiles { it.recordBaseRejection(batchId, original) } }
+                        try { withImportFiles { it.recordBaseRejection(batchId, prepared) } }
                         catch (cancelled: CancellationException) { throw cancelled }
                         catch (storageFailure: Throwable) { throw LocalCashImportRejectionStorageFailure(rejection, storageFailure) }
                         throw BaseRejection(rejection)
@@ -380,6 +396,72 @@ internal class LedgerSessionCacheOwner(
                 }
             }
         }
+
+    private suspend fun readReceiptOrNull(key: String): CashMutationReceiptDto? = try {
+        api.readCashImportWriteSetReceiptByKey(scope.workspaceId, key, credentials)
+    } catch (failure: ApiFailure) {
+        if (failure.status == 404 && failure.code == "receipt_not_found") null else throw failure
+    }
+
+    /**
+     * A mixed-version deployment may reject an encoding or compact command after advertising it.
+     * Only a rejection that cannot have written may be retried; the same key and logical command stay frozen.
+     */
+    private suspend fun submitImportCommand(batchId: String, prepared: LocalCashImportSubmission): CashMutationReceiptDto {
+        var current = prepared
+        var encodingRetried = false
+        var commandRetried = false
+        while (true) {
+            try {
+                return api.submitFrozenCashImportWriteSet(scope.workspaceId, current, credentials, ::requireImportSession)
+            } catch (rejection: ApiFailure) {
+                val encodingRejected = rejection.status == 415 ||
+                    rejection.status == 400 && rejection.code in setOf("content_encoding_invalid", "unsupported_content_encoding")
+                if (!encodingRetried && encodingRejected) {
+                    encodingRetried = true
+                    CashImportTransportCache.invalidate(credentials.apiOrigin, credentials.token)
+                    continue
+                }
+                val commandRejected = rejection.status == 422 &&
+                    rejection.code in setOf("write_set_payload_invalid", "import_payload_invalid") &&
+                    rejection.commitState == "not_committed" && current.transportBody != null
+                if (!commandRetried && commandRejected) {
+                    commandRetried = true
+                    readReceiptOrNull(current.idempotencyKey)?.let { return it }
+                    withImportFiles { it.clearTransport(batchId, current) }
+                    current = current.withoutTransport()
+                    continue
+                }
+                throw rejection
+            }
+        }
+    }
+
+    /**
+     * Freeze the transport representation before the first send so a restart replays the exact bytes.
+     * A failed or absent capability probe leaves the original full command in place.
+     */
+    private suspend fun prepareImportTransport(batchId: String, original: LocalCashImportSubmission): LocalCashImportSubmission {
+        if (original.transportBody != null) {
+            // Refresh the encoding cache after a restart; the frozen transport bytes never change.
+            api.cashImportTransportCapabilities(scope.workspaceId, credentials)
+            return original
+        }
+        val capabilities = api.cashImportTransportCapabilities(scope.workspaceId, credentials) ?: return original
+        if (!capabilities.supportsCompactCommand) return original
+        val snapshot = read { it.snapshot() }?.takeIf { it.ledgerSeq == original.baseLedgerSeq }
+        val compact = compactCashWriteSetTransport(original.request(), snapshot?.facts) ?: return original
+        val transport = cashWriteSetJson.encodeToString(compact)
+        return try {
+            withImportFiles { it.recordTransport(batchId, original, transport) }
+            original.withTransport(transport)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // The compact form is an optimization; never block a command that identity JSON can still carry.
+            original
+        }
+    }
 
     private suspend fun rebaseImportSubmission(batchId: String, original: LocalCashImportSubmission, rejection: ApiFailure,
         rebase: CashImportRebase, captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot?): CashMutationReceiptDto? {

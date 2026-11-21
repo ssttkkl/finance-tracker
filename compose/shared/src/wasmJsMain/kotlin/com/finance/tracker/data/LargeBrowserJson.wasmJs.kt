@@ -13,17 +13,19 @@ import kotlin.js.JsString
 import kotlin.js.Promise
 
 internal actual suspend fun fetchLargeBrowserJson(url: String, method: String, headers: Map<String, String>,
-    body: String?, beforeSend: suspend () -> Unit, onStatus: (Int) -> Unit): LargeBrowserJson? {
+    body: String?, compress: Boolean, beforeSend: suspend () -> Unit, onStatus: (Int) -> Unit): LargeBrowserJson? {
+    var browserHeaders = headers
     val requestBody = body?.let { text ->
-        val response = importComputeWorkerCall { loadCashComputeWorkerClient().await().packJsonRequest(text).awaitResult() }
+        val response = importComputeWorkerCall { loadCashComputeWorkerClient().await().packJsonRequest(text, compress).awaitResult() }
         response.checkHandler()
+        if (response.compressed) browserHeaders = headers + (io.ktor.http.HttpHeaders.ContentEncoding to "gzip")
         checkNotNull(response.blob) { "cash_import_request_body_missing" }
     }
     beforeSend()
     currentCoroutineContext().ensureActive()
     val controller = abortController()
     try {
-        val response = browserFetchJson(url, method, Json.encodeToString(headers), requestBody, controller).awaitNetwork()
+        val response = browserFetchJson(url, method, Json.encodeToString(browserHeaders), requestBody, controller).awaitNetwork()
         onStatus(response.status)
         return LargeBrowserJson(response.status, response.text().awaitNetwork().toString())
     } finally {
@@ -51,4 +53,5 @@ private fun browserFetchJson(url: String, method: String, headers: String, body:
 
 internal external interface BrowserJsonRequestBody : ImportComputeResponse {
     val blob: JsAny?
+    val compressed: Boolean
 }

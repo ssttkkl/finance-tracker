@@ -46,6 +46,21 @@ class LocalCashImportSubmissionTest {
         assertNull(restored.receipt())
     }
 
+    @Test fun frozenCompactTransportSurvivesEncodingAndIsDroppedAfterAReceipt() {
+        val original = LocalCashImportSubmission.freeze("original-key", localCashWriteSetFixture())
+        val compact = JsonObject(Json.parseToJsonElement(original.requestBody).jsonObject +
+            ("command_version" to JsonPrimitive(2)) +
+            ("request_digest" to JsonPrimitive(com.finance.tracker.business.domain.cashWriteSetRequestDigest(original.request())))).toString()
+        val prepared = original.withTransport(compact)
+        val restored = LocalCashImportSubmission.decode(prepared.encode())
+        assertEquals(compact, restored.transportBody)
+        assertEquals(original.requestBody, restored.requestBody)
+        assertFails { prepared.withTransport(compact) }
+        assertNull(LocalCashImportSubmission.decode(prepared.withReceipt(localCashWriteSetReceiptFixture()).encode()).transportBody)
+        val wrongBase = JsonObject(Json.parseToJsonElement(compact).jsonObject + ("base_ledger_seq" to JsonPrimitive("8"))).toString()
+        assertFails { original.withTransport(wrongBase) }
+    }
+
     @Test fun committedReceiptIsFrozenWithAllIdentitiesAndCannotBeReplaced() {
         val receipt = localCashWriteSetReceiptFixture()
         val prepared = LocalCashImportSubmission.freeze("original-key", localCashWriteSetFixture())

@@ -4,6 +4,9 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashWriteSetReferenceFailure
+import com.finance.tracker.business.domain.CashWriteSetPayloadTooLarge
+import com.finance.tracker.business.domain.CashWriteSetReplayMismatch
+import com.finance.tracker.business.domain.expandCashWriteSetTransport
 import com.finance.tracker.business.domain.validateCashImportWriteSetEntryTopology
 import java.sql.Connection
 import java.time.Instant
@@ -43,13 +46,29 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                 val result = repository.replay(current.userId, key, body.digest, "cash_write_set") ?: run {
                     boundary.noPriorResult()
                     boundary.enter("submit_revalidation")
-                    val request = try { Json.decodeFromJsonElement<CashWriteSetRequestDto>(body.payload) }
+                    val baseText = (body.payload["base_ledger_seq"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                        ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("base_ledger_seq"))
+                    val rules = (body.payload["rules_version"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                        ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("rules_version"))
+                    if (rules != CASH_RULES_VERSION) throw CashWriteSetSubmissionFailure("rules_version_changed")
+                    val base = baseText.toLongOrNull()?.takeIf { it >= 0 && it.toString() == baseText }
+                        ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("base_ledger_seq"))
+                    c.requireLedgerBase(expectedWorkspace, base)
+                    // New transport-only fields expand to the same logical command and are verified against
+                    // the locked baseline before any write path observes them.
+                    val expanded = if ((body.payload["command_version"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull == 2) {
+                        val replay = (body.payload["replay_groups"] as? JsonArray)?.isNotEmpty() == true
+                        val facts = if (replay) LedgerSnapshotRepository(c, expectedWorkspace, database.sqlite).facts() else null
+                        try { expandCashWriteSetTransport(body.payload, facts) }
+                        catch (_: CashWriteSetPayloadTooLarge) { throw CashImportProtocolError("payload_too_large") }
+                        catch (_: CashWriteSetReplayMismatch) { throw CashWriteSetSubmissionFailure("write_set_replay_mismatch", commitState = "not_committed") }
+                        catch (_: IllegalArgumentException) { throw CashWriteSetSubmissionFailure("write_set_payload_invalid", commitState = "not_committed") }
+                    } else body.payload
+                    val request = try { Json.decodeFromJsonElement<CashWriteSetRequestDto>(expanded) }
                         catch (failure: SerializationException) { throw CashWriteSetSubmissionFailure("write_set_payload_invalid", cause = failure) }
                         catch (failure: IllegalArgumentException) { throw CashWriteSetSubmissionFailure("write_set_payload_invalid", cause = failure) }
                     if (request.rulesVersion != CASH_RULES_VERSION) throw CashWriteSetSubmissionFailure("rules_version_changed")
-                    val base = request.baseLedgerSeq.toLongOrNull()?.takeIf { it >= 0 && it.toString() == request.baseLedgerSeq }
-                        ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("base_ledger_seq"))
-                    c.requireLedgerBase(expectedWorkspace, base)
+                    if (request.baseLedgerSeq != baseText) throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("base_ledger_seq"))
                     val context = CashSqlContext(c, expectedWorkspace, database.sqlite, { java.util.UUID.randomUUID().toString() }, now)
                     fun <T> stage(name: String, action: () -> T): T {
                         boundary.enter(name)

@@ -32,7 +32,7 @@ internal actual suspend fun encodeStoredImportSubmission(submission: LocalCashIm
     val stored = submission.storageValue()
     val response = importComputeWorkerCall {
         loadCashComputeWorkerClient().await()
-            .encodeSubmission(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput)
+            .encodeSubmission(stored.key, stored.request, stored.receipt, stored.baseRejected, stored.resultInput, stored.transport)
             .awaitResult()
     }
     return response.requireBody()

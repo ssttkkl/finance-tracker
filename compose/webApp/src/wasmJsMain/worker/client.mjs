@@ -142,16 +142,16 @@ export function encodeBatch(files, review, submission, attempt) {
   return start("encodeBatch", { files, review, submission, attempt });
 }
 
-export function encodeSubmission(key, request, receipt, rejected, resultInput) {
-  return start("encodeSubmission", { key, request, receipt, rejected, resultInput });
+export function encodeSubmission(key, request, receipt, rejected, resultInput, transport) {
+  return start("encodeSubmission", { key, request, receipt, rejected, resultInput, transport });
 }
 
 export function rebaseImport(workspace, base, review, files, snapshot) {
   return start("rebaseImport", { workspace, base, review, files, snapshot });
 }
 
-export function packJsonRequest(body) {
-  return start("packJsonRequest", body);
+export function packJsonRequest(body, compress = false) {
+  return start("packJsonRequest", { body, compress });
 }
 
 export function investmentDisplay(portfolio, account, options) {

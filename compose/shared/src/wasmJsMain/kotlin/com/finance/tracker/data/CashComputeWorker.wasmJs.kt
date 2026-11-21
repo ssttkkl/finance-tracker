@@ -20,9 +20,10 @@ internal external interface CashComputeWorkerClient : JsAny {
     fun inspectArchive(body: String): ComputeWorkerRequest<ImportArchiveResponse>
     fun inspectBatch(body: String): ComputeWorkerRequest<StoredBatchResponse>
     fun encodeBatch(files: JsAny, review: String?, submission: String?, attempt: Int): ComputeWorkerRequest<EncodedImportResponse>
-    fun encodeSubmission(key: String, body: String, receipt: String?, rejected: Boolean, resultInput: String?): ComputeWorkerRequest<EncodedImportResponse>
+    fun encodeSubmission(key: String, body: String, receipt: String?, rejected: Boolean, resultInput: String?,
+        transport: String?): ComputeWorkerRequest<EncodedImportResponse>
     fun rebaseImport(workspace: String, base: String, review: String, files: JsAny, snapshot: String): ComputeWorkerRequest<ImportRebaseResponse>
-    fun packJsonRequest(body: String): ComputeWorkerRequest<BrowserJsonRequestBody>
+    fun packJsonRequest(body: String, compress: Boolean): ComputeWorkerRequest<BrowserJsonRequestBody>
     fun investmentDisplay(portfolio: String, account: String?, options: String): ComputeWorkerRequest<EncodedImportResponse>
     fun encodeFiles(files: JsAny): ComputeWorkerRequest<EncodedImportResponse>
     fun summarizeFiles(files: JsAny): ComputeWorkerRequest<EncodedImportResponse>

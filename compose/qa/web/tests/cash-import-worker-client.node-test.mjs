@@ -148,3 +148,36 @@ test("ledger details reuse the same scoped compute slot as pages", async () => {
     ledger.close();
   } finally { globalThis.Worker = original; }
 });
+
+test("compressed request and persisted transport contracts keep their explicit flags", async () => {
+  const workers = [];
+  class WorkerStub {
+    constructor() { workers.push(this); this.messages = []; }
+    postMessage(message) { this.messages.push(message); this.message = message; }
+    ready() { this.onmessage({ data: { ready: true } }); }
+    complete(result = this.message.payload) { this.onmessage({ data: { requestId: this.message.requestId, result } }); }
+    terminate() {}
+  }
+  const original = globalThis.Worker;
+  globalThis.Worker = WorkerStub;
+  try {
+    const { packJsonRequest, encodeSubmission } = await import("../../../webApp/src/wasmJsMain/worker/client.mjs");
+    const packed = packJsonRequest('{"a":1}', true);
+    workers[0].ready();
+    assert.deepEqual(workers[0].message, { requestId: 1, operation: "packJsonRequest",
+      payload: { body: '{"a":1}', compress: true } });
+    workers[0].complete({ blob: new Blob(["compressed"]), compressed: true });
+    assert.equal((await packed.result).compressed, true);
+    const identity = packJsonRequest('{"a":1}');
+    workers[0].complete({ blob: new Blob(["plain"]), compressed: false });
+    assert.equal((await identity.result).compressed, false);
+    assert.deepEqual(workers[0].message.payload, { body: '{"a":1}', compress: false });
+
+    const encoded = encodeSubmission("batch", "{}", null, false, null, "{\"command_version\":2}");
+    assert.deepEqual(workers[0].message, { requestId: 3, operation: "encodeSubmission",
+      payload: { key: "batch", request: "{}", receipt: null, rejected: false, resultInput: null,
+        transport: "{\"command_version\":2}" } });
+    workers[0].complete({ body: "stored" });
+    assert.equal(await encoded.result.then((value) => value.body), "stored");
+  } finally { globalThis.Worker = original; }
+});

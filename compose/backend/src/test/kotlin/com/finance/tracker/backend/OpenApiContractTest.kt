@@ -17,8 +17,10 @@ class OpenApiContractTest {
         val operation = doc.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set").jsonObject.getValue("post").jsonObject
         assertEquals(JsonPrimitive("submitCashImportWriteSet"), operation["operationId"])
         assertEquals(JsonPrimitive("#/components/schemas/CashWriteSetRequest"), schema(doc, "/api/v1/cash-import/write-set")["\$ref"])
-        assertEquals(setOf("200", "401", "403", "409", "422", "500", "503"), operation.getValue("responses").jsonObject.keys)
+        assertEquals(setOf("200", "400", "401", "403", "409", "413", "415", "422", "500", "503"), operation.getValue("responses").jsonObject.keys)
         assertEquals(Json.parseToJsonElement("""[{"BearerAuth":[]}]"""), operation["security"])
+        val encoding = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("Content-Encoding") }.jsonObject
+        assertEquals(JsonPrimitive("header"), encoding["in"]); assertEquals(JsonPrimitive(false), encoding["required"])
         val key = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("Idempotency-Key") }.jsonObject
         assertEquals(JsonPrimitive("Idempotency-Key"), key["name"]); assertEquals(JsonPrimitive(true), key["required"])
         val workspace = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("workspace_id") }.jsonObject
@@ -27,7 +29,7 @@ class OpenApiContractTest {
         assertEquals(setOf("ledger_seq", "write_set_result"), success.getValue("allOf").jsonArray[1].jsonObject.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
         val schemas = doc.getValue("components").jsonObject.getValue("schemas").jsonObject
         val request = schemas.getValue("CashWriteSetRequest").jsonObject
-        assertEquals(setOf("base_ledger_seq", "rules_version", "changes"), request.getValue("properties").jsonObject.keys)
+        assertEquals(setOf("base_ledger_seq", "rules_version", "changes", "command_version", "coverage_table", "replay_groups", "request_digest"), request.getValue("properties").jsonObject.keys)
         assertEquals(schemas.getValue("LedgerVersion").jsonObject.getValue("properties").jsonObject["ledger_seq"], request.getValue("properties").jsonObject["base_ledger_seq"])
         val changes = schemas.getValue("CashWriteSet").jsonObject.getValue("properties").jsonObject
         assertFalse("account_mapping_groups" in changes); assertFalse("account_mapping_rows" in changes)
@@ -58,8 +60,21 @@ class OpenApiContractTest {
             val name = descriptor.serialName.substringAfterLast('.').removeSuffix("Dto")
             val schema = schemas.getValue(name).jsonObject
             assertEquals(JsonPrimitive(false), schema["additionalProperties"], name)
-            assertEquals((0 until descriptor.elementsCount).map(descriptor::getElementName).toSet(), schema.getValue("properties").jsonObject.keys, name)
-            assertEquals((0 until descriptor.elementsCount).filter { !descriptor.isElementOptional(it) }.map(descriptor::getElementName).toSet(), schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(), name)
+            val fields = (0 until descriptor.elementsCount).map(descriptor::getElementName).toSet()
+            val required = (0 until descriptor.elementsCount).filter { !descriptor.isElementOptional(it) }.map(descriptor::getElementName).toSet()
+            if (name == "CashWriteSetRequest") {
+                assertTrue(fields.all { it in schema.getValue("properties").jsonObject.keys }, name)
+                assertEquals(setOf("command_version", "coverage_table", "replay_groups", "request_digest"),
+                    schema.getValue("properties").jsonObject.keys - fields)
+                assertEquals(required, schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+            } else if (name == "CashSourceBindingWrite") {
+                assertEquals(fields + "coverage_ref", schema.getValue("properties").jsonObject.keys)
+                assertEquals(required - "coverage", schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+                assertNotNull(schema["oneOf"])
+            } else {
+                assertEquals(fields, schema.getValue("properties").jsonObject.keys, name)
+                assertEquals(required, schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(), name)
+            }
         }
     }
 

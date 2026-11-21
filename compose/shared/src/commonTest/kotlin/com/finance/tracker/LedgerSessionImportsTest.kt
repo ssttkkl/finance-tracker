@@ -2095,6 +2095,9 @@ class LedgerSessionImportsTest {
             override suspend fun set(value: String) { token = value }
             override suspend fun clear() { tokenClearFailure?.let { throw it }; token = null }
         }, MockEngine { request ->
+            if (request.method == HttpMethod.Options) {
+                return@MockEngine respond("{}", HttpStatusCode.NotFound, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
             paths += request.url.encodedPath
             assertEquals("Bearer ${expectedHttpToken ?: token}", request.headers[HttpHeaders.Authorization])
             val body = when (request.url.encodedPath) {
