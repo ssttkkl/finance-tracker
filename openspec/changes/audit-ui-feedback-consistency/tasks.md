@@ -78,4 +78,4 @@
 ## 7. 发布
 
 - [x] 7.1 功能地图无需新增页面或能力，未改现状说明。用户本轮明确 OpenSpec spec/change 的明文特例不自动生效，需逐条交用户判断；据此把导入超限从 Snackbar-only 改为文件区常驻原因，更新 `cash-import-session` delta，并把“spec/change 明文特例需交用户判断”写入 `AGENTS.md`。除此之外无新增规范条目。
-- [x] 7.2 已提交 `06882f0f`（`fix: 统一全页面反馈与操作层级`），推送 `origin/civil-seal`（新分支，已设置 upstream）；交付说明见最终回复。
+- [x] 7.2 已提交 `06882f0f`、`9de8d50c`、`955d0222` 并推送 `origin/civil-seal`（新分支，已设置 upstream）。用户复核 A1–A3、O1–O19 后决定全部保留、不回退；前后对比材料在 `compose/build/ui-compare/`（构建产物，不提交）。
