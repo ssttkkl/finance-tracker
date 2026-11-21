@@ -229,7 +229,7 @@ internal fun CashMaintenanceConfirmationActions(state: CashRecordTaskState, onCo
         }
         PlatformControlAccessibility("cash.maintenance.confirm", ControlAccessibilityState.Button(connection.canSubmit && !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty()))
         Button(onClick = { if (connection.canSubmit) onConfirm() }, enabled = connection.canSubmit && !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty(),
-            modifier = Modifier.testTag("cash.maintenance.confirm")) { Text(localizedText("cash_confirm_save")) }
+            modifier = Modifier.testTag("cash.maintenance.confirm")) { BusyButtonLabel(state.busy, localizedText("cash_confirm_save")) }
         if (sideSheet) {
         TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
         }

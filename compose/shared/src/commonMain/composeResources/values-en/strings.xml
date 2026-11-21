@@ -96,7 +96,7 @@
     <string name="copy_2be9040878">Time range</string>
     <string name="copy_2ce741e7ab">Link type</string>
     <string name="copy_2e5de483d7">Finance Tracker</string>
-    <string name="copy_2ea314ef4c">You can select up to 20 files at a time.</string>
+    <string name="copy_2ea314ef4c">This import allows up to 20 files. Remove some files before adding more.</string>
     <string name="copy_2f752c005e">Remove</string>
     <string name="copy_307d666742">Fee</string>
     <string name="copy_3171424931">Not now</string>
@@ -399,6 +399,7 @@
     <string name="copy_dd8fbdc06f">%1$s with %2$s</string>
     <string name="copy_dd9a4bdee0">You don't have permission to access this workspace.</string>
     <string name="copy_ddbb43b6dd">No holdings.</string>
+    <string name="investment_no_matching_holdings">No matching holdings.</string>
     <string name="copy_de6433b70d">Confirm import</string>
     <string name="copy_df0b8d97c3">Joining…</string>
     <string name="copy_dfa5e652bf">Enter a valid email address.</string>
@@ -601,6 +602,7 @@
     <string name="dialog_error_acknowledge">Got it</string>
     <string name="ledger_category_error_title">Couldn't set category</string>
     <string name="ledger_delete_error_title">Couldn't delete transactions</string>
+    <string name="ledger_action_failed">%1$s. %2$s</string>
     <string name="cash_category_delete_error_title">Couldn't delete category</string>
     <string name="workspace_delete_error_title">Couldn't delete workspace</string>
     <string name="ledger_relation_error_title">Couldn't update linked transactions</string>
@@ -917,6 +919,7 @@
     <string name="cash_import_account_name_invalid">Enter an account name of up to 128 characters.</string>
     <string name="ledger_refresh">Refresh</string>
     <string name="session_offline">You’re offline. Only local data is available; it will sync again once reconnected.</string>
+    <string name="session_checking">Checking the connection…</string>
     <string name="session_connection_unavailable">Connection not ready. Try again.</string>
     <string name="session_reconnect">Retry</string>
     <string name="workspace_copy_failed">Couldn't copy. You can select and copy the text manually.</string>

@@ -37,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.remember
@@ -205,8 +206,8 @@ internal fun CashCategoryScreen(
     val impact = state.deleteImpact
     if (item != null && impact != null) {
         val impactText = when {
-            impact.childCount > 0 -> localizedText("copy_fc079766e9", impact.childCount)
-            impact.directUsageCount > 0 -> localizedText("copy_166f66a0f6", impact.directUsageCount)
+            impact.childCount > 0 -> localizedText("copy_8f19827d18", item.name) + "\n" + localizedText("copy_fc079766e9", impact.childCount)
+            impact.directUsageCount > 0 -> localizedText("copy_8f19827d18", item.name) + "\n" + localizedText("copy_166f66a0f6", impact.directUsageCount)
             else -> localizedText("copy_8f19827d18", item.name)
         }
         ConfirmationDialog(
@@ -295,7 +296,11 @@ private fun CategoryDirectory(
                             modifier = Modifier.testTag("cash-category.order.${item.id}"),
                         )
                         DropdownMenuItem(
-                            text = { Text(localizedText(if (allItems.any { it.parentId == item.id }) "management_category_has_children" else "copy_3755f56f2f"), color = MaterialTheme.colorScheme.error) },
+                            text = {
+                                val hasChildren = allItems.any { it.parentId == item.id }
+                                Text(localizedText(if (hasChildren) "management_category_has_children" else "copy_3755f56f2f"),
+                                    color = if (hasChildren) LocalContentColor.current else MaterialTheme.colorScheme.error)
+                            },
                             onClick = { menuOpen = false; onDelete(item) },
                             enabled = allItems.none { it.parentId == item.id },
                         )

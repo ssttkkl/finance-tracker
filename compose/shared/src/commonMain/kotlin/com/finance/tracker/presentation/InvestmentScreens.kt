@@ -59,6 +59,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 
@@ -254,7 +255,15 @@ internal fun InvestmentHoldingsScreen(
                         if (baselineDates.isNotEmpty()) Text(localizedText("copy_7d7a0fad0f", baselineDates.joinToString("、")), style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                if (!loading && error == null && visibleRows.isEmpty()) StateMessage(localizedText("copy_ddbb43b6dd"))
+                if (!loading && error == null && visibleRows.isEmpty()) {
+                    if (tickerFilter.isNotBlank()) {
+                        StateMessage(localizedText("investment_no_matching_holdings")) {
+                            FilledTonalButton(onClick = { viewModel.updateTickerFilter("") }) { Text(localizedText("ledger_clear_filters")) }
+                        }
+                    } else {
+                        StateMessage(localizedText("copy_ddbb43b6dd"))
+                    }
+                }
                 if (sizeClass == WindowSizeClass.WIDE && visibleRows.isNotEmpty()) {
                     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)) {
                         FinanceTableCell(localizedText("copy_d93f4c9f05") + " / " + localizedText("copy_c3d92b20c8"), 1.6f, header = true)

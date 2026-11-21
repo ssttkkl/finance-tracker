@@ -53,7 +53,7 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
             if (statusTitle != null && statusBody != null) {
                 CashRecordStatusBanner(statusTitle, statusBody, Modifier.testTag("cash.import.status"))
             }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (busy) TaskProgressIndicator()
             errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
             if (detail == null) {
                 if (canRetry) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }

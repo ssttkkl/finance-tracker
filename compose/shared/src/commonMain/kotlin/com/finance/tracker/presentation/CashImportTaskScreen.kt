@@ -33,6 +33,7 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_arrow_back
 import com.finance.tracker.resources.ic_arrow_forward
+import com.finance.tracker.resources.ic_check
 import org.jetbrains.compose.resources.painterResource
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
@@ -78,7 +79,11 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
     LaunchedEffect(notice, noticeText) {
         val shown = notice ?: return@LaunchedEffect
         val message = noticeText?.takeIf(String::isNotEmpty) ?: return@LaunchedEffect
-        val result = snackbar.showSnackbar(message, actionLabel = retryLabel.takeIf { shown.retry != null })
+        val result = snackbar.showSnackbar(
+            message,
+            actionLabel = retryLabel.takeIf { shown.retry != null },
+            withDismissAction = shown.retry != null,
+        )
         if (notice == shown) {
             notice = null
             if (result == SnackbarResult.ActionPerformed) shown.retry?.invoke()
@@ -94,6 +99,11 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
     var accountFormSource by remember { mutableStateOf<ImportSourceAccount?>(null) }
     var accountCreateSourceRef by remember { mutableStateOf<String?>(null) }
     var accountDirty by remember { mutableStateOf(false) }
+    LaunchedEffect(accountForm, processingOpen) {
+        // 主任务提示不得漂入账户表单或处理明细；账户只保留自己的读取/保存提示。
+        if (accountForm != null && notice?.source != "account") notice = null
+        if (processingOpen) notice = null
+    }
     var discardAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var exitDialog by remember { mutableStateOf<ImportTaskExitAction?>(null) }
     var exitChoice by remember(exitDialog) { mutableStateOf<String?>(null) }
@@ -443,7 +453,8 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
                     Text(localizedText("cash_import_previous"))
                 }
                 Spacer(Modifier.weight(1f))
-                if (state.phase == ImportTaskPhase.PREPARE && !mappingStep) {
+                val hasImportFiles = pendingFiles.isNotEmpty() || files.isNotEmpty() || !state.context?.files.isNullOrEmpty()
+                if (state.phase == ImportTaskPhase.PREPARE && !mappingStep && hasImportFiles) {
                   val blockedReason = fileStepNotice?.let { localizedText(it) }
                   Button(onClick = {
                     if (blockedReason == null) mappingStep = true
@@ -462,7 +473,11 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
                     val canConfirm = !busy && canWrite && connection.canSubmit && state.canConfirm && accountState.pendingKeys.isEmpty()
                     PlatformControlAccessibility("cash.import.confirm", ControlAccessibilityState.Button(canConfirm))
                     Button(onClick = { if (currentConnection.canSubmit && account.state.value.pendingKeys.isEmpty()) task.confirm() },
-                        enabled = canConfirm, modifier = Modifier.testTag("cash.import.confirm")) { Text(localizedText("cash_import_confirm_all")) }
+                        enabled = canConfirm, modifier = Modifier.testTag("cash.import.confirm")) {
+                        Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(localizedText("cash_import_confirm_all"))
+                    }
                 } else Button(onClick = {
                     val groups = state.context?.sourceAccounts.orEmpty()
                     val selections = state.choices.accountSelections.associateBy { it.sourceAccountRef }
@@ -620,7 +635,11 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 val canContinue = enabled && canWrite && connection.canSubmit
                 PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(canContinue))
                 Button(onClick = { if (canContinue) onContinue() }, enabled = canContinue,
-                    modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText("cash_import_confirm_all")) }
+                    modifier = Modifier.testTag("cash.import.resolve")) {
+                    Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(localizedText("cash_import_confirm_all"))
+                }
             } else if (receipt != null) {
                 val canReview = !failed && state.recoveryBatchId == null && (receipt.pendingItemCount ?: 0) > 0
                 val canOpen = enabled && (state.recoveryBatchId == null || state.completionRetryExhausted || state.internalFailure != null)
@@ -629,13 +648,21 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
                 if (canReview) {
                     PlatformControlAccessibility("cash.import.review-pending", ControlAccessibilityState.Button(canOpen))
                     TextButton(onClick = onReturn, enabled = canOpen,
-                        modifier = Modifier.testTag("cash.import.return")) { Text(ledgerLabel) }
+                        modifier = Modifier.testTag("cash.import.return")) {
+                        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(ledgerLabel)
+                    }
                     Button(onClick = { onReviewPending(receipt.pendingTransactionIds) }, enabled = canOpen,
                         modifier = Modifier.testTag("cash.import.review-pending")) {
                         Text(localizedText(if (receipt.pendingTransactionIds == null) "cash_import_view_all_pending" else "cash_import_review_pending"))
                     }
                 } else Button(onClick = onReturn, enabled = canOpen,
-                    modifier = Modifier.testTag("cash.import.return")) { Text(ledgerLabel) }
+                    modifier = Modifier.testTag("cash.import.return")) {
+                    Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(ledgerLabel)
+                }
             }
         }
     }

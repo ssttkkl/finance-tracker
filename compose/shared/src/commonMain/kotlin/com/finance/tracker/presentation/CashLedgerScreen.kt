@@ -267,6 +267,7 @@ internal fun CashLedgerScreen(
     val deleteProjectionError = deleteFailure?.let { ledgerErrorText(it.code) }
     val snackbar = remember(session.activeWorkspaceId) { SnackbarHostState() }
     var notice by remember(session.activeWorkspaceId) { mutableStateOf<String?>(null) }
+    val listProgressLabel = localizedText("copy_fcabadb2a7")
     var actionsButtonHeight by remember { mutableStateOf(0) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
@@ -277,7 +278,12 @@ internal fun CashLedgerScreen(
         !batchCategoryDialogOpen && classifyFailure?.short == true -> classifyFailure
         else -> null
     }
-    val shortError = shortFailure?.let { ledgerErrorText(it.code) }
+    val shortError = when {
+        shortFailure == null -> null
+        shortFailure === deleteFailure -> localizedText("ledger_action_failed", localizedText("ledger_delete_error_title"), ledgerErrorText(shortFailure.code))
+        shortFailure === classifyFailure -> localizedText("ledger_action_failed", localizedText("ledger_category_error_title"), ledgerErrorText(shortFailure.code))
+        else -> ledgerErrorText(shortFailure.code)
+    }
     LaunchedEffect(shortFailure, shortError) {
         if (shortFailure != null && !shortError.isNullOrBlank()) {
             notice = shortError
@@ -330,11 +336,11 @@ internal fun CashLedgerScreen(
         ) {
         if (!batchCategoryDialogOpen && !deleteDialog && (state.classifyBusy || state.deleteProjectionBusy)) TaskProgressIndicator()
         if (!batchCategoryDialogOpen && !state.refreshingFacts && classifyFailure != null && !classifyFailure.short) {
-            ActionFailureStatus(classifyFailure, ledgerErrorText(classifyFailure.code),
+            ActionFailureStatus(classifyFailure, localizedText("ledger_action_failed", localizedText("ledger_category_error_title"), ledgerErrorText(classifyFailure.code)),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
         if (!deleteDialog && !state.refreshingFacts && deleteFailure != null && !deleteFailure.short) {
-            ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
+            ActionFailureStatus(deleteFailure, localizedText("ledger_action_failed", localizedText("ledger_delete_error_title"), ledgerErrorText(deleteFailure.code)),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
         if (referencesError != null) StateMessage(referencesError, isError = true) {
@@ -432,6 +438,10 @@ internal fun CashLedgerScreen(
                     items(count = 5, key = { index -> "cash-ledger-loading-$index" }) {
                         CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
                     }
+                pagedRows.itemCount == 0 && pagedRows.loadState.refresh is LoadState.Loading ->
+                    items(count = 5, key = { index -> "cash-ledger-filtering-$index" }) {
+                        CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
+                    }
                 pagedRows.itemCount == 0 ->
                     item(key = "cash-ledger-empty") {
                         val filtersActive = state.filters.hasActiveFilters
@@ -518,7 +528,7 @@ internal fun CashLedgerScreen(
             if (pagedRows.loadState.append is LoadState.Loading) {
                 item(key = "cash-ledger-append-loading") {
                     Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(Modifier.semantics { contentDescription = listProgressLabel })
                     }
                 }
             }
@@ -1213,7 +1223,6 @@ private fun CashDetailedFilters(
     modifier: Modifier = Modifier,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
-    val closeLabel = localizedText("copy_6c14bd7f6f")
     var activeDatePicker by remember { mutableStateOf<String?>(null) }
     val accountFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier = fieldModifier, semanticId = SemanticIds.ledgerFilterAccount)
@@ -1260,6 +1269,7 @@ private fun CashDetailedFilters(
                 .accessibleTextFieldLabel(localizedText("copy_d1e673ac4e")),
             label = { Text(localizedText("copy_d1e673ac4e")) },
             isError = invalid,
+            supportingText = invalidAmountSupportingText(invalid),
             singleLine = true,
         )
     }
@@ -1274,6 +1284,7 @@ private fun CashDetailedFilters(
                 .accessibleTextFieldLabel(localizedText("copy_e84edb075b")),
             label = { Text(localizedText("copy_e84edb075b")) },
             isError = invalid,
+            supportingText = invalidAmountSupportingText(invalid),
             singleLine = true,
         )
     }
@@ -1288,13 +1299,6 @@ private fun CashDetailedFilters(
                     .testTag("ledger.filter.header"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.testTag("ledger.filter.close")
-                        .semantics { contentDescription = closeLabel },
-                ) {
-                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
-                }
                 Text(
                     localizedText("copy_dcce9a144a"),
                     modifier = Modifier.testTag("ledger.filter.title"),
@@ -1474,6 +1478,11 @@ internal fun CashLedgerRow(
     fieldLabels: Boolean = false,
     attentionAction: Boolean = false,
 ) {
+    val selectionLabel = listOfNotNull(
+        localDateTimeDisplayLabel(item.occurredAt),
+        item.counterparty.takeIf(String::isNotBlank) ?: item.note.takeIf(String::isNotBlank),
+        item.amountLabel,
+    ).joinToString(" ")
     val recordBackground = if (item.statusTags.isNotEmpty()) LocalFinanceColorRoles.current.warningSurface else null
     val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
         .then(recordBackground?.let { Modifier.background(it) } ?: Modifier)
@@ -1495,12 +1504,13 @@ internal fun CashLedgerRow(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
-                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = selectionLabel },
                     ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}")
+                            .semantics { contentDescription = selectionLabel },
                     )
                 }
                 Column(
@@ -1567,12 +1577,13 @@ internal fun CashLedgerRow(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
-                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = selectionLabel },
                     ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}")
+                            .semantics { contentDescription = selectionLabel },
                     )
                 }
                 if (sizeClass == WindowSizeClass.REGULAR) {

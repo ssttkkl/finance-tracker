@@ -30,6 +30,7 @@ data class WorkspaceManagementUiState(
     val generatedInvitation: GeneratedWorkspaceInvitation? = null,
     val creatingInvitation: Boolean = false,
     val nameErrorCode: String? = null,
+    val savingName: Boolean = false,
     val busyMemberId: String? = null,
     val memberErrorCode: String? = null,
     val deleteDialogOpen: Boolean = false,
@@ -53,6 +54,8 @@ class WorkspaceManagementViewModel(
 
     fun load() {
         val requestId = ++loadRequestId
+        val before = mutableState.value
+        val preserveDraft = before.nameDraft.isNotBlank() && before.nameDraft != before.details?.workspace?.name
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(loading = true, errorCode = null)
             try {
@@ -60,7 +63,7 @@ class WorkspaceManagementViewModel(
                 if (requestId == loadRequestId) {
                     mutableState.value = mutableState.value.copy(
                         details = details,
-                        nameDraft = details.workspace.name,
+                        nameDraft = if (preserveDraft) before.nameDraft else details.workspace.name,
                         loading = false,
                     )
                 }
@@ -81,18 +84,18 @@ class WorkspaceManagementViewModel(
         val current = mutableState.value
         val details = current.details ?: return
         val name = current.nameDraft.trim()
-        if (!canManage || name.isEmpty() || name == details.workspace.name || current.loading) return
+        if (!canManage || name.isEmpty() || name == details.workspace.name || current.loading || current.savingName) return
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(loading = true, nameErrorCode = null)
+            mutableState.value = mutableState.value.copy(savingName = true, nameErrorCode = null)
             try {
                 val updated = repository.updateWorkspace(name)
-                mutableState.value = mutableState.value.copy(updatedSession = updated, nameSaved = true)
+                mutableState.value = mutableState.value.copy(updatedSession = updated, nameSaved = true, savingName = false)
                 load()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.WORKSPACE, DiagnosticAction.UPDATE)
-                mutableState.value = mutableState.value.copy(nameErrorCode = cause.safeErrorCode(), loading = false)
+                mutableState.value = mutableState.value.copy(nameErrorCode = cause.safeErrorCode(), savingName = false)
             }
         }
     }

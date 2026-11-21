@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -141,7 +144,6 @@ internal fun DatePickerInput(
     var open by remember { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoDateToUtcMillis(value))
     val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
-    val closeLabel = localizedText("copy_6c14bd7f6f")
     val setOpen: (Boolean) -> Unit = { next ->
         if (inlinePicker && onInlinePickerActiveChange != null) onInlinePickerActiveChange(next) else open = next
     }
@@ -222,19 +224,7 @@ internal fun DatePickerInput(
                     ) { Text(localizedText("copy_4d0b4688c7")) }
                 },
             ) {
-                Column {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { open = false },
-                            modifier = Modifier
-                                .semantics { contentDescription = closeLabel }
-                                .testTag(semanticId?.let { "$it-close" } ?: "date-picker-close"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-                        }
-                    }
-                    DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
-                }
+                DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
             }
         }
     }
@@ -482,6 +472,9 @@ internal fun StateMessage(
     }
 }
 
+internal fun invalidAmountSupportingText(invalid: Boolean): (@Composable () -> Unit)? =
+    if (invalid) ({ Text(localizedText("copy_d9ea7affdf")) }) else null
+
 @Composable
 internal fun InlineError(text: String?) {
     if (text != null) {
@@ -493,6 +486,20 @@ internal fun InlineError(text: String?) {
 internal fun TaskProgressIndicator(modifier: Modifier = Modifier) {
     val label = localizedText("copy_1cac8ac7f5")
     LinearProgressIndicator(modifier.fillMaxWidth().semantics { contentDescription = label })
+}
+
+/** 忙碌按钮保留业务名称，并在名称前显示带可访问名称的进度。 */
+@Composable
+internal fun BusyButtonLabel(busy: Boolean, label: String) {
+    if (busy) {
+        val progressLabel = localizedText("copy_1cac8ac7f5")
+        CircularProgressIndicator(
+            modifier = Modifier.size(ButtonDefaults.IconSize).semantics { contentDescription = progressLabel },
+            strokeWidth = 2.dp,
+        )
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+    }
+    Text(label)
 }
 
 @Composable

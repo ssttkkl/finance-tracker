@@ -70,12 +70,19 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
             Column(Modifier.fillMaxWidth().testTag("cash.import.files-step"), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                     CashImportPreparationHeading(localizedText("cash_import_files_heading")) {
-                        OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
-                            border = financeInteractiveBorder(addEnabled),
-                            modifier = Modifier.testTag("cash.import.add-files")) {
+                        val hasFiles = files.isNotEmpty() || pendingFiles.isNotEmpty() || failures.isNotEmpty()
+                        val addFile: @Composable RowScope.() -> Unit = {
                             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(localizedText("copy_7c3a726882"))
+                        }
+                        if (hasFiles) {
+                            OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
+                                border = financeInteractiveBorder(addEnabled),
+                                modifier = Modifier.testTag("cash.import.add-files"), content = addFile)
+                        } else {
+                            Button(onClick = { onPick(null) }, enabled = addEnabled,
+                                modifier = Modifier.testTag("cash.import.add-files"), content = addFile)
                         }
                     }
                     if (files.isEmpty() && pendingFiles.isEmpty() && failures.isEmpty()) {
