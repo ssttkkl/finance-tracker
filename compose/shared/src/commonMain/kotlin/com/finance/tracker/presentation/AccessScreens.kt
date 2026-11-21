@@ -449,7 +449,7 @@ internal fun WorkspaceAccessScreen(
         }
     }
     pendingSameName?.let { name ->
-        AlertDialog(
+        FinanceAlertDialog(
             onDismissRequest = { pendingSameName = null },
             title = { Text(localizedText("workspace_create_same_name_title")) },
             text = { Text(localizedText("workspace_create_same_name_message", name)) },

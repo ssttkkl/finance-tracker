@@ -443,7 +443,7 @@ internal fun WorkspaceManagementScreen(
         onEscape = viewModel::dismissDeleteDialog,
     )
     if (deleteDialog) {
-        AlertDialog(
+        FinanceAlertDialog(
             onDismissRequest = viewModel::dismissDeleteDialog,
             title = { Text(localizedText("copy_5656d6acd8")) },
             text = {

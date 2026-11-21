@@ -328,9 +328,7 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
     val canDismissLayer = selectedItem == null && !processingOpen && accountForm == null &&
         discardAction == null && exitDialog == null
     PlatformModalEscapeHandler(enabled = isWebPlatform && canDismissLayer, onEscape = { requestExit(onBack) })
-    Dialog(onDismissRequest = { requestExit(onBack) }, properties = DialogProperties(
-        usePlatformDefaultWidth = false, dismissOnBackPress = !isWebPlatform, dismissOnClickOutside = false,
-    )) {
+    val importContent: @Composable () -> Unit = {
       Surface(Modifier.fillMaxSize().testTag("cash.import.dialog").semantics { paneTitle = title },
           shape = RectangleShape, color = MaterialTheme.colorScheme.surface) {
        Box(Modifier.fillMaxSize()) {
@@ -519,6 +517,13 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
        }
       }
     }
+    if (isWebPlatform) {
+        importContent()
+    } else {
+        Dialog(onDismissRequest = { requestExit(onBack) }, properties = DialogProperties(
+            usePlatformDefaultWidth = false, dismissOnBackPress = !isWebPlatform, dismissOnClickOutside = false,
+        )) { importContent() }
+    }
     if (processingOpen && state.plan != null) CashImportProcessingPanel(
         state, sizeClass, snackbar,
         onMore = { task.loadProcessing(append = true) },
@@ -560,15 +565,15 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
                 }))
             })
     }
-    if (discardAction != null) AlertDialog(onDismissRequest = { discardAction = null }, title = { Text(localizedText("cash_import_discard_edit")) },
+    if (discardAction != null) FinanceAlertDialog(onDismissRequest = { discardAction = null }, title = { Text(localizedText("cash_import_discard_edit")) },
         confirmButton = { TextButton(onClick = { val action = discardAction; discardAction = null; action?.invoke() }) { Text(localizedText("cash_import_discard")) } },
         dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("cash_import_continue_edit")) } })
     if (exitDialog == ImportTaskExitAction.ACCOUNT_UNKNOWN) {
-        AlertDialog(onDismissRequest = { exitDialog = null },
+        FinanceAlertDialog(onDismissRequest = { exitDialog = null },
             title = { Text(localizedText("cash_import_undo_failed")) },
             confirmButton = { TextButton(onClick = ::completeExit) { Text(localizedText("cash_import_back_ledger")) } })
     } else if (exitDialog == ImportTaskExitAction.ASK_ACCOUNTS) {
-        AlertDialog(onDismissRequest = { exitDialog = null }, title = { Text(localizedText("cash_import_account_exit")) },
+        FinanceAlertDialog(onDismissRequest = { exitDialog = null }, title = { Text(localizedText("cash_import_account_exit")) },
             text = { Column(Modifier.selectableGroup()) {
                 SessionConnectionNotice()
                 Text(localizedText("cash_import_account_exit_body"))

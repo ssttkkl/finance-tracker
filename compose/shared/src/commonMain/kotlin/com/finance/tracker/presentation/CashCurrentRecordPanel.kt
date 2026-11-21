@@ -200,7 +200,7 @@ internal fun CashCurrentRecordPanel(
             }
         }
     }
-    if (discardAction != null) AlertDialog(onDismissRequest = { discardAction = null },
+    if (discardAction != null) FinanceAlertDialog(onDismissRequest = { discardAction = null },
         title = { Text(localizedText("ledger_record_discard_title")) },
         confirmButton = { TextButton(onClick = { val action = discardAction; discardAction = null; action?.invoke() }) { Text(localizedText("ledger_record_discard_confirm")) } },
         dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("ledger_record_discard_continue")) } })

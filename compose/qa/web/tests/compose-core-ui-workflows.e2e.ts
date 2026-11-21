@@ -156,3 +156,32 @@ test("从分类更多操作可以一次移到指定同级分类前", async ({ pa
   expect((await directory.json()).items.map((item: { name: string }) => item.name)).toEqual(["交通", "餐饮", "购物"]);
   await page.screenshot({ path: info.outputPath("category-new-order.png") });
 });
+
+test("关闭 Web 详情、导入和分类弹窗后主画布保持可交互", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/w/workspace-1/");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  const row = page.locator('[id="ledger.record-cash-entry:2001"]:visible').last();
+  await clickStableComposeTarget(page, row);
+  await click(page, "ledger.record-panel.close");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await click(page, "ledger.actions-fab");
+  await click(page, "ledger.import");
+  await click(page, "cash.import.close");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await clickStableComposeTarget(page, page.locator('[id="ledger.record-checkbox-cash-entry:2001"]:visible').last());
+  await click(page, "ledger.batch-category");
+  await expect(byId(page, "ledger.category-dialog")).toBeVisible();
+  await click(page, "ledger.category.cancel");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await click(page, "ledger.more-filters");
+  await click(page, "ledger.filter.apply");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("web-modal-close-ledger.png") });
+});

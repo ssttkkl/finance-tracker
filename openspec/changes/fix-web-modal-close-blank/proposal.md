@@ -4,6 +4,8 @@ Web 构建中关闭流水详情或导入弹层后，主画布与可访问性树�
 
 ## What Changes
 
+> 已实现：Web 使用同树覆盖层，Native 保持 `Dialog`。
+
 - 为 Web 模态建立最小复现：只保留一个空 `Dialog` 的打开/关闭，确认是否与业务内容无关。
 - 确认触发边界：仅 `Dialog`、还是 `Popup`/`ModalBottomSheet`/选择器浮层也受影响；仅 demo 构建还是所有 Web 构建。
 - 选择并验证修复方向：Web 专用同树 overlay、替换为 `Popup`、调整 `Dialog` 生命周期，或升级/规避 Compose 版本缺陷。

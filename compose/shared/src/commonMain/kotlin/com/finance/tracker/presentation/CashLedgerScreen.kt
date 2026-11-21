@@ -717,7 +717,7 @@ internal fun CashLedgerScreen(
         onEscape = { batchCategoryDialogOpen = false },
     )
     if (batchCategoryDialogOpen) {
-        AlertDialog(
+        FinanceAlertDialog(
             modifier = Modifier.testTag(SemanticIds.ledgerCategoryDialog),
             onDismissRequest = { batchCategoryDialogOpen = false },
             title = { Text(localizedText("ledger_category_dialog_title")) },
@@ -1126,15 +1126,7 @@ private fun CashFilterPanel(
 
     if (detailedVisible && compact) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)
-        ModalBottomSheet(
-            onDismissRequest = closeDetailedFilters,
-            sheetState = filterSheetState,
-            dragHandle = { BottomSheetDefaults.DragHandle() },
-            properties = ModalBottomSheetProperties(
-                shouldDismissOnBackPress = !isWebPlatform,
-                shouldDismissOnClickOutside = true,
-            ),
-        ) {
+        val filters: @Composable (Modifier) -> Unit = { modifier ->
             CashDetailedFilters(
                 value = draft,
                 sizeClass = sizeClass,
@@ -1147,8 +1139,39 @@ private fun CashFilterPanel(
                 onClose = closeDetailedFilters,
                 onApply = applyDetailedFilters,
                 onInvalidAmount = onInvalidAmount,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
+                modifier = modifier,
             )
+        }
+        if (isWebPlatform) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(interactionSource = null, indication = null, onClick = closeDetailedFilters),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp)
+                        .clickable(interactionSource = null, indication = null) {},
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        BottomSheetDefaults.DragHandle()
+                        filters(Modifier.fillMaxWidth().heightIn(max = 700.dp))
+                    }
+                }
+            }
+        } else {
+            ModalBottomSheet(
+                onDismissRequest = closeDetailedFilters,
+                sheetState = filterSheetState,
+                dragHandle = { BottomSheetDefaults.DragHandle() },
+                properties = ModalBottomSheetProperties(
+                    shouldDismissOnBackPress = !isWebPlatform,
+                    shouldDismissOnClickOutside = true,
+                ),
+            ) {
+                filters(Modifier.fillMaxWidth().heightIn(max = 700.dp))
+            }
         }
     } else if (detailedVisible) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)

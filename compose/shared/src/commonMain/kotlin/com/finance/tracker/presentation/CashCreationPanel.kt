@@ -118,7 +118,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
             }
         }
     }
-    if (confirmDiscard) AlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text(localizedText("ledger_record_discard_title")) },
+    if (confirmDiscard) FinanceAlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text(localizedText("ledger_record_discard_title")) },
         confirmButton = { TextButton(onClick = { confirmDiscard = false; onClose() }) { Text(localizedText("ledger_record_discard_confirm")) } },
         dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(localizedText("ledger_record_discard_continue")) } })
 }

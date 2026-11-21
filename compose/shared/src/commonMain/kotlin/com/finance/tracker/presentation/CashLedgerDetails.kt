@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +45,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -75,25 +77,43 @@ internal fun CashRecordModalPanel(
     val compact = sizeClass == WindowSizeClass.COMPACT
     val fullScreen = compact && compactFullScreen
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onBack)
-    Dialog(
-        onDismissRequest = onBack,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = !isWebPlatform,
-            dismissOnClickOutside = !fullScreen,
-        ),
-    ) {
-        key(sizeClass, title, semanticStateKey) {
-            CashRecordModalOverlay(
-                sizeClass = sizeClass,
-                title = title,
-                onDismiss = onDismiss,
-                onBack = onBack,
-                compactFullScreen = fullScreen,
-                canAnimateDismiss = canAnimateDismiss,
-                footer = footer,
-                content = content,
-            )
+    if (isWebPlatform) {
+        // Compose Web 的 Dialog 卸载会把主画布一起移除；详情面板改用同树覆盖层。
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))) {
+            key(sizeClass, title, semanticStateKey) {
+                CashRecordModalOverlay(
+                    sizeClass = sizeClass,
+                    title = title,
+                    onDismiss = onDismiss,
+                    onBack = onBack,
+                    compactFullScreen = fullScreen,
+                    canAnimateDismiss = canAnimateDismiss,
+                    footer = footer,
+                    content = content,
+                )
+            }
+        }
+    } else {
+        Dialog(
+            onDismissRequest = onBack,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = !isWebPlatform,
+                dismissOnClickOutside = !fullScreen,
+            ),
+        ) {
+            key(sizeClass, title, semanticStateKey) {
+                CashRecordModalOverlay(
+                    sizeClass = sizeClass,
+                    title = title,
+                    onDismiss = onDismiss,
+                    onBack = onBack,
+                    compactFullScreen = fullScreen,
+                    canAnimateDismiss = canAnimateDismiss,
+                    footer = footer,
+                    content = content,
+                )
+            }
         }
     }
 }

@@ -125,7 +125,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
         PlatformControlAccessibility("cash.entry.restore-note", ControlAccessibilityState.Radio(restoreNote == true))
         PlatformControlAccessibility("cash.entry.keep-note-empty", ControlAccessibilityState.Radio(restoreNote == false))
         PlatformControlAccessibility("cash.entry.note-confirm", ControlAccessibilityState.Button(connection.canSubmit && restoreNote != null))
-        AlertDialog(
+        FinanceAlertDialog(
         onDismissRequest = { noteDecision = false },
         title = { Text(localizedText("cash_entry_clear_note_title")) },
         text = {

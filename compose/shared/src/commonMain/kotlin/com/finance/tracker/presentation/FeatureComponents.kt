@@ -282,7 +282,7 @@ internal fun TimePickerInput(
                 }
             }
         } else {
-            AlertDialog(
+            FinanceAlertDialog(
                 onDismissRequest = { open = false },
                 title = { Text(label) },
                 text = { TimePicker(state = pickerState) },
@@ -523,7 +523,7 @@ internal fun ConfirmationDialog(
 ) {
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onDismiss)
     semanticId?.let { PlatformControlAccessibility("$it.confirm", ControlAccessibilityState.Button(confirmEnabled)) }
-    AlertDialog(
+    FinanceAlertDialog(
         modifier = semanticId?.let { Modifier.testTag("$it.dialog") } ?: Modifier,
         onDismissRequest = onDismiss,
         title = { Text(title) },
