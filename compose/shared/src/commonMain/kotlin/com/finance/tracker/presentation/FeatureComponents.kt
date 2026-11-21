@@ -365,6 +365,7 @@ internal fun ChoicePicker(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     semanticId: String? = null,
+    accessibleLabel: String? = null,
     autoScrollMenuIntoView: Boolean = false,
     onMenuExpandedChange: ((Boolean) -> Unit)? = null,
     menuExpanded: Boolean? = null,
@@ -415,7 +416,11 @@ internal fun ChoicePicker(
             modifier = Modifier.menuAnchor()
                 .fillMaxWidth()
                 .then(if (semanticId == null) Modifier else Modifier.testTag(semanticId))
-                .then(if (label.isBlank()) Modifier.semantics { contentDescription = selectedLabel } else Modifier),
+                .then(when {
+                    accessibleLabel != null -> Modifier.semantics { contentDescription = accessibleLabel }
+                    label.isBlank() -> Modifier.semantics { contentDescription = selectedLabel }
+                    else -> Modifier
+                }),
         )
         ExposedDropdownMenu(
             expanded = expanded,

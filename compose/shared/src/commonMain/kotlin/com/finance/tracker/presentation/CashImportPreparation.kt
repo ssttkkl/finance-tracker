@@ -362,12 +362,14 @@ private fun CashImportSourceAccountEntry(
                 else -> ChoiceSection("other")
             }
         } else null
-        ChoicePicker(localizedText("cash_import_target_account"), targetAccountId.orEmpty(), accountOptions,
+        val targetLabel = localizedText("cash_import_target_account")
+        val accessibleLabel = (listOf(title) + memberLabels).joinToString("，") + "，$targetLabel"
+        ChoicePicker(targetLabel, targetAccountId.orEmpty(), accountOptions,
             { selected ->
                 if (selected == CashImportCreateAccountOption) onCreate()
                 else onSelect(selected.takeIf(String::isNotEmpty))
             }, enabled = !busy && accountState.ready,
-            semanticId = "cash.import.account-$testRef", sectionOf = sectionOf)
+            semanticId = "cash.import.account-$testRef", accessibleLabel = accessibleLabel, sectionOf = sectionOf)
     }
 }
 

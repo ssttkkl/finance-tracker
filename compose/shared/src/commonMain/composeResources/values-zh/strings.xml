@@ -584,6 +584,10 @@
     <string name="ledger_selection_count">已选 %1$s 项</string>
     <string name="ledger_scrollbar_description">按收支位置快速跳转</string>
     <string name="ledger_category_dialog_title">设置分类</string>
+    <string name="ledger_category_dialog_summary">将把 %1$s 笔记录改为「%2$s」。</string>
+    <string name="ledger_category_dialog_summary_clear">将清除 %1$s 笔记录的分类。</string>
+    <string name="ledger_category_dialog_note">提交时会校验账本版本；版本已变化会提示重新加载。</string>
+    <string name="ledger_category_dialog_summary_select">已选择 %1$s 笔记录，请选择目标分类。</string>
     <string name="ledger_category_label">分类</string>
     <string name="ledger_category_cancel">取消</string>
     <string name="ledger_category_apply">应用</string>
@@ -829,6 +833,7 @@
     <string name="cash_import_loaded_scope">已显示 %1$s 笔收支，继续加载以查看其余内容</string>
     <string name="cash_import_details_loading">详情待读取</string>
     <string name="cash_import_empty_filter">当前没有符合条件的收支</string>
+    <string name="cash_import_empty_no_items">本次没有可核对的收支</string>
     <string name="cash_import_amount_unknown">金额未知</string>
     <string name="cash_import_pending_title">待处理</string>
     <string name="cash_import_draft_incomplete_fields">%1$s信息尚未补齐</string>

@@ -211,11 +211,14 @@ internal fun CashImportReviewList(
                 }
                 rows.itemCount == 0 && rows.loadState.refresh is LoadState.Loading ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center).semantics { contentDescription = reviewProgressLabel })
-                rows.itemCount == 0 -> StateMessage(
-                    localizedText("cash_import_empty_filter"),
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                ) {
-                    if (state.filter != "all") TextButton(onClick = { onFilter("all") }) { Text(localizedText("ledger_clear_filters")) }
+                rows.itemCount == 0 -> {
+                    val noItems = state.filter == "all"
+                    StateMessage(
+                        localizedText(if (noItems) "cash_import_empty_no_items" else "cash_import_empty_filter"),
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    ) {
+                        if (!noItems) TextButton(onClick = { onFilter("all") }) { Text(localizedText("ledger_clear_filters")) }
+                    }
                 }
             }
 

@@ -32,9 +32,9 @@
 
 ## 6. 测试与 QA
 
-- [x] 6.1 `./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮 `:shared:wasmJsTest :webApp:wasmJsBrowserDistribution` 合并 1m50s，2026-11-21）。
-- [x] 6.2 `./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮合并构建 1m50s）。
-- [x] 6.3 Web 冒烟：Chrome for Testing（Playwright chromium-1234），1440×900，URL `http://127.0.0.1:5186/`（demo/offline）。账本 14 行可见；打开详情；持仓、投资事件、管理工作区均可加载；`failedRequests` 为空，控制台仅有既有 `wasmExports` 弃用提示。截图在仓库外 `/tmp/page-{ledger,holdings,events,management}.png`。弹层关闭后画布空白在干净 `HEAD=907fe4c2` worktree 同样复现，确认是既有 Web 渲染问题，不是本次改动引入；因此未宣称弹层关闭视觉通过。
+- [x] 6.1 `./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮 `:shared:wasmJsTest :webApp:wasmJsBrowserDistribution` 合并 2m16s，2026-11-21）。
+- [x] 6.2 `./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮合并构建 2m16s）。
+- [x] 6.3 Web 冒烟：Chrome for Testing（Playwright chromium-1234），1440×900，URL `http://127.0.0.1:5186/`（demo/offline）。账本 14 行可见；打开详情；持仓、投资事件、管理工作区均可加载；`failedRequests` 为空，控制台仅有既有 `wasmExports` 弃用提示。截图在仓库外 `/tmp/page-{ledger,holdings,events,management}.png`。弹层关闭后画布空白在干净 `HEAD=907fe4c2` worktree 同样复现，确认是既有 Web 渲染问题，不是本次改动引入；因此未宣称弹层关闭视觉通过。追加项冒烟：账户映射 `aria-label` 为“日常账户，账单导入，对应账户”，已含来源账户；批量分类弹窗显示“已选择 1 笔记录，请选择目标分类。”与版本校验说明；8.1 空态细分和 8.4 追加失败位置因 demo 无对应状态，做代码级复核。
 - [x] 6.4 未运行：Android/iOS 设备或模拟器交互（默认范围只做共享编译/单测）；非 demo API 环境的真实后端联调；弹层关闭的单独 Web 渲染排查；超限预览常驻原因的实机触发（demo 无超限状态）。残余风险：上述既有 Web 弹层问题、未触发的详情计划确认真实交互（demo 无可用非关联计划）、以及未覆盖的导入/分类次要状态。
 
 ### 审查发现处置
@@ -80,11 +80,11 @@
 - [x] 7.1 功能地图无需新增页面或能力，未改现状说明。用户本轮明确 OpenSpec spec/change 的明文特例不自动生效，需逐条交用户判断；据此把导入超限从 Snackbar-only 改为文件区常驻原因，更新 `cash-import-session` delta，并把“spec/change 明文特例需交用户判断”写入 `AGENTS.md`。除此之外无新增规范条目。
 - [x] 7.2 已提交 `06882f0f`、`9de8d50c`、`955d0222` 并推送 `origin/civil-seal`（新分支，已设置 upstream）。用户复核 A1–A3、O1–O19 后决定全部保留、不回退；前后对比材料在 `compose/build/ui-compare/`（构建产物，不提交）。
 
-## 8. 追加范围（未落地）
+## 8. 追加范围（已实现）
 
-以下四项已登记到本 change，但当前不实现、不提交；待用户明确开始后再进入实施与验证。
+以下四项已按用户要求追加并完成实现、编译/构建与可行的 Web 冒烟。
 
-- [ ] 8.1 导入核对空态细分：区分“本次没有可核对记录”和“当前筛选没有记录”，后者保留清除筛选出口。
-- [ ] 8.2 账户映射可访问名称：来源账户标题合并进“目标账户”选择控件的可访问名称，读屏能区分每个来源账户。
-- [ ] 8.3 批量分类弹窗影响文案：展示选中记录数、目标分类及不可修改/跳过原因，提交前可确认影响。
-- [ ] 8.4 追加失败提示位置：把 `appendError` 从页面顶部移到列表末尾，提供行内重试，不与整页加载失败混淆。
+- [x] 8.1 导入核对空态细分：`CashImportReviewList` 按 `state.filter == "all"` 显示“本次没有可核对的收支”，筛选态保留“当前没有符合条件的收支”+清除筛选；代码级复核。
+- [x] 8.2 账户映射可访问名称：`ChoicePicker` 增加 `accessibleLabel`，来源账户标题与渠道标签合并进选择控件；Web 冒烟读到“日常账户，账单导入，对应账户”。
+- [x] 8.3 批量分类弹窗影响文案：显示已选笔数、目标分类/清除分类、版本校验说明；Web 冒烟确认。
+- [x] 8.4 追加失败提示位置：`pageLoadError` 不再合并 `appendError`，列表末尾新增带独立 testTag 的重试项；代码级复核。

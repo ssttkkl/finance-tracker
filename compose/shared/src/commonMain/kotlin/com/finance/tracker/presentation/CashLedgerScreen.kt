@@ -302,7 +302,7 @@ internal fun CashLedgerScreen(
     val selectionMode = !state.displayingPreviousRows && state.selectedIds.isNotEmpty()
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
-    val pageLoadError = (refreshError.takeIf { retainList } ?: prependError ?: appendError).takeIf { listReady }
+    val pageLoadError = (refreshError.takeIf { retainList } ?: prependError).takeIf { listReady }
     val isPullRefreshing = state.refreshingFacts || (state.displayingPreviousRows &&
         (refreshError == null || pagedRows.loadState.refresh is LoadState.Loading))
     val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
@@ -532,6 +532,19 @@ internal fun CashLedgerScreen(
                     }
                 }
             }
+            if (appendError != null) {
+                item(key = "cash-ledger-append-error") {
+                    StateMessage(
+                        appendError,
+                        isError = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                    ) {
+                        TextButton(onClick = { pagedRows.retry() }, modifier = Modifier.testTag("${SemanticIds.ledgerRetry}-append")) {
+                            Text(localizedText("copy_e2d53a6d3a"))
+                        }
+                    }
+                }
+            }
             }
             }
             }
@@ -709,16 +722,40 @@ internal fun CashLedgerScreen(
             onDismissRequest = { batchCategoryDialogOpen = false },
             title = { Text(localizedText("ledger_category_dialog_title")) },
             text = {
-                Column {
-                SessionConnectionNotice()
-                ChoicePicker(
-                    label = localizedText("ledger_category_label"),
-                    value = batchCategoryDraft,
-                    options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
-                    onSelected = { batchCategoryDraft = it },
-                    enabled = canWrite && selectionMode && !state.classifyBusy,
-                    semanticId = SemanticIds.ledgerCategoryPicker,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SessionConnectionNotice()
+                    val selectedCount = state.selectedIds.size
+                    when {
+                        batchCategoryDraft == UNCATEGORIZED_SELECTION -> Text(
+                            localizedText("ledger_category_dialog_summary_clear", selectedCount.toString()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        batchCategoryDraft.isNotEmpty() -> {
+                            val selectedCategory = state.categories.firstOrNull { it.id == batchCategoryDraft }
+                            val target = if (selectedCategory != null) cashCategoryDisplayPath(selectedCategory) else batchCategoryDraft
+                            Text(
+                                localizedText("ledger_category_dialog_summary", selectedCount.toString(), target),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        else -> Text(
+                            localizedText("ledger_category_dialog_summary_select", selectedCount.toString()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    ChoicePicker(
+                        label = localizedText("ledger_category_label"),
+                        value = batchCategoryDraft,
+                        options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
+                        onSelected = { batchCategoryDraft = it },
+                        enabled = canWrite && selectionMode && !state.classifyBusy,
+                        semanticId = SemanticIds.ledgerCategoryPicker,
+                    )
+                    Text(
+                        localizedText("ledger_category_dialog_note"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = {
