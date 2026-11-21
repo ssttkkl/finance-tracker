@@ -116,7 +116,13 @@ internal fun CashCurrentRecordPanel(
                     Button(onClick = onResolve, enabled = connection.canSubmit, modifier = Modifier.testTag("cash.current.resolve")) { Text(localizedText("copy_fadf24dbc5")) }
                 }
             }
-            state.errorCode?.let {
+            val recordTransfer = record?.let { cashTransferEntryMembers(it, state.transferMembers) != null } == true
+            val recordSplit = record?.let { cashDraftInitialValues(it)["cash_granularity"] == "aggregate" } == true
+            val mappedRecordError = cashFieldErrorFor(state.errorCode, recordTransfer, recordSplit)
+            val editorVisible = (entryEditing && onSaveEntry != null) ||
+                (draftExpanded && record?.state == "draft" && onSaveDraft != null)
+            val showRecordFormError = state.errorCode != null && (mappedRecordError == null || !editorVisible)
+            if (showRecordFormError) state.errorCode?.let {
                 StateMessage(ledgerErrorText(it), isError = true, modifier = Modifier.testTag("cash.current.error")) {
                     if (!state.unresolved && !cashRelationConstraintError(it)) TextButton(onClick = onRetry, enabled = !state.busy) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
@@ -135,7 +141,8 @@ internal fun CashCurrentRecordPanel(
                         transferMembers = state.transferMembers, modifier = Modifier.weight(1f),
                         summary = { CashCurrentRecordSummary(record, projection, editingFields, accounts, categories, options) },
                         confirmation = { if (planReady) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false) },
-                        actions = if (planReady) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT) }) else null)
+                        actions = if (planReady) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT) }) else null,
+                        serverErrorCode = state.errorCode)
                 } else {
                     if (planConfirmationVisible) {
                         CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false)
@@ -181,7 +188,8 @@ internal fun CashCurrentRecordPanel(
                     }
                     if (draftExpanded && onSaveDraft != null && record.state == "draft") CashDraftEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
                         state.busy || state.unresolved || state.plan != null,
-                        onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft)
+                        onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft,
+                        serverErrorCode = state.errorCode)
                     CashDetailRelations(state, evidence, sourceError, sizeClass, accounts, categories, options,
                         onLoadSources, onBeginRelations?.let { begin -> { draftPatch?.let(begin) } },
                         onSaveRelationChoices, onAddAssociation, onSearchAssociations, onConfirmPlan, onCancelPlan,

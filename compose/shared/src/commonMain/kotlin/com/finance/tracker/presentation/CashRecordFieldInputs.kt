@@ -1,9 +1,13 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.*
@@ -12,8 +16,20 @@ import com.finance.tracker.domain.*
 @Composable
 internal fun CashRecordFieldInputs(values: Map<String, String>, editableFields: List<String>, accounts: List<Account>,
     categories: List<CashCategory>, options: LedgerOptions, sizeClass: WindowSizeClass, busy: Boolean,
-    semanticPrefix: String, bookingContent: (@Composable () -> Unit)? = null, onChange: (String, String) -> Unit) {
+    semanticPrefix: String, bookingContent: (@Composable () -> Unit)? = null,
+    fieldErrors: Map<String, String> = emptyMap(), errorRevision: Int = 0,
+    onChange: (String, String) -> Unit) {
     val split = values["cash_granularity"] == "aggregate"
+    val firstErrorField = fieldErrors.keys.firstOrNull()
+    val firstErrorRequester = remember { BringIntoViewRequester() }
+    val firstErrorFocus = remember { FocusRequester() }
+    LaunchedEffect(firstErrorField, errorRevision) {
+        if (firstErrorField == null) return@LaunchedEffect
+        firstErrorRequester.bringIntoView()
+        if (firstErrorField in setOf("amount", "counterparty", "counterparty_account", "note")) {
+            runCatching { firstErrorFocus.requestFocus() }
+        }
+    }
     val unavailable = localizedText("copy_d041bb6737")
     fun optionsWithCurrent(value: String, options: List<Pair<String, String>>) =
         if (value.isEmpty() || options.any { it.first == value }) options else options + (value to unavailable)
@@ -24,35 +40,58 @@ internal fun CashRecordFieldInputs(values: Map<String, String>, editableFields: 
     fun Field(field: String, modifier: Modifier = Modifier) {
         val label = cashFieldLabel(field)?.let { localizedText(it) } ?: return
         val value = values[field].orEmpty()
-        when (field) {
-            "cash_granularity" -> ChoicePicker(label, value, listOf("atomic" to localizedText("cash_allocation_single"), "aggregate" to localizedText("cash_allocation_split")),
-                { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.cash_granularity")
-            "occurred_at" -> DateTimePickerInput(value, { onChange(field, it) }, label, sizeClass,
-                enabled = !busy, allowEmpty = true, modifier = modifier.fillMaxWidth().testTag("$semanticPrefix.occurred_at"))
-            "account_id" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + accounts.filter { it.active || it.id.toString() == value }.map { it.id.toString() to it.name }),
-                { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.account_id")
-            "currency" -> ChoicePicker(label, value, (listOf("") + selectedAccount?.currencies.orEmpty().ifEmpty { accounts.flatMap { it.currencies.orEmpty() } } + value).distinct()
-                .map { it to it.ifEmpty { localizedText("display_not_provided") } }, { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.currency")
-            "category_id" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }),
-                { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.category_id")
-            "record_type" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + options.recordTypes.map { it.value to cashRecordTypeLabel(it.value, options) }),
-                { next -> onChange(field, next); if (next != value && "record_subtype" in values) onChange("record_subtype", "") }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.record_type")
-            "record_subtype" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + selectedType?.subtypes.orEmpty().map { it.value to it.label }),
-                { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.record_subtype")
-            "counterparty_account_attrs" -> {
-                val choices = mutableListOf("" to localizedText("display_not_provided"))
-                for (attribute in listOf("full", "tail", "masked")) choices += attribute to localizedText(cashAccountAttributeLabelKey(attribute)!!)
-                if (value.isNotEmpty() && choices.none { it.first == value }) {
-                    val labels = mutableListOf<String>()
-                    value.split(',').mapNotNull(::cashAccountAttributeLabelKey).forEach { labels += localizedText(it) }
-                    choices += value to labels.joinToString("、").ifEmpty { localizedText("display_not_provided") }
+        val fieldError = fieldErrors[field]
+        val first = field == firstErrorField
+        val focusModifier = if (first && field in setOf("amount", "counterparty", "counterparty_account", "note")) {
+            Modifier.focusRequester(firstErrorFocus)
+        } else Modifier
+        Column(if (first) modifier.bringIntoViewRequester(firstErrorRequester) else modifier) {
+            when (field) {
+                "cash_granularity" -> ChoicePicker(label, value, listOf("atomic" to localizedText("cash_allocation_single"), "aggregate" to localizedText("cash_allocation_split")),
+                    { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.cash_granularity")
+                "occurred_at" -> DateTimePickerInput(value, { onChange(field, it) }, label, sizeClass,
+                    enabled = !busy, allowEmpty = true, modifier = Modifier.fillMaxWidth().testTag("$semanticPrefix.occurred_at"))
+                "account_id" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + accounts.filter { it.active || it.id.toString() == value }.map { it.id.toString() to it.name }),
+                    { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.account_id")
+                "currency" -> ChoicePicker(label, value, (listOf("") + selectedAccount?.currencies.orEmpty().ifEmpty { accounts.flatMap { it.currencies.orEmpty() } } + value).distinct()
+                    .map { it to it.ifEmpty { localizedText("display_not_provided") } }, { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.currency")
+                "category_id" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }),
+                    { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.category_id")
+                "record_type" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + options.recordTypes.map { it.value to cashRecordTypeLabel(it.value, options) }),
+                    { next -> onChange(field, next); if (next != value && "record_subtype" in values) onChange("record_subtype", "") }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.record_type")
+                "record_subtype" -> ChoicePicker(label, value, optionsWithCurrent(value, listOf("" to localizedText("display_not_provided")) + selectedType?.subtypes.orEmpty().map { it.value to it.label }),
+                    { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.record_subtype")
+                "counterparty_account_attrs" -> {
+                    val choices = mutableListOf("" to localizedText("display_not_provided"))
+                    for (attribute in listOf("full", "tail", "masked")) choices += attribute to localizedText(cashAccountAttributeLabelKey(attribute)!!)
+                    if (value.isNotEmpty() && choices.none { it.first == value }) {
+                        val labels = mutableListOf<String>()
+                        value.split(',').mapNotNull(::cashAccountAttributeLabelKey).forEach { labels += localizedText(it) }
+                        choices += value to labels.joinToString("、").ifEmpty { localizedText("display_not_provided") }
+                    }
+                    ChoicePicker(label, value, choices, { onChange(field, it) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.counterparty_account_attrs")
                 }
-                ChoicePicker(label, value, choices, { onChange(field, it) }, modifier = modifier.fillMaxWidth(), enabled = !busy, semanticId = "$semanticPrefix.counterparty_account_attrs")
+                else -> {
+                    val localAmountInvalid = field == "amount" && value.isNotEmpty() && !isExactDecimalString(value)
+                    OutlinedTextField(value, { onChange(field, it) }, label = { Text(label) }, enabled = !busy,
+                        singleLine = field != "note",
+                        isError = fieldError != null || localAmountInvalid,
+                        supportingText = when {
+                            fieldError != null -> ({ Text(fieldError) })
+                            localAmountInvalid -> ({ Text(localizedText("copy_d9ea7affdf")) })
+                            else -> null
+                        },
+                        modifier = Modifier.fillMaxWidth().then(focusModifier).testTag("$semanticPrefix.$field"))
+                }
             }
-            else -> OutlinedTextField(value, { onChange(field, it) }, label = { Text(label) }, enabled = !busy,
-                singleLine = field != "note", isError = field == "amount" && value.isNotEmpty() && !isExactDecimalString(value),
-                supportingText = if (field == "amount" && value.isNotEmpty() && !isExactDecimalString(value)) ({ Text(localizedText("copy_d9ea7affdf")) }) else null,
-                modifier = modifier.fillMaxWidth().testTag("$semanticPrefix.$field"))
+            if (fieldError != null && field !in setOf("amount", "counterparty", "counterparty_account", "note")) {
+                Text(
+                    fieldError,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag("$semanticPrefix.$field.error"),
+                )
+            }
         }
     }
     val groups = listOf(
@@ -69,7 +108,19 @@ internal fun CashRecordFieldInputs(values: Map<String, String>, editableFields: 
                     Field("currency", Modifier.weight(1f))
                 }
                 fields.filterNot { moneyPair && it in setOf("amount", "currency") }.forEach { Field(it) }
-                if (title == "cash_booking_information") bookingContent?.invoke()
+                if (title == "cash_booking_information") {
+                    Column(if (firstErrorField == "components") Modifier.bringIntoViewRequester(firstErrorRequester) else Modifier) {
+                        bookingContent?.invoke()
+                        fieldErrors["components"]?.let {
+                            Text(
+                                it,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.testTag("$semanticPrefix.components.error"),
+                            )
+                        }
+                    }
+                }
             }
         }
     }

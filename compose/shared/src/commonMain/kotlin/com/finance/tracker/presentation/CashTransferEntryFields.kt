@@ -1,8 +1,12 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -11,8 +15,11 @@ import com.finance.tracker.domain.*
 
 @Composable
 internal fun CashTransferEntryFields(outgoing: Map<String, String>, incoming: Map<String, String>, accounts: List<Account>,
-    sizeClass: WindowSizeClass, busy: Boolean, onOutgoing: (Map<String, String>) -> Unit, onIncoming: (Map<String, String>) -> Unit) {
-    Column(Modifier.fillMaxWidth().testTag("cash.entry.transfer"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    sizeClass: WindowSizeClass, busy: Boolean, transferError: String? = null,
+    onOutgoing: (Map<String, String>) -> Unit, onIncoming: (Map<String, String>) -> Unit) {
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(transferError) { if (transferError != null) requester.bringIntoView() }
+    Column(Modifier.fillMaxWidth().testTag("cash.entry.transfer").bringIntoViewRequester(requester), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall)
         CashTransferMemberFields(outgoing, accounts, sizeClass, busy, "outgoing", true, onOutgoing)
         HorizontalDivider()
@@ -20,6 +27,10 @@ internal fun CashTransferEntryFields(outgoing: Map<String, String>, incoming: Ma
         CashTransferMemberFields(incoming, accounts, sizeClass, busy, "incoming", outgoing["currency"] != incoming["currency"], onIncoming)
         if (outgoing["currency"] == incoming["currency"]) Text(listOfNotNull(outgoing["amount"], incoming["currency"]).joinToString(" "),
             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("cash.entry.incoming-linked-amount"))
+        transferError?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("cash.entry.transfer.error"))
+        }
         HorizontalDivider()
     }
 }

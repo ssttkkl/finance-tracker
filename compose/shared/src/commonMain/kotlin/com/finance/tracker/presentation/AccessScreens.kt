@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -431,6 +432,7 @@ internal fun WorkspaceAccessScreen(
     }
     var editedName by rememberSaveable(session.user.email, workspacesExist) { mutableStateOf<String?>(null) }
     var nameError by remember(session.user.email, workspacesExist) { mutableStateOf(false) }
+    var pendingSameName by rememberSaveable(session.user.email, workspacesExist) { mutableStateOf<String?>(null) }
     val workspaceName = editedName ?: suggestedName
     val editWorkspaceName: (String) -> Unit = { editedName = it; nameError = false }
     val normalizedName = normalizeWorkspaceName(workspaceName)
@@ -438,7 +440,37 @@ internal fun WorkspaceAccessScreen(
         if (normalizedName == null) {
             nameError = true
             onInvalidWorkspaceName()
-        } else if (connection.canSubmit) onCreate(normalizedName)
+        } else if (connection.canSubmit) {
+            if (hasSameWorkspaceName(normalizedName, session.workspaces.map { it.name })) {
+                pendingSameName = normalizedName
+            } else {
+                onCreate(normalizedName)
+            }
+        }
+    }
+    pendingSameName?.let { name ->
+        AlertDialog(
+            onDismissRequest = { pendingSameName = null },
+            title = { Text(localizedText("workspace_create_same_name_title")) },
+            text = { Text(localizedText("workspace_create_same_name_message", name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingSameName = null
+                        onCreate(name)
+                    },
+                    enabled = connection.canSubmit,
+                    modifier = Modifier.testTag("workspace.create.same-name.confirm"),
+                ) { Text(localizedText("workspace_create_anyway")) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingSameName = null },
+                    modifier = Modifier.testTag("workspace.create.same-name.cancel"),
+                ) { Text(localizedText("copy_4d0b4688c7")) }
+            },
+            modifier = Modifier.testTag("workspace.create.same-name"),
+        )
     }
 
     AuthResponsiveShell { modifier, compact, wide, viewportHeight ->

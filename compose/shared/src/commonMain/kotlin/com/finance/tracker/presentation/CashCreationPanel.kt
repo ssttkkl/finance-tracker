@@ -1,6 +1,8 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -20,9 +22,19 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
     var confirmDiscard by remember { mutableStateOf(false) }
     val formScroll = rememberScrollState()
     var saveAttempt by remember { mutableIntStateOf(0) }
+    val currentFieldError = cashFieldErrorFor(state.errorCode, draft.mode == CashCreationMode.TRANSFER, draft.ordinary.values["cash_granularity"] == "aggregate")
+    var displayedFieldError by remember(draft.mode) { mutableStateOf<CashFieldError?>(null) }
+    LaunchedEffect(draft.mode) { displayedFieldError = null }
     LaunchedEffect(state.errorCode, saveAttempt) {
-        if (state.errorCode != null) formScroll.animateScrollTo(0)
+        if (state.errorCode != null) displayedFieldError = currentFieldError
     }
+    LaunchedEffect(state.savedRevision) { displayedFieldError = null }
+    LaunchedEffect(state.errorCode, saveAttempt, currentFieldError) {
+        if (state.errorCode != null && currentFieldError == null) {
+            formScroll.animateScrollTo(0)
+        }
+    }
+    val displayedFieldErrors = displayedFieldError?.let { mapOf(it.field to it.message) }.orEmpty()
     val requestClose = { if (!state.busy) { if (state.dirty && !state.unknown) confirmDiscard = true else onClose() } }
     val locked = !canWrite || state.busy || state.unknown
     val canSave = canWrite && connection.canSubmit && !state.busy
@@ -62,7 +74,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 }
                 if (!state.busy && state.unknown) StateMessage(localizedText(if (state.canResumeSave) "cash_continue_pending_save" else "cash_create_unknown"),
                     isError = true, modifier = Modifier.testTag("cash.create.unknown"))
-                else state.errorCode?.let { code ->
+                else if (displayedFieldError == null) state.errorCode?.let { code ->
                     StateMessage(when (code) {
                         "invalid_datetime" -> localizedText("cash_invalid_local_time")
                         "invalid_amount" -> localizedText("cash_create_invalid_amount")
@@ -90,12 +102,19 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                         }
                     }
                     CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
-                        locked, "cash.create") { field, value ->
+                        locked, "cash.create", fieldErrors = displayedFieldErrors, errorRevision = saveAttempt) { field, value ->
+                        if (displayedFieldError?.field == field || displayedFieldError?.field == "components" && field == "cash_granularity") displayedFieldError = null
                         val values = draft.ordinary.values + (field to value)
                         val currency = if (field == "account_id") accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull() else null
                         onChange(draft.copy(ordinary = CashOrdinaryInput(if (currency == null) values else values + ("currency" to currency))))
                     }
-                } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked) { onChange(draft.copy(transfer = it)) }
+                } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked,
+                    transferError = displayedFieldError?.takeIf { it.field == "transfer" }?.message) {
+                    if (displayedFieldError?.field == "transfer" && it.copy(note = draft.transfer.note) != draft.transfer) {
+                        displayedFieldError = null
+                    }
+                    onChange(draft.copy(transfer = it))
+                }
             }
         }
     }
@@ -106,9 +125,12 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
 
 @Composable
 private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<Account>, sizeClass: WindowSizeClass,
-    busy: Boolean, onChange: (CashTransferInput) -> Unit) {
+    busy: Boolean, transferError: String? = null, onChange: (CashTransferInput) -> Unit) {
     val choices = listOf("" to localizedText("display_not_provided")) + accounts.filter { it.active }.map { it.id.toString() to it.name }
-    Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall)
+    val transferRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(transferError) { if (transferError != null) transferRequester.bringIntoView() }
+    Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.bringIntoViewRequester(transferRequester))
     ChoicePicker(localizedText("cash_from_account"), input.fromAccountId, choices, { value ->
         onChange(input.copy(fromAccountId = value, fromCurrency = accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull().orEmpty()))
     }, enabled = !busy, semanticId = "cash.create.from-account")
@@ -134,6 +156,10 @@ private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<
         enabled = !busy, modifier = Modifier.testTag("cash.create.transfer-time"))
     OutlinedTextField(input.note, { onChange(input.copy(note = it)) }, label = { Text(localizedText("copy_e0361480e3")) },
         enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("cash.create.transfer-note"))
+    transferError?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("cash.create.transfer.error"))
+    }
 }
 
 @Composable

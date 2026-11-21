@@ -961,4 +961,7 @@
     <string name="ledger_import_pending_empty">No pending transactions from this import match the filters.</string>
     <string name="workspace_first_name">%1$s’s workspace</string>
     <string name="workspace_first_name_fallback">My workspace</string>
+    <string name="workspace_create_same_name_title">Workspace name already exists</string>
+    <string name="workspace_create_same_name_message">“%1$s” already exists. Create another workspace with the same name?</string>
+    <string name="workspace_create_anyway">Create anyway</string>
 </resources>
