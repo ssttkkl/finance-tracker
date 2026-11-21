@@ -14,7 +14,7 @@
 ## 3. 任务拆分
 
 - [x] 3.1 详情计划确认：`CashCurrentRecordPanel` 非编辑/非关联态渲染计划确认与固定操作栏。
-- [x] 3.2 导入：空文件主操作、主操作图标、核对空态、单一筛选 chip、动作提示可关闭与切换清理、容量文案。
+- [x] 3.2 导入：空文件主操作、主操作图标、核对空态、单一筛选 chip、动作提示可关闭与切换清理、容量文案；超限预览按用户决策改为文件区常驻原因，更新 `cash-import-session` delta 替代 Snackbar-only。
 - [x] 3.3 账本：加载中骨架、金额筛选原因、批量选择无障碍入口、紧凑底部弹层关闭入口。
 - [x] 3.4 关联/详情：对话框 pane title 与安全区、移除关联危险色、进度控件名称。
 - [x] 3.5 认证/工作区：忙碌按钮保留名称、安全区避让、移除成员危险色、管理页重复错误收敛。
@@ -35,7 +35,7 @@
 - [x] 6.1 `./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮 `:shared:wasmJsTest :webApp:wasmJsBrowserDistribution` 合并 1m50s，2026-11-21）。
 - [x] 6.2 `./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache`：BUILD SUCCESSFUL（最终一轮合并构建 1m50s）。
 - [x] 6.3 Web 冒烟：Chrome for Testing（Playwright chromium-1234），1440×900，URL `http://127.0.0.1:5186/`（demo/offline）。账本 14 行可见；打开详情；持仓、投资事件、管理工作区均可加载；`failedRequests` 为空，控制台仅有既有 `wasmExports` 弃用提示。截图在仓库外 `/tmp/page-{ledger,holdings,events,management}.png`。弹层关闭后画布空白在干净 `HEAD=907fe4c2` worktree 同样复现，确认是既有 Web 渲染问题，不是本次改动引入；因此未宣称弹层关闭视觉通过。
-- [x] 6.4 未运行：Android/iOS 设备或模拟器交互（默认范围只做共享编译/单测）；非 demo API 环境的真实后端联调；弹层关闭的单独 Web 渲染排查。残余风险：上述既有 Web 弹层问题、未触发的详情计划确认真实交互（demo 无可用非关联计划）、以及未覆盖的导入/分类次要状态。
+- [x] 6.4 未运行：Android/iOS 设备或模拟器交互（默认范围只做共享编译/单测）；非 demo API 环境的真实后端联调；弹层关闭的单独 Web 渲染排查；超限预览常驻原因的实机触发（demo 无超限状态）。残余风险：上述既有 Web 弹层问题、未触发的详情计划确认真实交互（demo 无可用非关联计划）、以及未覆盖的导入/分类次要状态。
 
 ### 审查发现处置
 
@@ -77,5 +77,5 @@
 
 ## 7. 发布
 
-- [x] 7.1 功能地图无需新增页面或能力，未改现状说明；用户本轮未新增业务取舍，沿用已确认的反馈/按钮约束，无需新增或修改规范条目。
+- [x] 7.1 功能地图无需新增页面或能力，未改现状说明。用户本轮明确 OpenSpec spec/change 的明文特例不自动生效，需逐条交用户判断；据此把导入超限从 Snackbar-only 改为文件区常驻原因，更新 `cash-import-session` delta，并把“spec/change 明文特例需交用户判断”写入 `AGENTS.md`。除此之外无新增规范条目。
 - [x] 7.2 已提交 `06882f0f`（`fix: 统一全页面反馈与操作层级`），推送 `origin/civil-seal`（新分支，已设置 upstream）；交付说明见最终回复。

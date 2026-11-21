@@ -120,12 +120,18 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
     }
     val listState = rememberLazyListState()
     var mappingStep by remember(state.taskId) { mutableStateOf(false) }
-    LaunchedEffect(state.taskId, state.requestSequence, state.activeRequest, state.errorCode) {
+    val fileToken = buildString {
+        state.context?.files.orEmpty().forEach { append(it.clientFileRef).append(':').append(it.status).append('|') }
+        pendingFiles.keys.sorted().forEach { append(it).append('|') }
+    }
+    var rejectedFileToken by remember(state.taskId) { mutableStateOf<String?>(null) }
+    val previewTooLarge = rejectedFileToken != null && rejectedFileToken == fileToken
+    LaunchedEffect(state.taskId, state.requestSequence, state.activeRequest, state.errorCode, fileToken) {
         if (state.activeRequest == null && state.errorCode == "import_session_draft_too_large" && state.previewContentRejected) {
             mappingStep = false
             selectedItem = null
             processingOpen = false
-            notice = ImportTaskNotice("preview", "cash_import_content_too_large")
+            rejectedFileToken = fileToken
             task.acknowledgePreviewContentNotice()
         }
     }
@@ -435,7 +441,8 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
                         accountFormSource = source
                         accountCreateSourceRef = source.sourceAccountRef
                     }, mappingStep = mappingStep,
-                    showAccountFeedback = accountForm == null, modifier = Modifier.fillMaxSize())
+                    showAccountFeedback = accountForm == null, previewTooLarge = previewTooLarge,
+                    modifier = Modifier.fillMaxSize())
             }
             HorizontalDivider()
             Row(Modifier.align(Alignment.CenterHorizontally).then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -55,7 +55,8 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     onRetryLocal: (String) -> Unit, onRemoveLocal: (String) -> Unit,
     onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
-    onCreateAccount: (ImportSourceAccount) -> Unit, mappingStep: Boolean, showAccountFeedback: Boolean, modifier: Modifier = Modifier) {
+    onCreateAccount: (ImportSourceAccount) -> Unit, mappingStep: Boolean, showAccountFeedback: Boolean,
+    previewTooLarge: Boolean = false, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
     // 上传进行中只阻塞编辑：文件移除（服务端已上传或本地失败项）仍可用，服务端移除排队到上传结束执行。
     val removeEnabled = canWrite && !accountState.busy && state.canRemoveFiles
@@ -84,6 +85,15 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                             Button(onClick = { onPick(null) }, enabled = addEnabled,
                                 modifier = Modifier.testTag("cash.import.add-files"), content = addFile)
                         }
+                    }
+                    if (previewTooLarge) {
+                        Text(
+                            localizedText("cash_import_content_too_large"),
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                .testTag("cash.import.preview-too-large"),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                     if (files.isEmpty() && pendingFiles.isEmpty() && failures.isEmpty()) {
                         Text(localizedText("cash_import_files_empty"), Modifier.padding(vertical = 20.dp),

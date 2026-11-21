@@ -15,7 +15,7 @@
 ## 实现选择
 
 - 详情计划确认统一由 `CashCurrentRecordPanel` 在非编辑、非关联态渲染 `CashMaintenanceConfirmation` 与固定底栏；编辑器和关联弹窗继续使用各自已有的 confirmation/actions slot。
-- 导入空文件态把“添加文件”切换为 Filled，并隐藏“下一步”；导入主操作复用 `ic_check`/`ic_arrow_forward`，线性进度复用 `TaskProgressIndicator`。
+- 导入空文件态把“添加文件”切换为 Filled，并隐藏“下一步”；导入主操作复用 `ic_check`/`ic_arrow_forward`，线性进度复用 `TaskProgressIndicator`。超限预览按用户决策改为文件列表附近常驻原因，不再用 Snackbar 重复提示，并同步 `cash-import-session` delta。
 - 账本筛选加载中显示骨架而不是空态；金额筛选用 `invalidAmountSupportingText`；批量选择 Checkbox 补可访问名称；紧凑筛选弹层移除多余关闭图标。
 - 关联弹窗复用 `ModalHeader`，补 `paneTitle`、`safeDrawing` 和 24dp 紧凑边距；移除关联最终确认使用 error 色。
 - 认证与工作区：新增 `BusyButtonLabel` 统一“保留业务名 + 内联进度”；登录/注册字段错误改由 `AuthFormContent` 直接接收 feedback；管理页加载/失败只渲染一次；改名保存用独立 `savingName` 状态。
