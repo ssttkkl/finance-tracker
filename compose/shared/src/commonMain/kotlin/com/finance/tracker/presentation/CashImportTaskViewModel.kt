@@ -252,9 +252,19 @@ class CashImportTaskViewModel(
 
     private suspend fun uploadOne(item: QueuedUpload, generation: Int, creating: Boolean) {
         try {
-            val batch = repository.upload(listOf(item.upload), state.value.context, null) { context ->
-                if (generation != uploadGeneration) throw CancellationException("import_task_detached")
-                applyUploadedContext(context)
+            val existing = state.value.context
+            val session = existing ?: repository.createSession()
+            if (session != null && existing == null) applyUploadedContext(session)
+            val batch = if (session != null) {
+                repository.uploadToSession(session.sessionId, listOf(item.upload), null) { context ->
+                    if (generation != uploadGeneration) throw CancellationException("import_task_detached")
+                    applyUploadedContext(context)
+                }
+            } else {
+                repository.upload(listOf(item.upload), null, null) { context ->
+                    if (generation != uploadGeneration) throw CancellationException("import_task_detached")
+                    applyUploadedContext(context)
+                }
             }
             if (generation != uploadGeneration) return
             if (batch.context != null && state.value.context?.sessionId != batch.context.sessionId) applyUploadedContext(batch.context)
@@ -300,7 +310,6 @@ class CashImportTaskViewModel(
                 (if (fatal) uploadQueue.map { it.upload.clientFileRef } else emptyList())).distinct(),
             errorCode = failure.code.takeIf { fatal } ?: state.value.errorCode,
             errorDiagnostic = failure.diagnostic.takeIf { fatal } ?: state.value.errorDiagnostic,
-            uploadCreationUnknown = state.value.uploadCreationUnknown || creating && state.value.context == null,
             needsContextRefresh = state.value.needsContextRefresh || state.value.context != null)
         if (fatal) uploadQueue.clear()
     }

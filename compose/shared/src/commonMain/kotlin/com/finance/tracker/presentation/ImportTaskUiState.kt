@@ -42,7 +42,6 @@ data class ImportTaskUiState(
     val unprocessedFileRefs: List<String> = emptyList(),
     val busy: Boolean = false,
     val activeUploads: Int = 0,
-    val uploadCreationUnknown: Boolean = false,
     val errorCode: String? = null,
     val errorDiagnostic: ImportDiagnostic? = null,
     val internalFailure: Throwable? = null,
@@ -57,7 +56,7 @@ data class ImportTaskUiState(
         !needsContextRefresh && !hasSubmission && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
     val canEdit: Boolean get() = canEditIgnoringBusy && !busy
     val canAdjustRejectedPreviewFiles: Boolean get() = previewContentRejected && plan == null && canEditIgnoringBusy
-    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && !uploadCreationUnknown && submission == ImportSubmissionState.IDLE && !hasSubmission && receipt == null &&
+    val canAddFiles: Boolean get() = internalFailure == null && recoveryReady && submission == ImportSubmissionState.IDLE && !hasSubmission && receipt == null &&
         receiptToFetch == null && phase == ImportTaskPhase.PREPARE && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision

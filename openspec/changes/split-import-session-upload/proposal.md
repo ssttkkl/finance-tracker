@@ -6,9 +6,10 @@
 
 ## What Changes
 
-- **BREAKING（内部 API）**：新增 `POST /api/v1/cash-import/sessions`，只创建一个空导入会话，返回 `session_id`、`revision`、`expires_at`；创建时不接收文件、不写业务账本。
-- 新增 `POST /api/v1/cash-import/sessions/{session_id}/files`，在已知会话内上传文件；以 `(workspace, session_id, client_file_ref)` 幂等，重复引用返回已有文件状态而不是重复写入。
-- 新增 `GET /api/v1/cash-import/sessions/{session_id}`，返回会话归属、修订、过期时间和文件状态，供上传失败后查询/恢复。
+- 导入生命周期新增“创建空会话”步骤：先取得稳定会话 ID，再读取/上传文件；创建时不接收文件、不写业务账本。
+- 新增“向已知会话上传”入口：以 `(workspace, session_id, client_file_ref)` 幂等，重复引用返回已有文件状态而不是重复写入。
+- `context(session_id)` 作为会话/文件状态查询；本地优先实现直接按批次读取，服务端实现若存在会话存储则返回归属、修订、过期时间和文件状态。
+- 不新增或破坏服务端 HTTP 路由；本地优先路径在 `LocalCashImportLifecycleRepository`，演示路径在 `DemoCashImportLifecycleRepository`，PDF/XLS 的无状态解析入口保持原样。
 - 首次导入客户端流程改为“先建空会话，再上传文件”；建会话失败直接报错让用户重试，允许留下空会话并按 TTL 清理；上传失败保留会话 ID，提供重新读取/重试上传，不再进入 `uploadCreationUnknown` 卡死状态。
 - 网络错误不自动重试，由用户显式重试；上传重试复用同一批 `clientFileRef`。
 - 空会话必须按工作区/用户隔离，并设置 TTL 或等效清理；已过期会话不可再上传。

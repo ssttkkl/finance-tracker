@@ -5,6 +5,14 @@ import com.finance.tracker.core.getLocalDateForInstant
 
 /** Synthetic, process-local data for the real import task UI. */
 class DemoCashImportLifecycleRepository(private val finance: DemoFinanceRepository) : CashImportLifecycleRepository {
+    override suspend fun createSession(): ImportContext {
+        val id = "demo${++next}".padEnd(43, 'x')
+        val value = ImportContext(id, 0, "2099-01-01T00:00:00Z", "open", emptyList(), emptyList(),
+            ImportChoiceSet(), null, false, null)
+        contexts[id] = value
+        return value
+    }
+
     private var next = 0
     private val contexts = mutableMapOf<String, ImportContext>()
     private val plans = mutableMapOf<String, ImportPlan>()

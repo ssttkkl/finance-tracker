@@ -4,32 +4,31 @@
 
 把首次导入从“一次请求同时建会话+写文件”改为“先建空会话，再向已知会话上传”，让上传失败可查询、可续传，建会话失败最多留下可过期的空会话，不产生重复财务数据。
 
-## 接口形状
+## 生命周期合同
 
 ### 创建空会话
 
-`POST /api/v1/cash-import/sessions`
+`CashImportLifecycleRepository.createSession(): ImportContext?`
 
-- 认证：当前 bearer token；工作区取当前活动工作区，或显式 `workspace_id`（与现有导入接口一致）。
-- 请求：无文件；可选 `source_hint`/客户端元数据，但不得包含文件内容。
-- 响应：`session_id`、`revision`、`expires_at`、`state=open`。
-- 副作用：只创建临时会话；不解析、不发布计划、不写业务账本。
-- 幂等：允许同一用户重复创建多个空会话；空会话按 TTL 清理。若后续需要更强幂等，可由客户端生成 `session_id` 并 upsert，但本 change 先采用服务端生成 + 空会话过期。
+- 本地优先实现：生成新的 `batchId`，返回 `origin=LOCAL` 的空 `ImportContext`；不读取文件、不解析、不发布计划、不写业务账本。
+- 演示实现：在内存 `contexts` 中插入空会话。
+- 旧实现可返回 `null`，调用方回退到原 `upload(context=null)` 路径；生产 Local/Demo 已实现。
+- 空会话只在内存/本地存在；不新增服务端路由。
 
-### 上传文件
+### 上传到已知会话
 
-`POST /api/v1/cash-import/sessions/{session_id}/files`
+`CashImportLifecycleRepository.uploadToSession(sessionId, files, replacingFileRef, onContext)`
 
-- multipart：现有 `client_file_ref`、password、source_hint、last_modified 元数据与文件 part。
-- 幂等键：`(workspace, session_id, client_file_ref)`。重复引用返回已有文件状态，不重复写。
+- 默认实现读取 `context(sessionId)` 后复用 `upload(files, context, ...)`。
+- 幂等键：`(workspace, session_id, client_file_ref)`；重复引用返回已有文件状态，不重复写。
 - 会话必须属于当前用户/工作区、未过期、`state=open`；版本不匹配按既有会话修订规则拒绝。
 - 部分成功：响应返回逐文件状态/失败项；客户端只重试失败或未完成的 refs。
 
 ### 查询会话
 
-`GET /api/v1/cash-import/sessions/{session_id}`
+`CashImportLifecycleRepository.context(sessionId)`
 
-- 返回会话归属、revision、expires_at、文件列表（client_file_ref、file_ref、status、错误码）。
+- 本地实现返回已读取/待处理文件、修订和可预览状态；服务端实现（若存在）返回归属、revision、expires_at、文件列表。
 - 不返回业务账本内容；只用于恢复上传/预览状态。
 
 ## 客户端流程
