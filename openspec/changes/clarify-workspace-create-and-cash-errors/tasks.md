@@ -24,24 +24,24 @@
 
 ### 现金字段错误
 
-- [x] 3.4 新增 `CashFieldErrors.kt` 与 `CashRecordFieldInputs` 的 per-field error/revision；文本字段用 `isError`/`supportingText`，选择/日期字段显示字段旁错误文本。
+- [x] 3.4 新增 `CashFormValidation.kt` 多字段预校验与 per-field error/revision；文本字段用 `isError`/`supportingText`，`ChoicePicker`/`DateTimePickerInput` 也接 `isError`+`supportingText`。
 - [x] 3.5 `CashCreationPanel` 接入字段映射、首错聚焦/滚动；字段错误保留在本地状态，避免编辑无关字段时误清。
 - [x] 3.6 `CashEntryEditor` 接入字段映射、首错聚焦/滚动；合并父级 `serverErrorCode`，未知错误留表单级。
 - [x] 3.7 `CashDraftEditor` 接入字段映射与父级错误；保留“允许缺项、只校验已填值”。
 - [x] 3.8 字段修改只清该字段错误；分摊/转账复合字段单独处理；无法归属的错误留表单级。
-- [x] 3.9 转账错误显示在转账区并滚动到该区；分摊错误映射到 `components` 并显示在分摊编辑器下。
+- [x] 3.9 转账错误显示在转账区并滚动到该区；分摊错误映射到 `components` 并显示在分摊编辑器下；选择器/日期错误为控件级 supporting text。
 
 ## 4. 测试
 
 - [x] 4.1 `WorkspaceNameConflictTest`：trim、大小写、不同名、空列表；确认/取消 UI 未做设备自动化（demo 创建页仅无活动工作区时可达）。
 - [x] 4.2 `CashFieldErrorsTest`：普通/转账/分摊/未知错误映射；Web demo 输入 `abc` 保存后金额字段显示“金额格式无效。”
-- [x] 4.3 首错聚焦（逐次修正）、修改无关字段保留错误、服务端错误映射：代码级复核；多字段同时返回受当前单错误 `DomainFailure` 限制，规格已改为“首错逐次修正”。
-- [x] 4.4 `:shared:wasmJsTest`、`:webApp:wasmJsBrowserDistribution` 通过；Web 1440×900 demo 走通现金新建非法金额分支；工作区同名确认未在 demo 触发。
+- [x] 4.3 多字段错误同时收集/显示、首错聚焦、修改单字段只清该字段：`CashFormValidationTest` 与 `CashCreationViewModelTest.saveReportsAllFieldErrorsAtOnce` 覆盖状态；聚焦/清除逻辑由 Web 手动冒烟复核，E2E 未纳入（Compose Web 按钮点击 harness 未稳定触发保存）。
+- [x] 4.4 `:shared:wasmJsTest`、`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain` 通过；Web 手动冒烟覆盖金额错误与修改备注保留；工作区同名确认未在 demo 触发；现金聚焦/清除 E2E 未稳定运行，已记残余。
 - [x] 4.5 `:shared:compileAndroidMain` 通过；iOS 未运行（默认范围只做相称编译，残留风险已记）。
 
 ## 5. 审查与发布
 
-- [x] 5.1 独立审查：0 critical；主要发现已处置——多错误改为首错逐次修正、分摊/转账复合键、父级服务端错误映射、隐藏字段回退、转账滚动、重复错误文本、`rememberSaveable`。残留：选择器错误文本为相邻节点而非控件 `supportingText`；无 Compose UI 自动化覆盖确认/聚焦。
-- [x] 5.2 `git diff --check` 通过；最终 diff 已复核，残余风险见 5.1/4.5。
+- [x] 5.1 独立审查：0 critical；主要发现已处置——多字段错误同时收集、分摊/转账复合键、父级服务端错误映射、隐藏字段回退、转账滚动、重复错误文本、`rememberSaveable`；选择器/日期控件已接 `isError`+`supportingText`。残留：Web E2E 未稳定覆盖保存点击/聚焦/清除，需补可用的 Compose UI 测试基座。
+- [x] 5.2 `git diff --check` 通过；最终 diff 已复核，残余：无 Native 设备 UI 自动化，见 5.1/4.5。
 - [x] 5.3 功能地图无需改页面/流程：仅既有创建页和现金表单的错误呈现/确认行为，不新增页面或能力。
 - [x] 5.4 已提交 `090595d8` 并推送；归档前无 blocking finding。

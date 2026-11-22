@@ -140,6 +140,7 @@ internal fun DatePickerInput(
     inlinePicker: Boolean = false,
     inlinePickerActive: Boolean = false,
     onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
+    errorMessage: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoDateToUtcMillis(value))
@@ -155,6 +156,8 @@ internal fun DatePickerInput(
         readOnly = true,
         enabled = enabled,
         singleLine = true,
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { { Text(it) } },
         modifier = (if (semanticId == null) modifier else modifier.testTag(semanticId))
             .semantics(mergeDescendants = true) { contentDescription = label }
             .fillMaxWidth()
@@ -241,6 +244,7 @@ internal fun TimePickerInput(
     inlinePicker: Boolean = false,
     inlinePickerActive: Boolean = false,
     onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
+    errorMessage: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
@@ -263,6 +267,8 @@ internal fun TimePickerInput(
         readOnly = true,
         enabled = enabled,
         singleLine = true,
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { { Text(it) } },
         modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth().clickable(enabled) { setOpen(true) },
         trailingIcon = { TextButton(onClick = { setOpen(true) }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
         shape = RoundedCornerShape(12.dp),
@@ -305,6 +311,8 @@ internal fun DateTimePickerInput(
     enabled: Boolean = true,
     onInvalidValue: () -> Unit = {},
     allowEmpty: Boolean = false,
+    errorMessage: String? = null,
+    semanticId: String? = null,
 ) {
     LaunchedEffect(value) {
         if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) onInvalidValue()
@@ -319,9 +327,11 @@ internal fun DateTimePickerInput(
             label = localizedText("copy_b6fed9af83"),
             modifier = fieldModifier,
             enabled = enabled,
+            semanticId = semanticId,
             inlinePicker = true,
             inlinePickerActive = activeInlinePicker == "date",
             onInlinePickerActiveChange = { activeInlinePicker = if (it) "date" else null },
+            errorMessage = errorMessage,
         )
     }
     val timeField: @Composable (Modifier) -> Unit = { fieldModifier ->
@@ -349,7 +359,9 @@ internal fun DateTimePickerInput(
                 timeField(Modifier.weight(1f))
             }
         }
-        if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        if (errorMessage == null && !(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) {
+            Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -371,6 +383,7 @@ internal fun ChoicePicker(
     menuExpanded: Boolean? = null,
     onMenuEscape: (() -> Unit)? = null,
     sectionOf: ((String) -> ChoiceSection?)? = null,
+    errorMessage: String? = null,
 ) {
     var internalExpanded by remember(label, semanticId) { mutableStateOf(false) }
     val expanded = menuExpanded ?: internalExpanded
@@ -412,6 +425,8 @@ internal fun ChoicePicker(
             singleLine = false,
             maxLines = 2,
             label = fieldLabel,
+            isError = errorMessage != null,
+            supportingText = errorMessage?.let { { Text(it) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor()
                 .fillMaxWidth()

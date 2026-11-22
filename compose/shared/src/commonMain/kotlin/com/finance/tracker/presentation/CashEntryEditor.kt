@@ -33,13 +33,19 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val editable = cashEntryEditableFields(record)
     val pair = cashTransferEntryMembers(record, transferMembers)
     val split = values["cash_granularity"] == "aggregate"
+    var fieldErrors by remember(initial, savedRevision) { mutableStateOf<List<CashFormError>>(emptyList()) }
     var dismissedServerError by remember(serverErrorCode, initial, savedRevision) { mutableStateOf(false) }
     val effectiveError = error ?: serverErrorCode.takeUnless { dismissedServerError }
-    val errorField = cashFieldErrorFor(effectiveError, pair != null, split)
+    val serverField = serverErrorCode?.takeUnless { dismissedServerError }?.let { cashFieldErrorKeyFor(it, pair != null, split) }
+    val effectiveErrors = (fieldErrors + listOfNotNull(serverField?.let { CashFormError(it.field, it.messageKey) }))
+        .distinctBy { it.field }
+    val fieldErrorMessages = effectiveErrors.associate { it.field to localizedText(it.messageKey) }
+    val transferError = effectiveErrors.filter { it.field == "transfer" }
+        .map { localizedText(it.messageKey) }.distinct().joinToString("；").takeIf { it.isNotEmpty() }
     fun clearFieldError(field: String) {
-        val target = errorField ?: return
-        if (target.field == field || target.field == "components" && field == "cash_granularity") {
-            if (error != null) error = null else dismissedServerError = true
+        fieldErrors = fieldErrors.filterNot { it.field == field || it.field == "components" && field == "cash_granularity" }
+        if (serverField?.field == field || serverField?.field == "components" && field == "cash_granularity") {
+            dismissedServerError = true
         }
     }
     val initialOutgoing = remember(pair) { pair?.outgoing?.let(::cashTransferEntryValues).orEmpty() }
@@ -55,10 +61,30 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
     val dirty = changes.isNotEmpty() || parts != null || pair != null && (outgoing != initialOutgoing || effectiveIncoming != initialIncoming)
     val zone = getLocalTimeZoneId()
     fun save(nextChanges: Map<String, String>, restore: Boolean = false) {
+        val preflight = if (pair != null) {
+            validateCashTransferSides(outgoing, effectiveIncoming, zone)
+        } else buildList {
+            addAll(validateCashScalarChanges(nextChanges, zone))
+            validateCashAllocation(if (split) allocationInput.parts else parts ?: initialAllocations)?.let(::add)
+        }
+        if (preflight.isNotEmpty()) {
+            fieldErrors = preflight
+            error = null
+            errorRevision++
+            dismissedServerError = false
+            return
+        }
         val request = try {
             if (pair != null) cashTransferEntryRequest(record, transferMembers, nextChanges, outgoing, incoming, zone)
             else cashEntryRequest(record, nextChanges, zone, parts)
-        } catch (failure: DomainFailure) { error = failure.code; errorRevision++; dismissedServerError = false; return }
+        } catch (failure: DomainFailure) {
+            val mapped = cashFieldErrorKeyFor(failure.code, pair != null, split)
+            fieldErrors = mapped?.let { listOf(CashFormError(it.field, it.messageKey)) }.orEmpty()
+            error = failure.code.takeIf { mapped == null }
+            errorRevision++
+            dismissedServerError = false
+            return
+        }
         if (!connection.canSubmit) return
         onSave(if (restore) request.copy(restoreNoteToken = record.entry?.originalNoteToken) else request)
     }
@@ -74,11 +100,11 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
             } else {
                 summary()
                 if (pair != null) CashTransferEntryFields(outgoing, incoming, accounts, sizeClass, busy,
-                    transferError = errorField?.takeIf { it.field == "transfer" }?.message,
+                    transferError = transferError,
                     onOutgoing = { outgoing = it; clearFieldError("transfer") },
                     onIncoming = { incoming = it; clearFieldError("transfer") })
                 CashRecordFieldInputs(values, editable, accounts, categories, options, sizeClass, busy, "cash.entry",
-                    fieldErrors = if (pair == null) errorField?.let { mapOf(it.field to it.message) }.orEmpty() else emptyMap(),
+                    fieldErrors = if (pair == null) fieldErrorMessages else emptyMap(),
                     errorRevision = errorRevision,
                     bookingContent = if ("components" in editable) ({
                     CashDraftAllocationEditor(split, if (split) allocationInput.parts else parts ?: initialAllocations,
@@ -91,7 +117,7 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                     clearFieldError(field)
                     values = values + (field to value)
                 }
-                if (errorField == null || errorField.field == "components" && "components" !in editable) effectiveError?.let { Text(when (it) {
+                if ((effectiveErrors.isEmpty() || effectiveErrors.any { it.field == "components" } && "components" !in editable) && effectiveError != null) effectiveError?.let { Text(when (it) {
                     "invalid_datetime" -> localizedText("cash_invalid_local_time")
                     "invalid_amount" -> localizedText(if (pair == null) "copy_d9ea7affdf" else "cash_create_invalid_amount")
                     "invalid_currency" -> localizedText("cash_invalid_currency")

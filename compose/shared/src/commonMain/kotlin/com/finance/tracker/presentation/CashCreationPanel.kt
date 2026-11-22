@@ -22,19 +22,18 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
     var confirmDiscard by remember { mutableStateOf(false) }
     val formScroll = rememberScrollState()
     var saveAttempt by remember { mutableIntStateOf(0) }
-    val currentFieldError = cashFieldErrorFor(state.errorCode, draft.mode == CashCreationMode.TRANSFER, draft.ordinary.values["cash_granularity"] == "aggregate")
-    var displayedFieldError by remember(draft.mode) { mutableStateOf<CashFieldError?>(null) }
-    LaunchedEffect(draft.mode) { displayedFieldError = null }
+    var dismissedErrorFields by remember(draft.mode) { mutableStateOf(emptySet<String>()) }
+    var localFieldErrors by remember(draft.mode) { mutableStateOf<List<CashFormError>>(emptyList()) }
+    val allFieldErrors = (localFieldErrors + state.fieldErrors).distinctBy { it.field }
+    LaunchedEffect(allFieldErrors, saveAttempt) { dismissedErrorFields = emptySet() }
+    LaunchedEffect(draft.mode) { dismissedErrorFields = emptySet(); localFieldErrors = emptyList() }
+    LaunchedEffect(state.savedRevision) { localFieldErrors = emptyList() }
+    val fieldErrors = allFieldErrors
+        .filterNot { it.field in dismissedErrorFields }
+        .associate { it.field to localizedText(it.messageKey) }
     LaunchedEffect(state.errorCode, saveAttempt) {
-        if (state.errorCode != null) displayedFieldError = currentFieldError
+        if (state.errorCode != null) formScroll.animateScrollTo(0)
     }
-    LaunchedEffect(state.savedRevision) { displayedFieldError = null }
-    LaunchedEffect(state.errorCode, saveAttempt, currentFieldError) {
-        if (state.errorCode != null && currentFieldError == null) {
-            formScroll.animateScrollTo(0)
-        }
-    }
-    val displayedFieldErrors = displayedFieldError?.let { mapOf(it.field to it.message) }.orEmpty()
     val requestClose = { if (!state.busy) { if (state.dirty && !state.unknown) confirmDiscard = true else onClose() } }
     val locked = !canWrite || state.busy || state.unknown
     val canSave = canWrite && connection.canSubmit && !state.busy
@@ -49,7 +48,23 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 }
                 if (!state.unknown || state.canResumeSave) {
                 PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(canSave))
-                Button(onClick = { if (canSave) { saveAttempt++; onSave() } }, enabled = canSave, modifier = Modifier.testTag("cash.create.save")) {
+                Button(onClick = {
+                    if (canSave) {
+                        val preflight = if (draft.mode == CashCreationMode.TRANSFER) {
+                            validateCashTransferCreation(draft.transfer, accounts, getLocalTimeZoneId())
+                        } else {
+                            validateCashOrdinaryCreation(draft.ordinary, accounts, getLocalTimeZoneId())
+                        }
+                        saveAttempt++
+                        dismissedErrorFields = emptySet()
+                        if (preflight.isNotEmpty()) {
+                            localFieldErrors = preflight
+                        } else {
+                            localFieldErrors = emptyList()
+                            onSave()
+                        }
+                    }
+                }, enabled = canSave, modifier = Modifier.testTag("cash.create.save")) {
                     Text(localizedText("copy_fadf24dbc5"))
                 }
                 }
@@ -74,7 +89,7 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 }
                 if (!state.busy && state.unknown) StateMessage(localizedText(if (state.canResumeSave) "cash_continue_pending_save" else "cash_create_unknown"),
                     isError = true, modifier = Modifier.testTag("cash.create.unknown"))
-                else if (displayedFieldError == null) state.errorCode?.let { code ->
+                else state.errorCode?.let { code ->
                     StateMessage(when (code) {
                         "invalid_datetime" -> localizedText("cash_invalid_local_time")
                         "invalid_amount" -> localizedText("cash_create_invalid_amount")
@@ -95,23 +110,34 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((value, label) in listOf("consumption" to "ledger_quick_expense", "income" to "ledger_quick_income")) {
                             FilterChip(selected = draft.ordinary.values["record_type"] == value, onClick = {
+                                dismissedErrorFields = dismissedErrorFields + "record_type"
                                 onChange(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("record_type" to value) + ("record_subtype" to ""))))
                             }, enabled = !locked, border = financeInteractiveBorder(enabled = !locked,
                                 selected = draft.ordinary.values["record_type"] == value),
                             label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
                         }
                     }
+                    fieldErrors["record_type"]?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("cash.create.record-type.error"))
+                    }
                     CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
-                        locked, "cash.create", fieldErrors = displayedFieldErrors, errorRevision = saveAttempt) { field, value ->
-                        if (displayedFieldError?.field == field || displayedFieldError?.field == "components" && field == "cash_granularity") displayedFieldError = null
+                        locked, "cash.create", fieldErrors = fieldErrors, errorRevision = saveAttempt) { field, value ->
+                        if (state.fieldErrors.any { it.field == field || it.field == "components" && field == "cash_granularity" }) {
+                            dismissedErrorFields = dismissedErrorFields + field
+                        }
+                        if (field == "account_id" && state.fieldErrors.any { it.field == "currency" }) {
+                            dismissedErrorFields = dismissedErrorFields + "currency"
+                        }
                         val values = draft.ordinary.values + (field to value)
                         val currency = if (field == "account_id") accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull() else null
                         onChange(draft.copy(ordinary = CashOrdinaryInput(if (currency == null) values else values + ("currency" to currency))))
                     }
                 } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked,
-                    transferError = displayedFieldError?.takeIf { it.field == "transfer" }?.message) {
-                    if (displayedFieldError?.field == "transfer" && it.copy(note = draft.transfer.note) != draft.transfer) {
-                        displayedFieldError = null
+                    transferError = state.fieldErrors.filter { it.field == "transfer" && it.field !in dismissedErrorFields }
+                        .map { localizedText(it.messageKey) }.distinct().joinToString("；").takeIf { it.isNotEmpty() }) {
+                    if (it.copy(note = draft.transfer.note) != draft.transfer) {
+                        dismissedErrorFields = dismissedErrorFields + "transfer"
                     }
                     onChange(draft.copy(transfer = it))
                 }

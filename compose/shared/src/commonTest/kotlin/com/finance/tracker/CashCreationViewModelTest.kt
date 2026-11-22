@@ -32,9 +32,20 @@ class CashCreationViewModelTest {
         vm.save(accounts, "UTC"); advanceUntilIdle(); assertEquals(1, repo.transfers.size)
         assertTrue(repo.records.isEmpty())
     } }
+    @Test fun saveReportsAllFieldErrorsAtOnce() = runTest { task { vm, repo ->
+        vm.open(accounts, "2026-10-24T12:30")
+        val draft = vm.state.value.draft!!
+        vm.update(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + mapOf(
+            "amount" to "abc", "currency" to "US", "account_id" to "missing", "occurred_at" to ""))))
+        vm.save(accounts, "UTC"); advanceUntilIdle()
+        assertEquals(listOf("amount", "currency", "account_id", "occurred_at"),
+            vm.state.value.fieldErrors.map { it.field })
+        assertTrue(repo.records.isEmpty())
+    } }
     @Test fun invalidAndKnownFailureKeepDraftWithoutUnknownRecovery() = runTest { task { vm, repo ->
         vm.open(accounts, "2026-10-24T12:30"); vm.save(accounts, "UTC"); advanceUntilIdle()
-        assertEquals("invalid_amount", vm.state.value.errorCode); assertTrue(repo.records.isEmpty())
+        assertNull(vm.state.value.errorCode)
+        assertTrue(vm.state.value.fieldErrors.any { it.field == "amount" }); assertTrue(repo.records.isEmpty())
         val draft = vm.state.value.draft!!; vm.update(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("amount" to "1"))))
         repo.failure = DomainFailure("invalid_record", 422, FailureCategory.RECOVERABLE)
         vm.save(accounts, "UTC"); advanceUntilIdle()
