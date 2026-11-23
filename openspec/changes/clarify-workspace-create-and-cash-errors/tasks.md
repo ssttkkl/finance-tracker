@@ -44,4 +44,4 @@
 - [x] 5.1 独立审查：0 critical；主要发现已处置——多字段错误同时收集、分摊/转账复合键、父级服务端错误映射、隐藏字段回退、转账滚动、重复错误文本、`rememberSaveable`；选择器/日期控件已接 `isError`+`supportingText`；Web E2E 覆盖聚焦/清除。残留：无 Native 设备 UI 自动化。
 - [x] 5.2 `git diff --check` 通过；最终 diff 已复核，残余：无 Native 设备 UI 自动化，见 5.1/4.5。
 - [x] 5.3 功能地图无需改页面/流程：仅既有创建页和现金表单的错误呈现/确认行为，不新增页面或能力。
-- [x] 5.4 已提交 `3bd7381d` 并推送；归档前无 blocking finding。
+- [x] 5.4 已提交 `73d606f1` 并推送；归档前无 blocking finding。
