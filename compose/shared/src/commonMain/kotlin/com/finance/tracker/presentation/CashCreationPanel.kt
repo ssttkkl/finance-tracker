@@ -121,12 +121,18 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.testTag("cash.create.record-type.error"))
                     }
+                    val summary = fieldErrors.values.distinct()
+                    if (summary.isNotEmpty()) {
+                        Text(summary.joinToString("；"), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("cash.create.field-errors"))
+                    }
                     CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
                         locked, "cash.create", fieldErrors = fieldErrors, errorRevision = saveAttempt) { field, value ->
-                        if (state.fieldErrors.any { it.field == field || it.field == "components" && field == "cash_granularity" }) {
+                        if (allFieldErrors.any { it.field == field || it.field == "components" && field == "cash_granularity" }) {
                             dismissedErrorFields = dismissedErrorFields + field
                         }
-                        if (field == "account_id" && state.fieldErrors.any { it.field == "currency" }) {
+                        if (field == "account_id" && allFieldErrors.any { it.field == "currency" }) {
                             dismissedErrorFields = dismissedErrorFields + "currency"
                         }
                         val values = draft.ordinary.values + (field to value)

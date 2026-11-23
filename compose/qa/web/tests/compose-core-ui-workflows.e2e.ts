@@ -185,3 +185,37 @@ test("关闭 Web 详情、导入和分类弹窗后主画布保持可交互", asy
   await expect(byId(page, "ledger.screen")).toBeVisible();
   await page.screenshot({ path: info.outputPath("web-modal-close-ledger.png") });
 });
+
+test("现金金额错误显示、聚焦并在修正后清除", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/w/workspace-1/");
+  await expect(page.locator('[id="session.connection"]:visible')).toHaveCount(0);
+  await click(page, "ledger.actions-fab");
+  await click(page, "ledger.add");
+  await typeIntoComposeInput(page, '[id="cash.create.amount"]', "abc");
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const save = byId(page, "cash.create.save");
+  await expect(save).toBeEnabled();
+  await clickStableComposeTarget(page, save);
+
+  const summary = byId(page, "cash.create.field-errors");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText("金额格式无效");
+  await expect.poll(() => page.evaluate(() => {
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    return active instanceof HTMLInputElement && active.classList.contains("compose-backing-field") ? active.value : null;
+  })).toBe("abc");
+
+  await typeIntoComposeInput(page, '[id="cash.create.note"]', "只改备注");
+  await expect(summary).toContainText("金额格式无效");
+
+  await clickStableComposeTarget(page, byId(page, "cash.create.amount"));
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("12", { delay: 100 });
+  await expect(byId(page, "cash.create.amount")).toHaveText("12");
+  await expect(summary).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("cash-field-error-focus-clear.png") });
+});

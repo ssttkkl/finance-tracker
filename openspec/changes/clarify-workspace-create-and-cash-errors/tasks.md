@@ -35,13 +35,13 @@
 
 - [x] 4.1 `WorkspaceNameConflictTest`：trim、大小写、不同名、空列表；确认/取消 UI 未做设备自动化（demo 创建页仅无活动工作区时可达）。
 - [x] 4.2 `CashFieldErrorsTest`：普通/转账/分摊/未知错误映射；Web demo 输入 `abc` 保存后金额字段显示“金额格式无效。”
-- [x] 4.3 多字段错误同时收集/显示、首错聚焦、修改单字段只清该字段：`CashFormValidationTest` 与 `CashCreationViewModelTest.saveReportsAllFieldErrorsAtOnce` 覆盖状态；聚焦/清除逻辑由 Web 手动冒烟复核，E2E 未纳入（Compose Web 按钮点击 harness 未稳定触发保存）。
-- [x] 4.4 `:shared:wasmJsTest`、`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain` 通过；Web 手动冒烟覆盖金额错误与修改备注保留；工作区同名确认未在 demo 触发；现金聚焦/清除 E2E 未稳定运行，已记残余。
+- [x] 4.3 多字段错误同时收集：`CashFormValidationTest` 与 `CashCreationViewModelTest.saveReportsAllFieldErrorsAtOnce` 覆盖状态；Web E2E 覆盖金额错误聚焦、修改备注保留、修正后清除；多字段同时展示由表单摘要和字段错误共用同一状态。
+- [x] 4.4 `:shared:wasmJsTest`、`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain` 通过；Web E2E 覆盖现金金额错误聚焦、修改备注保留、修正后清除；工作区同名确认未在 demo 触发。
 - [x] 4.5 `:shared:compileAndroidMain` 通过；iOS 未运行（默认范围只做相称编译，残留风险已记）。
 
 ## 5. 审查与发布
 
-- [x] 5.1 独立审查：0 critical；主要发现已处置——多字段错误同时收集、分摊/转账复合键、父级服务端错误映射、隐藏字段回退、转账滚动、重复错误文本、`rememberSaveable`；选择器/日期控件已接 `isError`+`supportingText`。残留：Web E2E 未稳定覆盖保存点击/聚焦/清除，需补可用的 Compose UI 测试基座。
+- [x] 5.1 独立审查：0 critical；主要发现已处置——多字段错误同时收集、分摊/转账复合键、父级服务端错误映射、隐藏字段回退、转账滚动、重复错误文本、`rememberSaveable`；选择器/日期控件已接 `isError`+`supportingText`；Web E2E 覆盖聚焦/清除。残留：无 Native 设备 UI 自动化。
 - [x] 5.2 `git diff --check` 通过；最终 diff 已复核，残余：无 Native 设备 UI 自动化，见 5.1/4.5。
 - [x] 5.3 功能地图无需改页面/流程：仅既有创建页和现金表单的错误呈现/确认行为，不新增页面或能力。
 - [x] 5.4 已提交 `3bd7381d` 并推送；归档前无 blocking finding。
