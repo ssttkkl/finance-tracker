@@ -128,7 +128,9 @@ test("desktop rail collapses after mouse navigation leaves focus behind", async 
 
     const collapseControl = page.getByRole("button", { name: "收起导航" });
 
-    await page.locator('[id="navigation-item-investment-holdings"]').click({ force: true });
+    const holdingsItem = page.locator('[id="navigation-item-investment-holdings"]');
+    await expect(holdingsItem).toBeVisible();
+    await holdingsItem.click({ force: true });
     await expect(page).toHaveURL(/\/w\/workspace-1\/investment-holdings$/);
     await expect(collapseControl).toBeVisible();
     await page.mouse.move(width - 40, 500);
