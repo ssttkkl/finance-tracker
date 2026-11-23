@@ -540,6 +540,7 @@ internal fun ConfirmationDialog(
     semanticId?.let { PlatformControlAccessibility("$it.confirm", ControlAccessibilityState.Button(confirmEnabled)) }
     FinanceAlertDialog(
         modifier = semanticId?.let { Modifier.testTag("$it.dialog") } ?: Modifier,
+        webPopup = semanticId?.startsWith("cash-category.") == true,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
