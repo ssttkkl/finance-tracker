@@ -543,6 +543,7 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
         CashImportAccountForm(current, id != "new" && current == null, state.busy || accountState.busy, sizeClass, canWrite, accountState.errorCode,
             snackbar = snackbar, retrySave = pendingCreation != null,
             initialName = pendingCreation?.name ?: accountFormSource?.displayName.orEmpty(),
+            webPopup = true,
             initialType = pendingCreation?.type ?: cashImportAccountTypeForName(accountFormSource?.displayName.orEmpty()),
             initialCurrencies = pendingCreation?.currencies ?: accountFormSource?.currencies.orEmpty(),
             onDirty = { accountDirty = it }, onClose = {

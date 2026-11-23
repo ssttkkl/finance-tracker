@@ -24,7 +24,8 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
     errorCode: String?, snackbar: SnackbarHostState, retrySave: Boolean = false, initialName: String = "", initialType: String = "cash", initialCurrencies: List<String> = emptyList(),
     onDirty: (Boolean) -> Unit, onClose: () -> Unit,
     onSave: (String, String, List<String>, Boolean) -> Unit,
-    readOriginalResult: (() -> Unit)? = null) {
+    readOriginalResult: (() -> Unit)? = null,
+    webPopup: Boolean = false) {
     val connection = LocalSessionConnection.current
     val editEnabled = canWrite && !busy && !loading && !connection.checking && !retrySave
     val originalName = account?.name ?: initialName
@@ -48,7 +49,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
     CashRecordModalPanel(sizeClass, localizedText(if (account == null) "cash_import_create_account" else "cash_import_edit_account"), true,
         semanticStateKey = "import-account-${account?.accountId ?: "new"}", onDismiss = onClose, onBack = onClose,
         canAnimateDismiss = !busy && !dirty && !retrySave,
-        webPopup = true,
+        webPopup = webPopup,
         footer = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp,
                 if (sizeClass == WindowSizeClass.COMPACT) Alignment.End else Alignment.Start)) {
