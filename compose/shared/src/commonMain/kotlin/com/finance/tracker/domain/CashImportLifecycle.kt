@@ -161,6 +161,16 @@ interface CashImportLifecycleRepository {
     /** Recover only this batch's encrypted request, or return its editable local preparation. */
     suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
         throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
+    /**
+     * Create an empty import session before any file is read. Implementations that
+     * still create a session inside upload may return null; the caller then uses
+     * the legacy upload path.
+     */
+    suspend fun createSession(): ImportContext? = null
+    /** Upload into an already-created session. */
+    suspend fun uploadToSession(sessionId: String, files: List<ImportUpload>, replacingFileRef: String? = null,
+        onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch =
+        upload(files, context(sessionId), replacingFileRef, onContext)
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext

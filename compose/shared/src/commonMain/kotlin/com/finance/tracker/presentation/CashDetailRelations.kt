@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
@@ -270,7 +271,8 @@ internal fun CashDetailRelations(
     if (sourceError != null) StateMessage(if (sourceError == "record_changed") ledgerErrorText(sourceError) else localizedText("cash_sources_unavailable"), isError = true) {
         TextButton(onClick = onLoadSources, modifier = Modifier.testTag("cash.current.sources-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
     }
-    if (evidence == null && record.projectionRef != null && sourceError == null) CircularProgressIndicator()
+    val sourcesProgressLabel = localizedText("copy_fcabadb2a7")
+    if (evidence == null && record.projectionRef != null && sourceError == null) CircularProgressIndicator(Modifier.semantics { contentDescription = sourcesProgressLabel })
     else if (members.isEmpty()) {
         val payload = record.fields.fields["source_payload"] as? StructuredObject
         Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Column(Modifier.padding(16.dp)) { StatementValues(payload) } }
@@ -443,17 +445,24 @@ private fun CashAssociationDialog(
         "stale" -> "cash_detail_stale_title"
         else -> if (mode == "add") "copy_f46e36d281" else if (group != null && cashDetailAlternativeCount(group) == 1 && !joint) "cash_detail_accept" else "cash_detail_check"
     }
+    val paneTitleText = localizedText(title)
     Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = !compact)) {
-        BoxWithConstraints(Modifier.fillMaxSize().padding(if (compact) 0.dp else 24.dp), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(Modifier.fillMaxSize().then(
+            if (compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.padding(24.dp)
+        ), contentAlignment = Alignment.Center) {
             Surface(Modifier.widthIn(max = if (choosing && !compact) 1120.dp else 560.dp).fillMaxWidth()
                 .then(if (compact) Modifier.fillMaxHeight() else Modifier.heightIn(max = maxHeight))
+                .semantics { paneTitle = paneTitleText }
                 .testTag("cash.association.dialog"), shape = if (compact) RoundedCornerShape(0.dp) else MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column {
-                    Row(Modifier.fillMaxWidth().then(if (compact) Modifier.height(56.dp).padding(horizontal = 16.dp) else Modifier.padding(24.dp)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconButton(onClick = onDismiss, enabled = !state.busy) { Icon(painterResource(Res.drawable.ic_close), contentDescription = localizedText(if (view == "unknown" || view == "stale") "cash_detail_close" else "copy_4d0b4688c7")) }
-                        Text(localizedText(title), style = MaterialTheme.typography.titleLarge)
-                    }
+                    ModalHeader(
+                        variant = if (compact) ModalHeaderVariant.FullScreenDialog else ModalHeaderVariant.BasicDialog,
+                        onClose = onDismiss,
+                        closeEnabled = !state.busy,
+                        headerTestTag = "cash.association.header",
+                        closeTestTag = "cash.association.close",
+                    ) { Text(localizedText(title), style = MaterialTheme.typography.titleLarge) }
                     Column(Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
                         .padding(top = if (compact) 24.dp else 0.dp, bottom = if (compact) 24.dp else 0.dp)
                         .testTag("cash.association.view-$view"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -578,11 +587,14 @@ private fun CashAssociationDialog(
                                 OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     ChoicePicker(localizedText("cash_detail_account_id"), account, listOf("" to localizedText("copy_778fc8f994")) + accounts.map { it.id.toString() to it.name }, { account = it }, modifier = Modifier.weight(1f).testTag("cash.association.filter-account"))
-                                    OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, isError = invalidAmount, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
+                                    OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, isError = invalidAmount,
+                                        supportingText = invalidAmountSupportingText(invalidAmount),
+                                        singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
                                     if (!compact) DatePickerInput(date, { date = it }, localizedText("cash_detail_date"), modifier = Modifier.weight(1f), semanticId = "cash.association.filter-date")
                                 }
                                 if (compact) DatePickerInput(date, { date = it }, localizedText("cash_detail_date"), semanticId = "cash.association.filter-date")
-                                if (searching) CircularProgressIndicator()
+                                val searchProgressLabel = localizedText("copy_fcabadb2a7")
+                                if (searching) CircularProgressIndicator(Modifier.semantics { contentDescription = searchProgressLabel })
                                 error?.let { code -> Text(ledgerErrorText(code), color = MaterialTheme.colorScheme.error); TextButton(onClick = { scope.launch { search() } }, enabled = !searching) { Text(localizedText("copy_e2d53a6d3a")) } }
                                 AssociationTable(searchItems, sizeClass, accounts, categories, options, selected?.transactionId, { selected = it; anchorPart = null; targetPart = null })
                                 if (!searching && error == null && searchItems.isEmpty()) Text(localizedText("copy_8eb3d2788b"))
@@ -617,8 +629,17 @@ private fun CashAssociationDialog(
                         }
                         if (view != "unknown" || !state.busy) {
                             PlatformControlAccessibility("cash.association.continue", ControlAccessibilityState.Button(canAct))
-                            Button(enabled = canAct, modifier = Modifier.testTag("cash.association.continue"), onClick = {
-                                if (view in setOf("review", "remove", "reject") && !connection.canSubmit) return@Button
+                            val continueLabel = localizedText(when (view) {
+                                "unknown" -> when (mode) {
+                                    "remove" -> "cash_detail_confirm_remove"
+                                    "reject" -> "cash_detail_confirm_reject"
+                                    else -> "copy_fadf24dbc5"
+                                }
+                                "stale" -> "cash_detail_close_refresh"
+                                "review" -> "cash_confirm_save"; "conflict" -> "cash_detail_continue_review"
+                                "remove" -> "cash_detail_confirm_remove"; "reject" -> "cash_detail_confirm_reject"; else -> "cash_detail_preview"
+                            })
+                            val continueAction: () -> Unit = {
                                 when (view) {
                                     "unknown" -> onResolve?.invoke()
                                     "stale" -> onRefresh()
@@ -637,16 +658,15 @@ private fun CashAssociationDialog(
                                         else { requestPreview(); onSave(listOf(decision)) }
                                     }
                                 }
-                            }) { Text(localizedText(when (view) {
-                                "unknown" -> when (mode) {
-                                    "remove" -> "cash_detail_confirm_remove"
-                                    "reject" -> "cash_detail_confirm_reject"
-                                    else -> "copy_fadf24dbc5"
-                                }
-                                "stale" -> "cash_detail_close_refresh"
-                                "review" -> "cash_confirm_save"; "conflict" -> "cash_detail_continue_review"
-                                "remove" -> "cash_detail_confirm_remove"; "reject" -> "cash_detail_confirm_reject"; else -> "cash_detail_preview"
-                            })) }
+                            }
+                            if (view == "remove") {
+                                TextButton(onClick = continueAction, enabled = canAct,
+                                    modifier = Modifier.testTag("cash.association.continue"),
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(continueLabel) }
+                            } else {
+                                Button(onClick = continueAction, enabled = canAct,
+                                    modifier = Modifier.testTag("cash.association.continue")) { Text(continueLabel) }
+                            }
                         }
                     }
                 }

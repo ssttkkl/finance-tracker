@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -137,11 +140,11 @@ internal fun DatePickerInput(
     inlinePicker: Boolean = false,
     inlinePickerActive: Boolean = false,
     onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
+    errorMessage: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoDateToUtcMillis(value))
     val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
-    val closeLabel = localizedText("copy_6c14bd7f6f")
     val setOpen: (Boolean) -> Unit = { next ->
         if (inlinePicker && onInlinePickerActiveChange != null) onInlinePickerActiveChange(next) else open = next
     }
@@ -153,6 +156,8 @@ internal fun DatePickerInput(
         readOnly = true,
         enabled = enabled,
         singleLine = true,
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { { Text(it) } },
         modifier = (if (semanticId == null) modifier else modifier.testTag(semanticId))
             .semantics(mergeDescendants = true) { contentDescription = label }
             .fillMaxWidth()
@@ -222,19 +227,7 @@ internal fun DatePickerInput(
                     ) { Text(localizedText("copy_4d0b4688c7")) }
                 },
             ) {
-                Column {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { open = false },
-                            modifier = Modifier
-                                .semantics { contentDescription = closeLabel }
-                                .testTag(semanticId?.let { "$it-close" } ?: "date-picker-close"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-                        }
-                    }
-                    DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
-                }
+                DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
             }
         }
     }
@@ -251,6 +244,7 @@ internal fun TimePickerInput(
     inlinePicker: Boolean = false,
     inlinePickerActive: Boolean = false,
     onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
+    errorMessage: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
@@ -273,6 +267,8 @@ internal fun TimePickerInput(
         readOnly = true,
         enabled = enabled,
         singleLine = true,
+        isError = errorMessage != null,
+        supportingText = errorMessage?.let { { Text(it) } },
         modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth().clickable(enabled) { setOpen(true) },
         trailingIcon = { TextButton(onClick = { setOpen(true) }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
         shape = RoundedCornerShape(12.dp),
@@ -292,7 +288,7 @@ internal fun TimePickerInput(
                 }
             }
         } else {
-            AlertDialog(
+            FinanceAlertDialog(
                 onDismissRequest = { open = false },
                 title = { Text(label) },
                 text = { TimePicker(state = pickerState) },
@@ -315,6 +311,8 @@ internal fun DateTimePickerInput(
     enabled: Boolean = true,
     onInvalidValue: () -> Unit = {},
     allowEmpty: Boolean = false,
+    errorMessage: String? = null,
+    semanticId: String? = null,
 ) {
     LaunchedEffect(value) {
         if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) onInvalidValue()
@@ -329,9 +327,11 @@ internal fun DateTimePickerInput(
             label = localizedText("copy_b6fed9af83"),
             modifier = fieldModifier,
             enabled = enabled,
+            semanticId = semanticId,
             inlinePicker = true,
             inlinePickerActive = activeInlinePicker == "date",
             onInlinePickerActiveChange = { activeInlinePicker = if (it) "date" else null },
+            errorMessage = errorMessage,
         )
     }
     val timeField: @Composable (Modifier) -> Unit = { fieldModifier ->
@@ -359,7 +359,9 @@ internal fun DateTimePickerInput(
                 timeField(Modifier.weight(1f))
             }
         }
-        if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        if (errorMessage == null && !(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) {
+            Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -375,11 +377,13 @@ internal fun ChoicePicker(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     semanticId: String? = null,
+    accessibleLabel: String? = null,
     autoScrollMenuIntoView: Boolean = false,
     onMenuExpandedChange: ((Boolean) -> Unit)? = null,
     menuExpanded: Boolean? = null,
     onMenuEscape: (() -> Unit)? = null,
     sectionOf: ((String) -> ChoiceSection?)? = null,
+    errorMessage: String? = null,
 ) {
     var internalExpanded by remember(label, semanticId) { mutableStateOf(false) }
     val expanded = menuExpanded ?: internalExpanded
@@ -421,11 +425,17 @@ internal fun ChoicePicker(
             singleLine = false,
             maxLines = 2,
             label = fieldLabel,
+            isError = errorMessage != null,
+            supportingText = errorMessage?.let { { Text(it) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor()
                 .fillMaxWidth()
                 .then(if (semanticId == null) Modifier else Modifier.testTag(semanticId))
-                .then(if (label.isBlank()) Modifier.semantics { contentDescription = selectedLabel } else Modifier),
+                .then(when {
+                    accessibleLabel != null -> Modifier.semantics { contentDescription = accessibleLabel }
+                    label.isBlank() -> Modifier.semantics { contentDescription = selectedLabel }
+                    else -> Modifier
+                }),
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -482,6 +492,9 @@ internal fun StateMessage(
     }
 }
 
+internal fun invalidAmountSupportingText(invalid: Boolean): (@Composable () -> Unit)? =
+    if (invalid) ({ Text(localizedText("copy_d9ea7affdf")) }) else null
+
 @Composable
 internal fun InlineError(text: String?) {
     if (text != null) {
@@ -493,6 +506,20 @@ internal fun InlineError(text: String?) {
 internal fun TaskProgressIndicator(modifier: Modifier = Modifier) {
     val label = localizedText("copy_1cac8ac7f5")
     LinearProgressIndicator(modifier.fillMaxWidth().semantics { contentDescription = label })
+}
+
+/** 忙碌按钮保留业务名称，并在名称前显示带可访问名称的进度。 */
+@Composable
+internal fun BusyButtonLabel(busy: Boolean, label: String) {
+    if (busy) {
+        val progressLabel = localizedText("copy_1cac8ac7f5")
+        CircularProgressIndicator(
+            modifier = Modifier.size(ButtonDefaults.IconSize).semantics { contentDescription = progressLabel },
+            strokeWidth = 2.dp,
+        )
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+    }
+    Text(label)
 }
 
 @Composable
@@ -511,8 +538,9 @@ internal fun ConfirmationDialog(
 ) {
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onDismiss)
     semanticId?.let { PlatformControlAccessibility("$it.confirm", ControlAccessibilityState.Button(confirmEnabled)) }
-    AlertDialog(
+    FinanceAlertDialog(
         modifier = semanticId?.let { Modifier.testTag("$it.dialog") } ?: Modifier,
+        webPopup = semanticId?.startsWith("cash-category.") == true,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {

@@ -501,15 +501,18 @@ private fun FinanceTrackerAppContent(
                         onWorkspaceSelected = selectWorkspace,
                         onLogout = logout,
                     )
-                    Box(Modifier.fillMaxSize()) {
-                        when (windowSizeClass) {
-                            WindowSizeClass.COMPACT -> CompactAppShell(state) { navigationIcon ->
-                                destination(state.copy(navigationIcon = navigationIcon))
+                    val webOverlayController = remember { WebOverlayController() }
+                    WebOverlayHost(webOverlayController) {
+                        Box(Modifier.fillMaxSize()) {
+                            when (windowSizeClass) {
+                                WindowSizeClass.COMPACT -> CompactAppShell(state) { navigationIcon ->
+                                    destination(state.copy(navigationIcon = navigationIcon))
+                                }
+                                WindowSizeClass.REGULAR -> RegularAppShell(state) {
+                                    destination(state.copy(navigationIcon = {}))
+                                }
+                                WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                             }
-                            WindowSizeClass.REGULAR -> RegularAppShell(state) {
-                                destination(state.copy(navigationIcon = {}))
-                            }
-                            WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                         }
                     }
                 }

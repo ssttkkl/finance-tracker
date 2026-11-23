@@ -1315,15 +1315,33 @@ class ImportTaskViewModelTest {
         assertEquals(listOf(ImportAccountSelection("src", ImportAccountTarget("2", 1))), vm.state.value.choices.accountSelections)
     } }
 
-    @Test fun unknownFirstCreationDoesNotAllowAnotherCreation() = runTest { task { vm, repo, store ->
+    @Test fun firstUploadCreatesEmptySessionBeforeReadingFiles() = runTest { task { vm, repo, store ->
+        store.pointer = null
+        vm.restore(); advanceUntilIdle()
+        val session = repo.current.copy(sessionId = "split-session", revision = 0, files = emptyList())
+        var sawSession: String? = null
+        repo.sessionCreate = { session }
+        repo.uploadToSessionHandler = { sessionId, files, _, progress ->
+            sawSession = sessionId
+            val updated = session.copy(files = files.map { ImportContextFile("ref", it.clientFileRef, it.file.name, "alipay", "ready", 1, emptyList(), false) })
+            repo.current = updated
+            progress(updated)
+            ImportUploadBatch(updated, emptyList(), null)
+        }
+        vm.upload(listOf(ImportUpload("first", taskFile()))); advanceUntilIdle()
+        assertEquals(1, repo.sessionCreateCalls)
+        assertEquals("split-session", sawSession)
+        assertEquals("split-session", vm.state.value.context?.sessionId)
+    } }
+
+    @Test fun failedFirstCreationAllowsRetryInsteadOfBlocking() = runTest { task { vm, repo, store ->
         store.pointer = null
         vm.restore(); advanceUntilIdle()
         repo.uploadHandler = { _, _, _ -> ImportUploadBatch(null, emptyList(), ImportUploadInterruption("request_failed", 0, null, listOf("first"))) }
         vm.upload(listOf(ImportUpload("first", taskFile()))); advanceUntilIdle()
-        assertTrue(vm.state.value.uploadCreationUnknown)
-        assertFalse(vm.state.value.canAddFiles)
+        assertTrue(vm.state.value.canAddFiles)
         vm.upload(listOf(ImportUpload("second", taskFile()))); advanceUntilIdle()
-        assertEquals(1, repo.uploadCalls.size)
+        assertEquals(2, repo.uploadCalls.size)
     } }
 
     @Test fun failedChoiceValidationStopsQueueWithoutRetry() = runTest { task { vm, repo, _ ->
@@ -1715,6 +1733,9 @@ internal class TaskRepository : CashImportLifecycleRepository {
     var receiptFailure: DomainFailure? = null
     var uploadAction: (suspend (suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
     var uploadHandler: (suspend (List<ImportUpload>, ImportContext?, suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
+    var sessionCreate: (suspend () -> ImportContext)? = null
+    var uploadToSessionHandler: (suspend (String, List<ImportUpload>, ImportContext?, suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
+    var sessionCreateCalls = 0
     var contextGate: CompletableDeferred<Unit>? = null
     val uploadCalls = mutableListOf<Pair<List<String>, ImportContext?>>()
     val events = mutableListOf<String>()
@@ -1766,9 +1787,17 @@ internal class TaskRepository : CashImportLifecycleRepository {
         storedCommittedReceipt?.let { onCommitted(it) }
     }
     override suspend fun receipt(receiptId: String): ImportReceipt { receiptFailure?.let { throw it }; return taskReceipt() }
+    override suspend fun createSession(): ImportContext? {
+        sessionCreateCalls++
+        return sessionCreate?.invoke()
+    }
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {
         uploadCalls += files.map { it.clientFileRef } to context
         return uploadHandler?.invoke(files, context, onContext) ?: uploadAction?.invoke(onContext) ?: error("unused")
+    }
+    override suspend fun uploadToSession(sessionId: String, files: List<ImportUpload>, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {
+        return uploadToSessionHandler?.invoke(sessionId, files, context(sessionId), onContext)
+            ?: super.uploadToSession(sessionId, files, replacingFileRef, onContext)
     }
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext {
         return mutateFile("remove", revision)

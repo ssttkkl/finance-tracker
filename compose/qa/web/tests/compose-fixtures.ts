@@ -205,7 +205,7 @@ export async function typeIntoComposeInput(
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.press("Backspace");
   }
-  if (value) await page.keyboard.type(value, { delay: 100 });
+  if (value) await page.keyboard.insertText(value);
   const nativeValue = await backing();
   if (!nativeValue) throw new Error(`Compose input lost focus while typing: ${selector}`);
   expect(nativeValue.value).toBe(expectedValue);

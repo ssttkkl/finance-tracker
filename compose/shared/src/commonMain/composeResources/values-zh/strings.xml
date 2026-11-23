@@ -96,7 +96,7 @@
     <string name="copy_2be9040878">时间范围</string>
     <string name="copy_2ce741e7ab">关联类型</string>
     <string name="copy_2e5de483d7">财务账本</string>
-    <string name="copy_2ea314ef4c">一次最多选择 20 个文件。</string>
+    <string name="copy_2ea314ef4c">本次导入最多 20 个文件，请先移除部分文件后再添加。</string>
     <string name="copy_2f752c005e">移除</string>
     <string name="copy_307d666742">手续费</string>
     <string name="copy_3171424931">暂不加入</string>
@@ -399,6 +399,7 @@
     <string name="copy_dd8fbdc06f">%1$s  与  %2$s</string>
     <string name="copy_dd9a4bdee0">当前账户无权访问此工作区。</string>
     <string name="copy_ddbb43b6dd">当前没有持仓。</string>
+    <string name="investment_no_matching_holdings">没有匹配的持仓。</string>
     <string name="copy_de6433b70d">确认导入</string>
     <string name="copy_df0b8d97c3">正在加入…</string>
     <string name="copy_dfa5e652bf">请输入有效邮箱地址。</string>
@@ -583,6 +584,10 @@
     <string name="ledger_selection_count">已选 %1$s 项</string>
     <string name="ledger_scrollbar_description">按收支位置快速跳转</string>
     <string name="ledger_category_dialog_title">设置分类</string>
+    <string name="ledger_category_dialog_summary">将把 %1$s 笔记录改为「%2$s」。</string>
+    <string name="ledger_category_dialog_summary_clear">将清除 %1$s 笔记录的分类。</string>
+    <string name="ledger_category_dialog_note">提交时会校验账本版本；版本已变化会提示重新加载。</string>
+    <string name="ledger_category_dialog_summary_select">已选择 %1$s 笔记录，请选择目标分类。</string>
     <string name="ledger_category_label">分类</string>
     <string name="ledger_category_cancel">取消</string>
     <string name="ledger_category_apply">应用</string>
@@ -601,6 +606,7 @@
     <string name="dialog_error_acknowledge">知道了</string>
     <string name="ledger_category_error_title">无法设置分类</string>
     <string name="ledger_delete_error_title">无法删除收支记录</string>
+    <string name="ledger_action_failed">%1$s。%2$s</string>
     <string name="cash_category_delete_error_title">无法删除分类</string>
     <string name="workspace_delete_error_title">无法删除工作区</string>
     <string name="ledger_relation_error_title">无法更新关联流水</string>
@@ -827,6 +833,7 @@
     <string name="cash_import_loaded_scope">已显示 %1$s 笔收支，继续加载以查看其余内容</string>
     <string name="cash_import_details_loading">详情待读取</string>
     <string name="cash_import_empty_filter">当前没有符合条件的收支</string>
+    <string name="cash_import_empty_no_items">本次没有可核对的收支</string>
     <string name="cash_import_amount_unknown">金额未知</string>
     <string name="cash_import_pending_title">待处理</string>
     <string name="cash_import_draft_incomplete_fields">%1$s信息尚未补齐</string>
@@ -917,6 +924,7 @@
     <string name="cash_import_account_name_invalid">请输入不超过 128 个字符的账户名称。</string>
     <string name="ledger_refresh">刷新</string>
     <string name="session_offline">当前断网，只能浏览本地数据；联网后将重新同步</string>
+    <string name="session_checking">正在校验连接，请稍候。</string>
     <string name="session_connection_unavailable">连接尚未就绪，请重试</string>
     <string name="session_reconnect">重试</string>
     <string name="workspace_copy_failed">复制失败，可选中文本手动复制</string>
@@ -953,4 +961,7 @@
     <string name="ledger_import_pending_empty">没有符合条件的本次待确认收支。</string>
     <string name="workspace_first_name">%1$s 的工作区</string>
     <string name="workspace_first_name_fallback">我的工作区</string>
+    <string name="workspace_create_same_name_title">已有同名工作区</string>
+    <string name="workspace_create_same_name_message">「%1$s」已存在。仍要创建另一个同名工作区吗？</string>
+    <string name="workspace_create_anyway">仍要创建</string>
 </resources>

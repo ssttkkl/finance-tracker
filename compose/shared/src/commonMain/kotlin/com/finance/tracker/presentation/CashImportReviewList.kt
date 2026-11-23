@@ -9,6 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.paging.LoadState
@@ -34,6 +36,7 @@ internal fun CashImportReviewList(
     val pendingCount = state.plan?.itemCounts?.get("pending") ?: 0L
     val allCount = state.plan?.itemCounts?.get("all")
         ?: (state.plan?.itemCounts?.get("confirmed") ?: 0L) + pendingCount
+    val reviewProgressLabel = localizedText("copy_fcabadb2a7")
     LaunchedEffect(state.plan?.planId, state.filter) { listState.scrollToItem(0) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -52,14 +55,16 @@ internal fun CashImportReviewList(
                     modifier = Modifier.testTag("cash.import.filter-pending"),
                 )
             }
-            FilterChip(
-                selected = state.filter == "all",
-                onClick = { onFilter("all") },
-                label = { Text(localizedText("cash_import_all_count", allCount.toString())) },
-                enabled = state.canEdit,
-                border = financeInteractiveBorder(enabled = state.canEdit, selected = state.filter == "all"),
-                modifier = Modifier.testTag("cash.import.filter-all"),
-            )
+            if (pendingCount > 0L || state.filter != "all") {
+                FilterChip(
+                    selected = state.filter == "all",
+                    onClick = { onFilter("all") },
+                    label = { Text(localizedText("cash_import_all_count", allCount.toString())) },
+                    enabled = state.canEdit,
+                    border = financeInteractiveBorder(enabled = state.canEdit, selected = state.filter == "all"),
+                    modifier = Modifier.testTag("cash.import.filter-all"),
+                )
+            }
         }
         val summariesByMonth = state.plan?.monthlySummaries?.get(state.filter).orEmpty().associateBy(CashMonthlySummary::month)
         CashWaterfallViewport(
@@ -182,7 +187,7 @@ internal fun CashImportReviewList(
                             Modifier.fillMaxWidth().padding(vertical = 16.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
-                        ) { CircularProgressIndicator() }
+                        ) { CircularProgressIndicator(Modifier.semantics { contentDescription = reviewProgressLabel }) }
                     }
                 }
                 val appendError = rows.loadState.append as? LoadState.Error
@@ -205,11 +210,16 @@ internal fun CashImportReviewList(
                     TextButton(onClick = rows::retry) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
                 rows.itemCount == 0 && rows.loadState.refresh is LoadState.Loading ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                rows.itemCount == 0 -> StateMessage(
-                    localizedText("cash_import_empty_filter"),
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                )
+                    CircularProgressIndicator(Modifier.align(Alignment.Center).semantics { contentDescription = reviewProgressLabel })
+                rows.itemCount == 0 -> {
+                    val noItems = state.filter == "all"
+                    StateMessage(
+                        localizedText(if (noItems) "cash_import_empty_no_items" else "cash_import_empty_filter"),
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    ) {
+                        if (!noItems) TextButton(onClick = { onFilter("all") }) { Text(localizedText("ledger_clear_filters")) }
+                    }
+                }
             }
 
         }

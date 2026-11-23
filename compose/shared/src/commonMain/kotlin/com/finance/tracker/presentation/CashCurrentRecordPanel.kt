@@ -66,6 +66,9 @@ internal fun CashCurrentRecordPanel(
     val connection = LocalSessionConnection.current
     val record = state.record
     val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
+    // 问题处理、草稿保存等非编辑态也会生成待确认计划；编辑与关联流程各自渲染确认，其余在此统一承接。
+    val planReady = state.plan != null && !state.unresolved
+    val planConfirmationVisible = planReady && !entryEditing && !associationOpen
     val requestClose = {
         val current = readTaskState()
         if (current.unresolved && !current.busy && onResolve == null) onClose()
@@ -83,16 +86,22 @@ internal fun CashCurrentRecordPanel(
     }
     CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
         semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
-        footer = if (canEditEntry && !entryEditing && !state.unresolved && state.plan == null) ({
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
-                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy,
-                    modifier = Modifier.testTag("cash.current.edit")) {
-                    Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(localizedText("copy_a7f814c0a4"))
+        footer = when {
+            planConfirmationVisible -> ({
+                CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT)
+            })
+            canEditEntry && !entryEditing && !state.unresolved && state.plan == null -> ({
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
+                    Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy,
+                        modifier = Modifier.testTag("cash.current.edit")) {
+                        Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(localizedText("copy_a7f814c0a4"))
+                    }
                 }
-            }
-        }) else null,
+            })
+            else -> null
+        },
     ) {
         Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = if (entryEditing) 0.dp else 16.dp).testTag("cash.current.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -107,7 +116,13 @@ internal fun CashCurrentRecordPanel(
                     Button(onClick = onResolve, enabled = connection.canSubmit, modifier = Modifier.testTag("cash.current.resolve")) { Text(localizedText("copy_fadf24dbc5")) }
                 }
             }
-            state.errorCode?.let {
+            val recordTransfer = record?.let { cashTransferEntryMembers(it, state.transferMembers) != null } == true
+            val recordSplit = record?.let { cashDraftInitialValues(it)["cash_granularity"] == "aggregate" } == true
+            val mappedRecordError = cashFieldErrorFor(state.errorCode, recordTransfer, recordSplit)
+            val editorVisible = (entryEditing && onSaveEntry != null) ||
+                (draftExpanded && record?.state == "draft" && onSaveDraft != null)
+            val showRecordFormError = state.errorCode != null && (mappedRecordError == null || !editorVisible)
+            if (showRecordFormError) state.errorCode?.let {
                 StateMessage(ledgerErrorText(it), isError = true, modifier = Modifier.testTag("cash.current.error")) {
                     if (!state.unresolved && !cashRelationConstraintError(it)) TextButton(onClick = onRetry, enabled = !state.busy) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
@@ -125,9 +140,13 @@ internal fun CashCurrentRecordPanel(
                         state.busy || state.unresolved || state.plan != null, onInput = { entryDirty = it }, onCancel = requestCancelEntry, onSave = onSaveEntry,
                         transferMembers = state.transferMembers, modifier = Modifier.weight(1f),
                         summary = { CashCurrentRecordSummary(record, projection, editingFields, accounts, categories, options) },
-                        confirmation = { if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false) },
-                        actions = if (state.plan != null && !state.unresolved) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT) }) else null)
+                        confirmation = { if (planReady) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false) },
+                        actions = if (planReady) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT) }) else null,
+                        serverErrorCode = state.errorCode)
                 } else {
+                    if (planConfirmationVisible) {
+                        CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false)
+                    }
                     if (record.state == "draft") {
                         val problems = cashDraftEditingIssues(record)
                         CashRecordStatusBanner(
@@ -169,7 +188,8 @@ internal fun CashCurrentRecordPanel(
                     }
                     if (draftExpanded && onSaveDraft != null && record.state == "draft") CashDraftEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
                         state.busy || state.unresolved || state.plan != null,
-                        onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft)
+                        onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft,
+                        serverErrorCode = state.errorCode)
                     CashDetailRelations(state, evidence, sourceError, sizeClass, accounts, categories, options,
                         onLoadSources, onBeginRelations?.let { begin -> { draftPatch?.let(begin) } },
                         onSaveRelationChoices, onAddAssociation, onSearchAssociations, onConfirmPlan, onCancelPlan,
@@ -180,7 +200,7 @@ internal fun CashCurrentRecordPanel(
             }
         }
     }
-    if (discardAction != null) AlertDialog(onDismissRequest = { discardAction = null },
+    if (discardAction != null) FinanceAlertDialog(onDismissRequest = { discardAction = null },
         title = { Text(localizedText("ledger_record_discard_title")) },
         confirmButton = { TextButton(onClick = { val action = discardAction; discardAction = null; action?.invoke() }) { Text(localizedText("ledger_record_discard_confirm")) } },
         dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("ledger_record_discard_continue")) } })

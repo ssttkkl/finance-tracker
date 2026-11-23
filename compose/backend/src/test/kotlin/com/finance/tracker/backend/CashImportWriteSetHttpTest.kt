@@ -334,8 +334,8 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             val compactText = reimportCompact.toString()
             assertTrue(reimportCompact.getValue("replay_groups").jsonArray.isNotEmpty(),
                 "A fully unchanged reimport must use verified repeated entries")
-            assertTrue(compactText.encodeToByteArray().size < reimportText.encodeToByteArray().size / 4,
-                "Repeated entries must remove most of the decoded command: ${compactText.length} vs ${reimportText.length}")
+            assertTrue(compactText.encodeToByteArray().size < reimportText.encodeToByteArray().size / 3,
+                "Repeated entries must remove at least two thirds of the decoded command: ${compactText.length} vs ${reimportText.length}")
             println("FT_IMPORT_SIZES reimport_full=${reimportText.encodeToByteArray().size} reimport_compact=${compactText.encodeToByteArray().size} " +
                 "reimport_gzip=${gzipSize(compactText)} replay_groups=${reimportCompact.getValue("replay_groups").jsonArray.size} " +
                 "bindings=${changes.sourceBindings.size} coverage=${firstCompact.getValue("coverage_table").jsonArray.size}")

@@ -31,13 +31,18 @@ internal val LocalSessionConnection = staticCompositionLocalOf { SessionConnecti
 internal fun SessionConnectionNotice(modifier: Modifier = Modifier) {
     val connection = LocalSessionConnection.current
     if (connection.ready && !connection.offline && !connection.checking) return
+    val messageKey = when {
+        connection.offline -> "session_offline"
+        connection.checking -> "session_checking"
+        else -> "session_connection_unavailable"
+    }
     Column(modifier.fillMaxWidth().testTag("session.connection").semantics { liveRegion = LiveRegionMode.Polite }) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(localizedText(when { connection.offline || connection.checking -> "session_offline"; else -> "session_connection_unavailable" }),
+            Text(localizedText(messageKey),
                 modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (connection.manualRetry) TextButton(onClick = { if (!connection.checking) connection.reconnect() },
+            if (connection.manualRetry || connection.error != null) TextButton(onClick = { if (!connection.checking) connection.reconnect() },
                 enabled = !connection.checking, modifier = Modifier.testTag("session.reconnect")) { Text(localizedText("session_reconnect")) }
         }
         InlineError(connection.error)

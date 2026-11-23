@@ -16,6 +16,7 @@
 - 从规格导航按业务模块定位，能力 ID 使用 `<module>/<capability>`；proposal、主规格与 delta 路径一致，跨模块合同只有一个主归属，其余链接引用。`changes/<name>/` 定义未完成变更，`changes/archive/YYYY-MM-DD-<name>/` 不作为现状说明事实源。
 - `proposal.md` 记录价值、范围、非目标和验收；delta 定义行为变化；`design.md` 记录架构、数据流、接口、风险、部署和 UI 策略；`tasks.md` 记录七阶段实施及证据。
 - 需求、领域、架构、数据库、接口或风险变化时，先回写 artifact 再实施；纯实现细节更新 design、tasks 或代码。代码改动一并提交相应 `openspec/` 主规格／change 记录及 `.agents/skills/openspec-*` 更新。归档前同步 delta，`MODIFIED` requirement 必须包含完整更新正文及场景。
+- `specs/` 与 change artifact 中的明文特例不自动构成豁免；遇到与通用规则或审查结论冲突的特例，先说明冲突、影响和选项，由用户判断后再改实现或规格。
 - 创建 PR 前 MUST 先归档本次相关 change（`openspec archive <name>`）：同步主规格、把 delta 落到 `openspec/specs/`，并把 change 移入 `changes/archive/YYYY-MM-DD-<name>/`；PR 必须包含归档结果，不得把归档留到合并后。纯文档、工作流或明确无 spec 变化的变更按目标范围说明不适用。
 - 新能力调用 `$openspec-propose`；active change 的范围、验收或财务语义变化调用 `$openspec-update-change`。发现新需求、架构决策、规格缺口或阻断 finding，Flow-Back 到最近正确阶段与 artifact。
 

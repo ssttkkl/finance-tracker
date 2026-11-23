@@ -1,6 +1,8 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -20,6 +22,15 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
     var confirmDiscard by remember { mutableStateOf(false) }
     val formScroll = rememberScrollState()
     var saveAttempt by remember { mutableIntStateOf(0) }
+    var dismissedErrorFields by remember(draft.mode) { mutableStateOf(emptySet<String>()) }
+    var localFieldErrors by remember(draft.mode) { mutableStateOf<List<CashFormError>>(emptyList()) }
+    val allFieldErrors = (localFieldErrors + state.fieldErrors).distinctBy { it.field }
+    LaunchedEffect(allFieldErrors, saveAttempt) { dismissedErrorFields = emptySet() }
+    LaunchedEffect(draft.mode) { dismissedErrorFields = emptySet(); localFieldErrors = emptyList() }
+    LaunchedEffect(state.savedRevision) { localFieldErrors = emptyList() }
+    val fieldErrors = allFieldErrors
+        .filterNot { it.field in dismissedErrorFields }
+        .associate { it.field to localizedText(it.messageKey) }
     LaunchedEffect(state.errorCode, saveAttempt) {
         if (state.errorCode != null) formScroll.animateScrollTo(0)
     }
@@ -37,7 +48,23 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 }
                 if (!state.unknown || state.canResumeSave) {
                 PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(canSave))
-                Button(onClick = { if (canSave) { saveAttempt++; onSave() } }, enabled = canSave, modifier = Modifier.testTag("cash.create.save")) {
+                Button(onClick = {
+                    if (canSave) {
+                        val preflight = if (draft.mode == CashCreationMode.TRANSFER) {
+                            validateCashTransferCreation(draft.transfer, accounts, getLocalTimeZoneId())
+                        } else {
+                            validateCashOrdinaryCreation(draft.ordinary, accounts, getLocalTimeZoneId())
+                        }
+                        saveAttempt++
+                        dismissedErrorFields = emptySet()
+                        if (preflight.isNotEmpty()) {
+                            localFieldErrors = preflight
+                        } else {
+                            localFieldErrors = emptyList()
+                            onSave()
+                        }
+                    }
+                }, enabled = canSave, modifier = Modifier.testTag("cash.create.save")) {
                     Text(localizedText("copy_fadf24dbc5"))
                 }
                 }
@@ -83,32 +110,59 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((value, label) in listOf("consumption" to "ledger_quick_expense", "income" to "ledger_quick_income")) {
                             FilterChip(selected = draft.ordinary.values["record_type"] == value, onClick = {
+                                dismissedErrorFields = dismissedErrorFields + "record_type"
                                 onChange(draft.copy(ordinary = CashOrdinaryInput(draft.ordinary.values + ("record_type" to value) + ("record_subtype" to ""))))
                             }, enabled = !locked, border = financeInteractiveBorder(enabled = !locked,
                                 selected = draft.ordinary.values["record_type"] == value),
                             label = { Text(localizedText(label)) }, modifier = Modifier.testTag("cash.create.direction-$value"))
                         }
                     }
+                    fieldErrors["record_type"]?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("cash.create.record-type.error"))
+                    }
+                    val summary = fieldErrors.values.distinct()
+                    if (summary.isNotEmpty()) {
+                        Text(summary.joinToString("；"), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("cash.create.field-errors"))
+                    }
                     CashRecordFieldInputs(draft.ordinary.values, cashOrdinaryFields.filter { it !in setOf("record_type", "record_subtype") }, accounts, categories, options, sizeClass,
-                        locked, "cash.create") { field, value ->
+                        locked, "cash.create", fieldErrors = fieldErrors, errorRevision = saveAttempt) { field, value ->
+                        if (allFieldErrors.any { it.field == field || it.field == "components" && field == "cash_granularity" }) {
+                            dismissedErrorFields = dismissedErrorFields + field
+                        }
+                        if (field == "account_id" && allFieldErrors.any { it.field == "currency" }) {
+                            dismissedErrorFields = dismissedErrorFields + "currency"
+                        }
                         val values = draft.ordinary.values + (field to value)
                         val currency = if (field == "account_id") accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull() else null
                         onChange(draft.copy(ordinary = CashOrdinaryInput(if (currency == null) values else values + ("currency" to currency))))
                     }
-                } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked) { onChange(draft.copy(transfer = it)) }
+                } else CashTransferCreationFields(draft.transfer, accounts, sizeClass, locked,
+                    transferError = state.fieldErrors.filter { it.field == "transfer" && it.field !in dismissedErrorFields }
+                        .map { localizedText(it.messageKey) }.distinct().joinToString("；").takeIf { it.isNotEmpty() }) {
+                    if (it.copy(note = draft.transfer.note) != draft.transfer) {
+                        dismissedErrorFields = dismissedErrorFields + "transfer"
+                    }
+                    onChange(draft.copy(transfer = it))
+                }
             }
         }
     }
-    if (confirmDiscard) AlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text(localizedText("ledger_record_discard_title")) },
+    if (confirmDiscard) FinanceAlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text(localizedText("ledger_record_discard_title")) },
         confirmButton = { TextButton(onClick = { confirmDiscard = false; onClose() }) { Text(localizedText("ledger_record_discard_confirm")) } },
         dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(localizedText("ledger_record_discard_continue")) } })
 }
 
 @Composable
 private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<Account>, sizeClass: WindowSizeClass,
-    busy: Boolean, onChange: (CashTransferInput) -> Unit) {
+    busy: Boolean, transferError: String? = null, onChange: (CashTransferInput) -> Unit) {
     val choices = listOf("" to localizedText("display_not_provided")) + accounts.filter { it.active }.map { it.id.toString() to it.name }
-    Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall)
+    val transferRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(transferError) { if (transferError != null) transferRequester.bringIntoView() }
+    Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.bringIntoViewRequester(transferRequester))
     ChoicePicker(localizedText("cash_from_account"), input.fromAccountId, choices, { value ->
         onChange(input.copy(fromAccountId = value, fromCurrency = accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull().orEmpty()))
     }, enabled = !busy, semanticId = "cash.create.from-account")
@@ -134,6 +188,10 @@ private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<
         enabled = !busy, modifier = Modifier.testTag("cash.create.transfer-time"))
     OutlinedTextField(input.note, { onChange(input.copy(note = it)) }, label = { Text(localizedText("copy_e0361480e3")) },
         enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("cash.create.transfer-note"))
+    transferError?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("cash.create.transfer.error"))
+    }
 }
 
 @Composable

@@ -156,3 +156,66 @@ test("从分类更多操作可以一次移到指定同级分类前", async ({ pa
   expect((await directory.json()).items.map((item: { name: string }) => item.name)).toEqual(["交通", "餐饮", "购物"]);
   await page.screenshot({ path: info.outputPath("category-new-order.png") });
 });
+
+test("关闭 Web 详情、导入和分类弹窗后主画布保持可交互", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/w/workspace-1/");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  const row = page.locator('[id="ledger.record-cash-entry:2001"]:visible').last();
+  await clickStableComposeTarget(page, row);
+  await click(page, "ledger.record-panel.close");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await click(page, "ledger.actions-fab");
+  await click(page, "ledger.import");
+  await click(page, "cash.import.close");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await clickStableComposeTarget(page, page.locator('[id="ledger.record-checkbox-cash-entry:2001"]:visible').last());
+  await click(page, "ledger.batch-category");
+  await expect(byId(page, "ledger.category-dialog")).toBeVisible();
+  await click(page, "ledger.category.cancel");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await click(page, "ledger.more-filters");
+  await click(page, "ledger.filter.apply");
+  await expect(byId(page, "ledger.screen")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("web-modal-close-ledger.png") });
+});
+
+test("现金金额错误显示、聚焦并在修正后清除", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/w/workspace-1/");
+  await expect(page.locator('[id="session.connection"]:visible')).toHaveCount(0);
+  await click(page, "ledger.actions-fab");
+  await click(page, "ledger.add");
+  await typeIntoComposeInput(page, '[id="cash.create.amount"]', "abc");
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const save = byId(page, "cash.create.save");
+  await expect(save).toBeEnabled();
+  await clickStableComposeTarget(page, save);
+
+  const summary = byId(page, "cash.create.field-errors");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText("金额格式无效");
+  await expect.poll(() => page.evaluate(() => {
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    return active instanceof HTMLInputElement && active.classList.contains("compose-backing-field") ? active.value : null;
+  })).toBe("abc");
+
+  await typeIntoComposeInput(page, '[id="cash.create.note"]', "只改备注");
+  await expect(summary).toContainText("金额格式无效");
+
+  await clickStableComposeTarget(page, byId(page, "cash.create.amount"));
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.insertText("12");
+  await expect(byId(page, "cash.create.amount")).toHaveText("12");
+  await expect(summary).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("cash-field-error-focus-clear.png") });
+});

@@ -11,7 +11,8 @@ import kotlin.random.Random
 
 data class CashCreationState(val draft: CashCreationDraft? = null, val baseline: CashCreationDraft? = null,
     val busy: Boolean = false, val errorCode: String? = null, val unknown: Boolean = false, val savedRevision: Int = 0,
-    val canResumeSave: Boolean = false, val visible: Boolean = false) {
+    val canResumeSave: Boolean = false, val visible: Boolean = false,
+    val fieldErrors: List<CashFormError> = emptyList()) {
     val dirty: Boolean get() = draft?.copy(mode = CashCreationMode.ORDINARY) != baseline?.copy(mode = CashCreationMode.ORDINARY)
 }
 class CashCreationViewModel(private val repository: CashCreationRepository, private val workspaceId: String? = null,
@@ -34,7 +35,8 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
             "counterparty_account_attrs" to "", "note" to "")),
             CashTransferInput(from?.id?.toString().orEmpty(), to?.id?.toString().orEmpty(), from?.currencies?.firstOrNull().orEmpty(),
                 to?.currencies?.firstOrNull().orEmpty(), occurredAt = occurredAt))
-        mutableState.value = state.value.copy(draft = draft, baseline = draft, errorCode = null, unknown = false, visible = true)
+        mutableState.value = state.value.copy(draft = draft, baseline = draft, errorCode = null, unknown = false, visible = true,
+            fieldErrors = emptyList())
     }
     fun update(draft: CashCreationDraft) {
         if (state.value.busy || state.value.unknown || state.value.draft == null) return
@@ -68,16 +70,33 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
         val draft = state.value.draft ?: return
         if (state.value.busy || state.value.unknown && !state.value.canResumeSave) return
         val keyed = workspaceId != null && principalEmail != null && repository.supportsIdempotentSave
+        val transfer = draft.mode == CashCreationMode.TRANSFER
+        val split = draft.ordinary.values["cash_granularity"] == "aggregate"
+        if (original == null) {
+            val preflight = if (transfer) validateCashTransferCreation(draft.transfer, accounts, timeZoneId)
+                else validateCashOrdinaryCreation(draft.ordinary, accounts, timeZoneId)
+            if (preflight.isNotEmpty()) {
+                mutableState.value = state.value.copy(fieldErrors = preflight, errorCode = null)
+                return
+            }
+        }
         val command = original ?: try {
             val input = if (draft.mode == CashCreationMode.ORDINARY) cashOrdinaryCreation(draft.ordinary, accounts, timeZoneId)
                 else cashTransferCreation(draft.transfer, accounts, timeZoneId)
             val accountIds = if (draft.mode == CashCreationMode.ORDINARY) listOf(draft.ordinary.values.getValue("account_id"))
                 else listOf(draft.transfer.fromAccountId, draft.transfer.toAccountId)
             Command(draft.mode, input, Random.nextBytes(24).toHexString(), accountIds)
-        } catch (failure: DomainFailure) { mutableState.value = state.value.copy(errorCode = failure.code); return }
+        } catch (failure: DomainFailure) {
+            val mapped = cashFieldErrorKeyFor(failure.code, transfer, split)
+            mutableState.value = state.value.copy(
+                fieldErrors = mapped?.let { listOf(CashFormError(it.field, it.messageKey)) }.orEmpty(),
+                errorCode = failure.code.takeIf { mapped == null },
+            )
+            return
+        }
         val continuing = original != null
         if (keyed) original = command
-        mutableState.value = state.value.copy(busy = true, errorCode = null)
+        mutableState.value = state.value.copy(busy = true, errorCode = null, fieldErrors = emptyList())
         viewModelScope.launch {
             try {
                 if (keyed) repository.save(command.mode, command.input, command.key, command.accountIds,
@@ -95,8 +114,10 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
                 val unknown = known == null || known.commitState != "not_committed" && (continuing ||
                     known.commitState == "unknown" || known.status == 0 || known.status == 408 || known.status >= 500 || known.status in 200..299)
                 if (!unknown) original = null
+                val mapped = known?.let { cashFieldErrorKeyFor(it.code, transfer, split) }
                 mutableState.value = state.value.copy(busy = false, unknown = unknown, canResumeSave = keyed && unknown,
-                    errorCode = known?.code ?: "request_failed")
+                    fieldErrors = mapped?.let { listOf(CashFormError(it.field, it.messageKey)) }.orEmpty(),
+                    errorCode = (known?.code ?: "request_failed").takeIf { mapped == null })
             }
         }
     }

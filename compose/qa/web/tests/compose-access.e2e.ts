@@ -369,7 +369,7 @@ test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ 
   await submitButton.click({ force: true });
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
     .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
-  await expect(page.locator('[id="auth.error"]')).toContainText("请输入邮箱。");
+  await expect(page.locator('[id="auth.email.validation"]')).toHaveAttribute("aria-label", /请输入邮箱/);
   const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
   expect(diagnosticLog).not.toContain("@");
   expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n"))
@@ -389,7 +389,9 @@ for (const [locale, suggestedName] of [
         loginSession: { user: { email: "qa@example.com" }, active_workspace_id: null, workspaces: [] },
       });
       await page.goto("/");
-      await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
+      const toggle = page.locator('[id="auth.toggle-mode"]').last();
+      await expect(toggle).toBeVisible();
+      await toggle.click({ force: true });
       await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com");
       await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { masked: true });
       await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "Sample-password-123", { masked: true });

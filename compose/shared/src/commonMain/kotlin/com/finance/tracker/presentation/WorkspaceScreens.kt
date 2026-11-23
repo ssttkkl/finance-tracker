@@ -135,14 +135,12 @@ private fun InvitationContent(
             Text(localizedText("copy_4d2ee8a422", preview.workspace.name), style = MaterialTheme.typography.titleLarge)
             Text(if (preview.role == WorkspaceRole.EDITOR) localizedText("copy_e85cf84fa9") else localizedText("copy_19beadefbf"))
             if (email != null) Text(localizedText("invitation_join_as", email), modifier = Modifier.testTag("invitation.current-email"))
-            if (state.accepting) {
-                Button(onClick = {}, enabled = false, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
-                    Text(localizedText("copy_df0b8d97c3"))
-                }
-            } else if (email != null) {
-                PlatformControlAccessibility(SemanticIds.invitationAccept, ControlAccessibilityState.Button(connection.canSubmit))
-                Button(onClick = { if (connection.canSubmit) onAccept() }, enabled = connection.canSubmit, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
-                    Text(localizedText("copy_f3703115d3"))
+            if (email != null) {
+                PlatformControlAccessibility(SemanticIds.invitationAccept, ControlAccessibilityState.Button(!state.accepting && connection.canSubmit))
+                Button(onClick = { if (!state.accepting && connection.canSubmit) onAccept() },
+                    enabled = !state.accepting && connection.canSubmit,
+                    modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                    BusyButtonLabel(state.accepting, localizedText("copy_f3703115d3"))
                 }
                 TextButton(onClick = onSwitchAccount, enabled = !connection.checking,
                     modifier = Modifier.testTag("invitation.switch-account")) { Text(localizedText("invitation_switch_account")) }
@@ -247,7 +245,12 @@ internal fun WorkspaceManagementScreen(
         sizeClass, isAdmin, initialSection, !loading, directoryOpen, onCloseDirectory,
         snackbar = snackbar,
         status = {
-            if (details != null) {
+            if (details == null) {
+                if (loading) StateMessage(localizedText("copy_bac3e13248"))
+                else StateMessage(error.orEmpty(), isError = true) {
+                    TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
+                }
+            } else if (error != null) {
                 InlineError(error)
             }
         },
@@ -258,16 +261,8 @@ internal fun WorkspaceManagementScreen(
                 showNotice = { notice = it }, onModalVisibilityChanged = { categoryModalOpen = it },
                 diagnostics = diagnostics,
             )
-        } else if (details == null) {
-            ManagementSectionContent {
-                Text(localizedText(section.titleKey), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-                if (loading) StateMessage(localizedText("copy_bac3e13248"))
-                else StateMessage(error.orEmpty(), isError = true) {
-                    TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
-                }
-            }
         } else {
-            val current = details
+            val current = details ?: return@ManagementLayout
             when (section) {
                 ManagementSection.WORKSPACE -> ManagementSectionContent {
                     Text(localizedText("management_basic_info"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
@@ -282,12 +277,12 @@ internal fun WorkspaceManagementScreen(
                             )
                         }
                         val saveName: @Composable (Modifier) -> Unit = { buttonModifier ->
-                            PlatformControlAccessibility("management.save-name", ControlAccessibilityState.Button(canSubmit && name.trim().isNotEmpty() && name.trim() != current.workspace.name))
+                            PlatformControlAccessibility("management.save-name", ControlAccessibilityState.Button(canSubmit && !state.savingName && name.trim().isNotEmpty() && name.trim() != current.workspace.name))
                             Button(
                                 onClick = saveWorkspaceName,
-                                enabled = canSubmit && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
+                                enabled = canSubmit && !state.savingName && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
                                 modifier = buttonModifier.testTag("management.save-name"),
-                            ) { Text(localizedText("copy_fadf24dbc5")) }
+                            ) { BusyButtonLabel(state.savingName, localizedText("copy_fadf24dbc5")) }
                         }
                         if (sizeClass == WindowSizeClass.COMPACT) {
                             nameField(Modifier.fillMaxWidth())
@@ -338,6 +333,8 @@ internal fun WorkspaceManagementScreen(
                                     },
                                 )
                                 TextButton(onClick = { memberDecision = member to null }, enabled = canSubmit && busyMember == null,
+                                    colors = if (canSubmit && busyMember == null) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    else ButtonDefaults.textButtonColors(),
                                     modifier = Modifier.testTag("workspace-management.remove-member.${member.userId}")) { Text(localizedText("copy_2f752c005e")) }
                             } else {
                                 Text(workspaceRoleLabel(member.role), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -446,7 +443,7 @@ internal fun WorkspaceManagementScreen(
         onEscape = viewModel::dismissDeleteDialog,
     )
     if (deleteDialog) {
-        AlertDialog(
+        FinanceAlertDialog(
             onDismissRequest = viewModel::dismissDeleteDialog,
             title = { Text(localizedText("copy_5656d6acd8")) },
             text = {

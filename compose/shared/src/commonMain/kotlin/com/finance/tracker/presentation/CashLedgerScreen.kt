@@ -267,6 +267,7 @@ internal fun CashLedgerScreen(
     val deleteProjectionError = deleteFailure?.let { ledgerErrorText(it.code) }
     val snackbar = remember(session.activeWorkspaceId) { SnackbarHostState() }
     var notice by remember(session.activeWorkspaceId) { mutableStateOf<String?>(null) }
+    val listProgressLabel = localizedText("copy_fcabadb2a7")
     var actionsButtonHeight by remember { mutableStateOf(0) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
@@ -277,7 +278,12 @@ internal fun CashLedgerScreen(
         !batchCategoryDialogOpen && classifyFailure?.short == true -> classifyFailure
         else -> null
     }
-    val shortError = shortFailure?.let { ledgerErrorText(it.code) }
+    val shortError = when {
+        shortFailure == null -> null
+        shortFailure === deleteFailure -> localizedText("ledger_action_failed", localizedText("ledger_delete_error_title"), ledgerErrorText(shortFailure.code))
+        shortFailure === classifyFailure -> localizedText("ledger_action_failed", localizedText("ledger_category_error_title"), ledgerErrorText(shortFailure.code))
+        else -> ledgerErrorText(shortFailure.code)
+    }
     LaunchedEffect(shortFailure, shortError) {
         if (shortFailure != null && !shortError.isNullOrBlank()) {
             notice = shortError
@@ -296,7 +302,7 @@ internal fun CashLedgerScreen(
     val selectionMode = !state.displayingPreviousRows && state.selectedIds.isNotEmpty()
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
-    val pageLoadError = (refreshError.takeIf { retainList } ?: prependError ?: appendError).takeIf { listReady }
+    val pageLoadError = (refreshError.takeIf { retainList } ?: prependError).takeIf { listReady }
     val isPullRefreshing = state.refreshingFacts || (state.displayingPreviousRows &&
         (refreshError == null || pagedRows.loadState.refresh is LoadState.Loading))
     val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
@@ -330,11 +336,11 @@ internal fun CashLedgerScreen(
         ) {
         if (!batchCategoryDialogOpen && !deleteDialog && (state.classifyBusy || state.deleteProjectionBusy)) TaskProgressIndicator()
         if (!batchCategoryDialogOpen && !state.refreshingFacts && classifyFailure != null && !classifyFailure.short) {
-            ActionFailureStatus(classifyFailure, ledgerErrorText(classifyFailure.code),
+            ActionFailureStatus(classifyFailure, localizedText("ledger_action_failed", localizedText("ledger_category_error_title"), ledgerErrorText(classifyFailure.code)),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
         if (!deleteDialog && !state.refreshingFacts && deleteFailure != null && !deleteFailure.short) {
-            ActionFailureStatus(deleteFailure, deleteProjectionError.orEmpty(),
+            ActionFailureStatus(deleteFailure, localizedText("ledger_action_failed", localizedText("ledger_delete_error_title"), ledgerErrorText(deleteFailure.code)),
                 canRefresh = connection.canSubmit && !state.refreshingFacts, onRefresh = viewModel::reviewActionResult, refreshError = reviewError)
         }
         if (referencesError != null) StateMessage(referencesError, isError = true) {
@@ -432,6 +438,10 @@ internal fun CashLedgerScreen(
                     items(count = 5, key = { index -> "cash-ledger-loading-$index" }) {
                         CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
                     }
+                pagedRows.itemCount == 0 && pagedRows.loadState.refresh is LoadState.Loading ->
+                    items(count = 5, key = { index -> "cash-ledger-filtering-$index" }) {
+                        CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
+                    }
                 pagedRows.itemCount == 0 ->
                     item(key = "cash-ledger-empty") {
                         val filtersActive = state.filters.hasActiveFilters
@@ -518,7 +528,20 @@ internal fun CashLedgerScreen(
             if (pagedRows.loadState.append is LoadState.Loading) {
                 item(key = "cash-ledger-append-loading") {
                     Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(Modifier.semantics { contentDescription = listProgressLabel })
+                    }
+                }
+            }
+            if (appendError != null) {
+                item(key = "cash-ledger-append-error") {
+                    StateMessage(
+                        appendError,
+                        isError = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                    ) {
+                        TextButton(onClick = { pagedRows.retry() }, modifier = Modifier.testTag("${SemanticIds.ledgerRetry}-append")) {
+                            Text(localizedText("copy_e2d53a6d3a"))
+                        }
                     }
                 }
             }
@@ -694,21 +717,45 @@ internal fun CashLedgerScreen(
         onEscape = { batchCategoryDialogOpen = false },
     )
     if (batchCategoryDialogOpen) {
-        AlertDialog(
+        FinanceAlertDialog(
             modifier = Modifier.testTag(SemanticIds.ledgerCategoryDialog),
             onDismissRequest = { batchCategoryDialogOpen = false },
             title = { Text(localizedText("ledger_category_dialog_title")) },
             text = {
-                Column {
-                SessionConnectionNotice()
-                ChoicePicker(
-                    label = localizedText("ledger_category_label"),
-                    value = batchCategoryDraft,
-                    options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
-                    onSelected = { batchCategoryDraft = it },
-                    enabled = canWrite && selectionMode && !state.classifyBusy,
-                    semanticId = SemanticIds.ledgerCategoryPicker,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SessionConnectionNotice()
+                    val selectedCount = state.selectedIds.size
+                    when {
+                        batchCategoryDraft == UNCATEGORIZED_SELECTION -> Text(
+                            localizedText("ledger_category_dialog_summary_clear", selectedCount.toString()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        batchCategoryDraft.isNotEmpty() -> {
+                            val selectedCategory = state.categories.firstOrNull { it.id == batchCategoryDraft }
+                            val target = if (selectedCategory != null) cashCategoryDisplayPath(selectedCategory) else batchCategoryDraft
+                            Text(
+                                localizedText("ledger_category_dialog_summary", selectedCount.toString(), target),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        else -> Text(
+                            localizedText("ledger_category_dialog_summary_select", selectedCount.toString()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    ChoicePicker(
+                        label = localizedText("ledger_category_label"),
+                        value = batchCategoryDraft,
+                        options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
+                        onSelected = { batchCategoryDraft = it },
+                        enabled = canWrite && selectionMode && !state.classifyBusy,
+                        semanticId = SemanticIds.ledgerCategoryPicker,
+                    )
+                    Text(
+                        localizedText("ledger_category_dialog_note"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = {
@@ -1079,15 +1126,7 @@ private fun CashFilterPanel(
 
     if (detailedVisible && compact) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)
-        ModalBottomSheet(
-            onDismissRequest = closeDetailedFilters,
-            sheetState = filterSheetState,
-            dragHandle = { BottomSheetDefaults.DragHandle() },
-            properties = ModalBottomSheetProperties(
-                shouldDismissOnBackPress = !isWebPlatform,
-                shouldDismissOnClickOutside = true,
-            ),
-        ) {
+        val filters: @Composable (Modifier) -> Unit = { modifier ->
             CashDetailedFilters(
                 value = draft,
                 sizeClass = sizeClass,
@@ -1100,8 +1139,39 @@ private fun CashFilterPanel(
                 onClose = closeDetailedFilters,
                 onApply = applyDetailedFilters,
                 onInvalidAmount = onInvalidAmount,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
+                modifier = modifier,
             )
+        }
+        if (isWebPlatform) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(interactionSource = null, indication = null, onClick = closeDetailedFilters),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp)
+                        .clickable(interactionSource = null, indication = null) {},
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        BottomSheetDefaults.DragHandle()
+                        filters(Modifier.fillMaxWidth().heightIn(max = 700.dp))
+                    }
+                }
+            }
+        } else {
+            ModalBottomSheet(
+                onDismissRequest = closeDetailedFilters,
+                sheetState = filterSheetState,
+                dragHandle = { BottomSheetDefaults.DragHandle() },
+                properties = ModalBottomSheetProperties(
+                    shouldDismissOnBackPress = !isWebPlatform,
+                    shouldDismissOnClickOutside = true,
+                ),
+            ) {
+                filters(Modifier.fillMaxWidth().heightIn(max = 700.dp))
+            }
         }
     } else if (detailedVisible) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)
@@ -1213,7 +1283,6 @@ private fun CashDetailedFilters(
     modifier: Modifier = Modifier,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
-    val closeLabel = localizedText("copy_6c14bd7f6f")
     var activeDatePicker by remember { mutableStateOf<String?>(null) }
     val accountFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier = fieldModifier, semanticId = SemanticIds.ledgerFilterAccount)
@@ -1260,6 +1329,7 @@ private fun CashDetailedFilters(
                 .accessibleTextFieldLabel(localizedText("copy_d1e673ac4e")),
             label = { Text(localizedText("copy_d1e673ac4e")) },
             isError = invalid,
+            supportingText = invalidAmountSupportingText(invalid),
             singleLine = true,
         )
     }
@@ -1274,6 +1344,7 @@ private fun CashDetailedFilters(
                 .accessibleTextFieldLabel(localizedText("copy_e84edb075b")),
             label = { Text(localizedText("copy_e84edb075b")) },
             isError = invalid,
+            supportingText = invalidAmountSupportingText(invalid),
             singleLine = true,
         )
     }
@@ -1288,13 +1359,6 @@ private fun CashDetailedFilters(
                     .testTag("ledger.filter.header"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.testTag("ledger.filter.close")
-                        .semantics { contentDescription = closeLabel },
-                ) {
-                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
-                }
                 Text(
                     localizedText("copy_dcce9a144a"),
                     modifier = Modifier.testTag("ledger.filter.title"),
@@ -1474,6 +1538,11 @@ internal fun CashLedgerRow(
     fieldLabels: Boolean = false,
     attentionAction: Boolean = false,
 ) {
+    val selectionLabel = listOfNotNull(
+        localDateTimeDisplayLabel(item.occurredAt),
+        item.counterparty.takeIf(String::isNotBlank) ?: item.note.takeIf(String::isNotBlank),
+        item.amountLabel,
+    ).joinToString(" ")
     val recordBackground = if (item.statusTags.isNotEmpty()) LocalFinanceColorRoles.current.warningSurface else null
     val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
         .then(recordBackground?.let { Modifier.background(it) } ?: Modifier)
@@ -1495,12 +1564,13 @@ internal fun CashLedgerRow(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
-                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = selectionLabel },
                     ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}")
+                            .semantics { contentDescription = selectionLabel },
                     )
                 }
                 Column(
@@ -1567,12 +1637,13 @@ internal fun CashLedgerRow(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
-                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = selectionLabel },
                     ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}")
+                            .semantics { contentDescription = selectionLabel },
                     )
                 }
                 if (sizeClass == WindowSizeClass.REGULAR) {

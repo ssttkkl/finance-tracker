@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,7 +79,7 @@ internal fun AuthScreen(
     val confirmPasswordFocus = remember { FocusRequester() }
     val validation = validateCredentials(email, password)
     val emailStatus = when {
-        email.isBlank() -> null
+        email.isBlank() -> if (showValidationError) localizedText("copy_a2789a9770") else null
         validation != CredentialValidation.EmailInvalid && validation != CredentialValidation.EmailRequired -> localizedText("auth_email_valid")
         else -> localizedText("auth_email_invalid")
     }
@@ -92,11 +93,16 @@ internal fun AuthScreen(
         confirmPassword == password -> localizedText("auth_confirm_password_valid")
         else -> localizedText("auth_confirm_password_invalid")
     }
-    val emailIsError = emailStatus == localizedText("auth_email_invalid")
-    val passwordIsError = password.isNotEmpty() && password.length < 12
+    val emailIsError = (registering && email.isNotBlank() && validation == CredentialValidation.EmailInvalid) ||
+        (showValidationError && (validation == CredentialValidation.EmailRequired || validation == CredentialValidation.EmailInvalid))
+    val passwordIsError = (registering && password.isNotEmpty() && password.length < 12) ||
+        (showValidationError && (validation == CredentialValidation.PasswordRequired || validation == CredentialValidation.PasswordTooShort))
     val confirmPasswordIsError = confirmPasswordError || (confirmPassword.isNotEmpty() && confirmPassword != password)
-    val visibleError = (if (showValidationError) credentialErrorText(validation) else null)
-        ?: if (confirmPasswordError) localizedText("auth_confirm_password_submit_error") else requestError
+    val visibleError = when {
+        showValidationError -> null
+        confirmPasswordError -> localizedText("auth_confirm_password_submit_error")
+        else -> requestError
+    }
 
     MaterialTheme(
         shapes = MaterialTheme.shapes.copy(
@@ -110,6 +116,11 @@ internal fun AuthScreen(
                     validation != CredentialValidation.Valid -> {
                         showValidationError = true
                         confirmPasswordError = false
+                        when (validation) {
+                            CredentialValidation.EmailRequired, CredentialValidation.EmailInvalid -> emailFocus.requestFocus()
+                            CredentialValidation.PasswordRequired, CredentialValidation.PasswordTooShort -> passwordFocus.requestFocus()
+                            else -> Unit
+                        }
                         onCredentialValidationFailure(validation)
                     }
                     registering && confirmPassword != password -> {
@@ -132,9 +143,9 @@ internal fun AuthScreen(
                     email = email,
                     password = password,
                     confirmPassword = confirmPassword,
-                    emailStatus = emailStatus,
+                    emailFeedback = if (registering || showValidationError) emailStatus else null,
                     emailIsError = emailIsError,
-                    passwordStatus = passwordStatus,
+                    passwordFeedback = if (registering || showValidationError) passwordStatus else null,
                     passwordIsError = passwordIsError,
                     confirmPasswordStatus = confirmPasswordStatus,
                     confirmPasswordIsError = confirmPasswordIsError,
@@ -163,9 +174,9 @@ private fun AuthFormContent(
     email: String,
     password: String,
     confirmPassword: String,
-    emailStatus: String?,
+    emailFeedback: String?,
     emailIsError: Boolean,
-    passwordStatus: String,
+    passwordFeedback: String?,
     passwordIsError: Boolean,
     confirmPasswordStatus: String?,
     confirmPasswordIsError: Boolean,
@@ -187,7 +198,6 @@ private fun AuthFormContent(
         AuthHeader(registering = registering, enabled = !busy, onBack = onBack)
         Spacer(Modifier.height(if (compact) 14.dp else 2.dp))
         val emailLabel = localizedText("copy_9ed627bcf6")
-        val emailFeedback = if (registering) emailStatus else null
         Column(
             Modifier.fillMaxWidth().then(
                 emailFeedback?.let { feedback ->
@@ -211,7 +221,7 @@ private fun AuthFormContent(
                         supportingText = emailFeedback?.let { feedback ->
                             { Text(feedback, color = if (emailIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
                         },
-                        isError = registering && emailIsError,
+                        isError = emailIsError,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }, onDone = { passwordFocus.requestFocus() }),
                         shape = MaterialTheme.shapes.small,
@@ -219,9 +229,8 @@ private fun AuthFormContent(
                 }
             }
         }
-        Spacer(Modifier.height(if (registering && emailStatus != null) 11.dp else 15.dp))
+        Spacer(Modifier.height(if (emailFeedback != null) 11.dp else 15.dp))
         val passwordLabel = localizedText("copy_c839a8ff17")
-        val passwordFeedback = if (registering) passwordStatus else null
         Column(
             Modifier.fillMaxWidth().then(
                 passwordFeedback?.let { feedback ->
@@ -255,7 +264,7 @@ private fun AuthFormContent(
                                 )
                             }
                         },
-                        isError = registering && passwordIsError,
+                        isError = passwordIsError,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (registering) ImeAction.Next else ImeAction.Done),
                         keyboardActions = KeyboardActions(
@@ -332,11 +341,7 @@ private fun AuthFormContent(
                 .then(if (busy) Modifier.semantics { disabled() } else Modifier),
             shape = MaterialTheme.shapes.small,
         ) {
-            if (busy) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Text(if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
-            }
+            BusyButtonLabel(busy, if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
         }
         if (!registering) {
             Spacer(Modifier.height(16.dp))
@@ -427,6 +432,7 @@ internal fun WorkspaceAccessScreen(
     }
     var editedName by rememberSaveable(session.user.email, workspacesExist) { mutableStateOf<String?>(null) }
     var nameError by remember(session.user.email, workspacesExist) { mutableStateOf(false) }
+    var pendingSameName by rememberSaveable(session.user.email, workspacesExist) { mutableStateOf<String?>(null) }
     val workspaceName = editedName ?: suggestedName
     val editWorkspaceName: (String) -> Unit = { editedName = it; nameError = false }
     val normalizedName = normalizeWorkspaceName(workspaceName)
@@ -434,7 +440,37 @@ internal fun WorkspaceAccessScreen(
         if (normalizedName == null) {
             nameError = true
             onInvalidWorkspaceName()
-        } else if (connection.canSubmit) onCreate(normalizedName)
+        } else if (connection.canSubmit) {
+            if (hasSameWorkspaceName(normalizedName, session.workspaces.map { it.name })) {
+                pendingSameName = normalizedName
+            } else {
+                onCreate(normalizedName)
+            }
+        }
+    }
+    pendingSameName?.let { name ->
+        FinanceAlertDialog(
+            onDismissRequest = { pendingSameName = null },
+            title = { Text(localizedText("workspace_create_same_name_title")) },
+            text = { Text(localizedText("workspace_create_same_name_message", name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingSameName = null
+                        onCreate(name)
+                    },
+                    enabled = connection.canSubmit,
+                    modifier = Modifier.testTag("workspace.create.same-name.confirm"),
+                ) { Text(localizedText("workspace_create_anyway")) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingSameName = null },
+                    modifier = Modifier.testTag("workspace.create.same-name.cancel"),
+                ) { Text(localizedText("copy_4d0b4688c7")) }
+            },
+            modifier = Modifier.testTag("workspace.create.same-name"),
+        )
     }
 
     AuthResponsiveShell { modifier, compact, wide, viewportHeight ->
@@ -791,13 +827,4 @@ internal fun SessionLoadingScreen() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(Modifier.semantics { contentDescription = label })
     }
-}
-
-@Composable
-private fun credentialErrorText(value: CredentialValidation): String = when (value) {
-    CredentialValidation.Valid -> ""
-    CredentialValidation.EmailRequired -> localizedText("copy_a2789a9770")
-    CredentialValidation.EmailInvalid -> localizedText("copy_dfa5e652bf")
-    CredentialValidation.PasswordRequired -> localizedText("copy_727bbbf558")
-    CredentialValidation.PasswordTooShort -> localizedText("copy_b806c505de")
 }

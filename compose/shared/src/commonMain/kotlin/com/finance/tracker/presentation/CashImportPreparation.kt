@@ -55,7 +55,8 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     onRetryLocal: (String) -> Unit, onRemoveLocal: (String) -> Unit,
     onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
     onMergeSameNameAcrossChannels: (Boolean) -> Unit,
-    onCreateAccount: (ImportSourceAccount) -> Unit, mappingStep: Boolean, showAccountFeedback: Boolean, modifier: Modifier = Modifier) {
+    onCreateAccount: (ImportSourceAccount) -> Unit, mappingStep: Boolean, showAccountFeedback: Boolean,
+    previewTooLarge: Boolean = false, modifier: Modifier = Modifier) {
     val busy = !state.canEdit || accountState.busy
     // 上传进行中只阻塞编辑：文件移除（服务端已上传或本地失败项）仍可用，服务端移除排队到上传结束执行。
     val removeEnabled = canWrite && !accountState.busy && state.canRemoveFiles
@@ -70,13 +71,29 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
             Column(Modifier.fillMaxWidth().testTag("cash.import.files-step"), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
                     CashImportPreparationHeading(localizedText("cash_import_files_heading")) {
-                        OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
-                            border = financeInteractiveBorder(addEnabled),
-                            modifier = Modifier.testTag("cash.import.add-files")) {
+                        val hasFiles = files.isNotEmpty() || pendingFiles.isNotEmpty() || failures.isNotEmpty()
+                        val addFile: @Composable RowScope.() -> Unit = {
                             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(localizedText("copy_7c3a726882"))
                         }
+                        if (hasFiles) {
+                            OutlinedButton(onClick = { onPick(null) }, enabled = addEnabled,
+                                border = financeInteractiveBorder(addEnabled),
+                                modifier = Modifier.testTag("cash.import.add-files"), content = addFile)
+                        } else {
+                            Button(onClick = { onPick(null) }, enabled = addEnabled,
+                                modifier = Modifier.testTag("cash.import.add-files"), content = addFile)
+                        }
+                    }
+                    if (previewTooLarge) {
+                        Text(
+                            localizedText("cash_import_content_too_large"),
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                .testTag("cash.import.preview-too-large"),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                     if (files.isEmpty() && pendingFiles.isEmpty() && failures.isEmpty()) {
                         Text(localizedText("cash_import_files_empty"), Modifier.padding(vertical = 20.dp),
@@ -345,12 +362,14 @@ private fun CashImportSourceAccountEntry(
                 else -> ChoiceSection("other")
             }
         } else null
-        ChoicePicker(localizedText("cash_import_target_account"), targetAccountId.orEmpty(), accountOptions,
+        val targetLabel = localizedText("cash_import_target_account")
+        val accessibleLabel = (listOf(title) + memberLabels).joinToString("，") + "，$targetLabel"
+        ChoicePicker(targetLabel, targetAccountId.orEmpty(), accountOptions,
             { selected ->
                 if (selected == CashImportCreateAccountOption) onCreate()
                 else onSelect(selected.takeIf(String::isNotEmpty))
             }, enabled = !busy && accountState.ready,
-            semanticId = "cash.import.account-$testRef", sectionOf = sectionOf)
+            semanticId = "cash.import.account-$testRef", accessibleLabel = accessibleLabel, sectionOf = sectionOf)
     }
 }
 

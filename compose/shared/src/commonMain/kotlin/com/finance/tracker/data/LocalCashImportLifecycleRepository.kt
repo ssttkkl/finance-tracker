@@ -56,6 +56,11 @@ internal class LocalCashImportLifecycleRepository(
     private fun emptyContext(batchId: String) = ImportContext(batchId, null, null, "open", emptyList(), emptyList(),
         null, null, false, null, ImportContextOrigin.LOCAL)
 
+    override suspend fun createSession(): ImportContext = guarded {
+        binding().imports.checkActive()
+        emptyContext(nextBatchId())
+    }
+
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?,
         onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {
         val frozen = files.map { CashImportUploadInput(it.clientFileRef, localImportFileSource(it.file), it.password, it.sourceHint) }
