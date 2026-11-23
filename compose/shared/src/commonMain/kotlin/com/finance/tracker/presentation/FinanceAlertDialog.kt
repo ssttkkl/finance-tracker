@@ -39,24 +39,26 @@ internal fun FinanceAlertDialog(
         )
         return
     }
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
-            .clickable(interactionSource = null, indication = null, onClick = onDismissRequest),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
-            modifier = modifier.widthIn(max = 560.dp).padding(24.dp)
-                .clickable(interactionSource = null, indication = null) {},
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 6.dp,
+    WebRootOverlay {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
+                .clickable(interactionSource = null, indication = null, onClick = onDismissRequest),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                title?.invoke()
-                text?.invoke()
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    dismissButton?.invoke()
-                    confirmButton()
+            Surface(
+                modifier = modifier.widthIn(max = 560.dp).padding(24.dp)
+                    .clickable(interactionSource = null, indication = null) {},
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 6.dp,
+            ) {
+                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    title?.invoke()
+                    text?.invoke()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        dismissButton?.invoke()
+                        confirmButton()
+                    }
                 }
             }
         }

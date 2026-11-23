@@ -56,8 +56,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -72,13 +75,13 @@ internal fun CashRecordModalPanel(
     onBack: () -> Unit,
     footer: (@Composable () -> Unit)? = null,
     canAnimateDismiss: Boolean = true,
+    webPopup: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
     val fullScreen = compact && compactFullScreen
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onBack)
-    if (isWebPlatform) {
-        // Compose Web 的 Dialog 卸载会把主画布一起移除；详情面板改用同树覆盖层。
+    if (isWebPlatform && !webPopup) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))) {
             key(sizeClass, title, semanticStateKey) {
                 CashRecordModalOverlay(
@@ -91,6 +94,27 @@ internal fun CashRecordModalPanel(
                     footer = footer,
                     content = content,
                 )
+            }
+        }
+    } else if (isWebPlatform) {
+        val windowSize = LocalWindowInfo.current.containerSize
+        val density = LocalDensity.current
+        Popup(alignment = Alignment.TopStart, offset = IntOffset.Zero, onDismissRequest = onBack,
+            properties = PopupProperties(focusable = false, dismissOnClickOutside = false)) {
+            Box(Modifier.size(with(density) { windowSize.width.toDp() }, with(density) { windowSize.height.toDp() })
+                .background(Color.Black.copy(alpha = 0.32f))) {
+                key(sizeClass, title, semanticStateKey) {
+                    CashRecordModalOverlay(
+                        sizeClass = sizeClass,
+                        title = title,
+                        onDismiss = onDismiss,
+                        onBack = onBack,
+                        compactFullScreen = fullScreen,
+                        canAnimateDismiss = canAnimateDismiss,
+                        footer = footer,
+                        content = content,
+                    )
+                }
             }
         }
     } else {

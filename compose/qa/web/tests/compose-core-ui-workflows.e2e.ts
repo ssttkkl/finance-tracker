@@ -214,7 +214,7 @@ test("现金金额错误显示、聚焦并在修正后清除", async ({ page }, 
   await clickStableComposeTarget(page, byId(page, "cash.create.amount"));
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
-  await page.keyboard.type("12", { delay: 100 });
+  await page.keyboard.insertText("12");
   await expect(byId(page, "cash.create.amount")).toHaveText("12");
   await expect(summary).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("cash-field-error-focus-clear.png") });

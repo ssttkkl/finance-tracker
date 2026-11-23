@@ -369,7 +369,7 @@ test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ 
   await submitButton.click({ force: true });
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
     .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
-  await expect(page.locator('[id="auth.error"]')).toContainText("请输入邮箱。");
+  await expect(page.locator('[id="auth.email.validation"]')).toHaveAttribute("aria-label", /请输入邮箱/);
   const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
   expect(diagnosticLog).not.toContain("@");
   expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n"))
