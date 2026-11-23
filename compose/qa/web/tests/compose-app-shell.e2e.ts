@@ -130,7 +130,7 @@ test("desktop rail collapses after mouse navigation leaves focus behind", async 
 
     const holdingsItem = page.locator('[id="navigation-item-investment-holdings"]');
     await expect(holdingsItem).toBeVisible();
-    await holdingsItem.click({ force: true });
+    await clickStableComposeTarget(page, holdingsItem);
     await expect(page).toHaveURL(/\/w\/workspace-1\/investment-holdings$/);
     await expect(collapseControl).toBeVisible();
     await page.mouse.move(width - 40, 500);
