@@ -68,8 +68,15 @@
 - [x] 7.1 按最终实现核对 README、部署说明、`.env.example`、Compose 变量和命令示例。
 - [x] 7.2 运行 `openspec validate --all --strict` 与 `openspec doctor`。
 - [x] 7.3 归档 change，同步 delta 到主规格，确认 `openspec/changes/archive/2026-11-24-local-docker-postgres/`。
-- [ ] 7.4 本地提交本次范围文件，推送当前分支到 `origin/main`；记录提交 SHA 和推送结果。
-- [ ] 7.5 记录发布状态、回滚命令、观察项（Caddy 内部 CA、固定 IP、无自动备份）和用户决策反思。
+- [x] 7.4 本地提交本次范围文件，推送当前分支到 `origin/main`；实现提交 `22787fe5d8f0ecd49b1a0d85011a98f3c6545314`，推送结果 `b9554eae..22787fe5  HEAD -> main`，`git ls-remote` 确认远端 `main` 指向该提交。
+- [x] 7.5 记录发布状态、回滚命令、观察项（Caddy 内部 CA、固定 IP、无自动备份）和用户决策反思。
+
+### 发布与反思
+
+- **发布状态**：实现已提交并推送到 `origin/main`；本地栈以最终配置运行，`db/api/web/caddy` 均 healthy，`https://192.168.1.111:8443` 通过最终登录、Worker 加载和安全上下文检查。
+- **回滚**：`docker compose down` 保留 PostgreSQL 与 Caddy CA 数据卷；恢复上一提交后重建即可回退代码。只有确认不再需要数据时才执行 `down -v`，并需重新分发根证书。
+- **观察项**：固定 IP 依赖路由器 DHCP 保留；Caddy 根证书需在每台受信设备安装；本次无自动备份，升级或删卷前手工 `pg_dump`；仅发布 `8443`，不要暴露到公网。
+- **反思**：局域网明文 HTTP 因浏览器安全上下文约束不可行，最终改为 Caddy 内部 CA HTTPS；Web Worker 的 `.mjs` MIME 是容易被静态构建掩盖的部署缺陷，已加入最终验证；Gradle 测试 worker 的 `EOFException` 通过 `cleanTest` 恢复，后续回归应优先清理测试结果缓存再判断代码失败。
 
 ### 最终验证证据（2026-11-24 CST）
 
