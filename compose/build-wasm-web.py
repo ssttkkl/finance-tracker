@@ -28,6 +28,13 @@ LOCAL_API_ORIGIN = "http://127.0.0.1:8000"
 API_ORIGIN_PATTERN = re.compile(
     r"^https://(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+)(?::([0-9]{1,5}))?$"
 )
+PRIVATE_HTTP_ORIGIN_PATTERN = re.compile(
+    r"^http://([0-9]{1,3}(?:\.[0-9]{1,3}){3}):([1-9][0-9]{0,4})$"
+)
+LOCAL_HTTP_ORIGIN_PATTERN = re.compile(
+    r"^http://(?:127\.0\.0\.1|localhost):([1-9][0-9]{0,4})$",
+    re.IGNORECASE,
+)
 
 
 class BuildError(RuntimeError):
@@ -313,18 +320,69 @@ def install_jdk(package: dict[str, str], architecture: str, cache_root: Path) ->
     return cache_dir / "jdk"
 
 
+def is_private_ipv4(host: str) -> bool:
+    parts = host.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        octets = [int(part) for part in parts]
+    except ValueError:
+        return False
+    if any(str(octet) != part or octet < 0 or octet > 255 for octet, part in zip(octets, parts)):
+        return False
+    return (
+        octets[0] == 10
+        or (octets[0] == 172 and 16 <= octets[1] <= 31)
+        or (octets[0] == 192 and octets[1] == 168)
+    )
+
+
 def normalize_web_api_origin(api_origin: str) -> str:
     candidate = api_origin.strip().removesuffix("/")
     if not candidate:
         return LOCAL_API_ORIGIN
-    match = API_ORIGIN_PATTERN.fullmatch(candidate)
-    if match is None:
+    try:
+        parsed = urllib.parse.urlsplit(candidate)
+    except ValueError as error:
         raise BuildError(
-            "FT_API_ORIGIN 必须是 HTTPS origin，不能包含路径、查询参数或凭据"
+            "FT_API_ORIGIN 必须是 HTTPS 或私有 IPv4 HTTP origin，不能包含路径、查询参数或凭据"
+        ) from error
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise BuildError(
+            "FT_API_ORIGIN 必须是 HTTPS 或私有 IPv4 HTTP origin，不能包含路径、查询参数或凭据"
         )
-    port = match.group(1)
-    if port is not None and int(port) not in range(1, 65536):
-        raise BuildError("FT_API_ORIGIN 的端口必须在 1 到 65535 之间")
+    if parsed.scheme == "https":
+        match = API_ORIGIN_PATTERN.fullmatch(candidate)
+        if match is None:
+            raise BuildError(
+                "FT_API_ORIGIN 必须是 HTTPS 或私有 IPv4 HTTP origin，不能包含路径、查询参数或凭据"
+            )
+        port = match.group(1)
+        if port is not None and (port.startswith("0") or int(port) not in range(1, 65536)):
+            raise BuildError("FT_API_ORIGIN 的端口必须在 1 到 65535 之间")
+    elif parsed.scheme == "http":
+        private = PRIVATE_HTTP_ORIGIN_PATTERN.fullmatch(candidate)
+        local = LOCAL_HTTP_ORIGIN_PATTERN.fullmatch(candidate)
+        if private is not None and is_private_ipv4(private.group(1)):
+            port = private.group(2)
+        elif local is not None:
+            port = local.group(1)
+        else:
+            raise BuildError(
+                "FT_API_ORIGIN 的 HTTP origin 只允许本机或私有 IPv4 地址并带显式端口"
+            )
+        if int(port) not in range(1, 65536):
+            raise BuildError("FT_API_ORIGIN 的端口必须在 1 到 65535 之间")
+    else:
+        raise BuildError(
+            "FT_API_ORIGIN 必须是 HTTPS 或私有 IPv4 HTTP origin，不能包含路径、查询参数或凭据"
+        )
     return candidate
 
 
@@ -349,24 +407,46 @@ def detect_architecture() -> str:
     raise BuildError(f"不支持的 Linux 架构：{platform.machine()}")
 
 
+def usable_java_home(environment: dict[str, str]) -> Path | None:
+    configured = environment.get("JAVA_HOME")
+    if not configured:
+        return None
+    java_home = Path(configured)
+    java = java_home / "bin" / "java"
+    if not java.is_file() or not os.access(java, os.X_OK):
+        return None
+    try:
+        version_output = subprocess.check_output(
+            [str(java), "-version"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=environment,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return java_home if re.search(r'version "21(?:[.]|[+])', version_output) else None
+
+
 def main() -> int:
     try:
         architecture = detect_architecture()
         script_dir = Path(__file__).resolve().parent
-        cache_base = os.environ.get("XDG_CACHE_HOME")
-        if not cache_base:
-            home = os.environ.get("HOME")
-            if not home:
-                raise BuildError("XDG_CACHE_HOME 与 HOME 均未设置，无法定位 JDK 缓存")
-            cache_base = str(Path(home) / ".cache")
-        cache_root = Path(cache_base) / "finance-tracker" / "jdks"
-        cache_root.mkdir(parents=True, exist_ok=True)
         environment = os.environ.copy()
         disable_compose_demo_mode(environment)
         configure_web_api_origin(environment)
 
-        package = query_package(architecture)
-        jdk_home = install_jdk(package, architecture, cache_root)
+        jdk_home = usable_java_home(environment)
+        if jdk_home is None:
+            cache_base = os.environ.get("XDG_CACHE_HOME")
+            if not cache_base:
+                home = os.environ.get("HOME")
+                if not home:
+                    raise BuildError("XDG_CACHE_HOME 与 HOME 均未设置，无法定位 JDK 缓存")
+                cache_base = str(Path(home) / ".cache")
+            cache_root = Path(cache_base) / "finance-tracker" / "jdks"
+            cache_root.mkdir(parents=True, exist_ok=True)
+            package = query_package(architecture)
+            jdk_home = install_jdk(package, architecture, cache_root)
         environment["JAVA_HOME"] = str(jdk_home)
         environment["PATH"] = str(jdk_home / "bin") + os.pathsep + environment.get("PATH", "")
         try:

@@ -17,6 +17,7 @@ test-results/
 compose/qa/local-evidence/
 .env
 .env.*
+!/.env.example
 *.sqlite
 *.sqlite3
 *.db
@@ -39,3 +40,6 @@ compose/.swiftpm-locks/**
 !compose/.swiftpm-locks/default/
 !compose/.swiftpm-locks/default/swiftImport/
 !compose/.swiftpm-locks/default/swiftImport/Package.resolved
+
+# Local TLS root certificate export (public certificate only).
+certs/

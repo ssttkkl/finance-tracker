@@ -129,6 +129,78 @@ class WebApiBuildConfigTests(unittest.TestCase):
                 {"FT_API_ORIGIN": "https://finance-api.example.com:70000"}
             )
 
+    def test_accepts_local_and_private_ipv4_http_origin(self):
+        for origin in (
+            "http://10.0.0.1:8080",
+            "http://172.16.0.1:8080",
+            "http://172.31.255.254:8080",
+            "http://192.168.1.111:8080",
+            "http://127.0.0.1:8000",
+            "http://localhost:8000",
+            "http://LOCALHOST:8000",
+        ):
+            with self.subTest(origin=origin):
+                environment = {"FT_API_ORIGIN": origin}
+                self.assertEqual(
+                    bootstrap.configure_web_api_origin(environment), origin
+                )
+                self.assertEqual(environment["FT_API_ORIGIN"], origin)
+
+    def test_rejects_public_or_non_ipv4_http_origin(self):
+        for origin in (
+            "http://8.8.8.8:8080",
+            "http://172.15.0.1:8080",
+            "http://172.32.0.1:8080",
+            "http://192.169.1.1:8080",
+            "http://10.0.0.999:8080",
+            "http://010.0.0.1:8080",
+            "http://finance.example.com:8080",
+            "http://192.168.1.111:08080",
+            "https://finance.example.com:080",
+            "https://[::1",
+        ):
+            with self.subTest(origin=origin):
+                with self.assertRaises(bootstrap.BuildError):
+                    bootstrap.configure_web_api_origin({"FT_API_ORIGIN": origin})
+
+    def test_rejects_private_http_origin_without_explicit_port_or_with_path(self):
+        for origin in (
+            "http://192.168.1.111",
+            "http://192.168.1.111:8080/api",
+            "http://192.168.1.111:8080?q=1",
+            "http://user:pass@192.168.1.111:8080",
+        ):
+            with self.subTest(origin=origin):
+                with self.assertRaises(bootstrap.BuildError):
+                    bootstrap.configure_web_api_origin({"FT_API_ORIGIN": origin})
+
+
+class JavaRuntimeTests(unittest.TestCase):
+    def test_reuses_an_existing_java_21_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "bin"
+            binary.mkdir()
+            java = binary / "java"
+            java.write_text('#!/bin/sh\necho \'openjdk version "21.0.6"\' 2>&1\n', encoding="utf-8")
+            java.chmod(0o755)
+
+            self.assertEqual(
+                bootstrap.usable_java_home({"JAVA_HOME": directory}), Path(directory)
+            )
+
+    def test_rejects_missing_or_incompatible_java_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIsNone(bootstrap.usable_java_home({"JAVA_HOME": directory}))
+            binary = Path(directory) / "bin"
+            binary.mkdir()
+            java = binary / "java"
+            java.write_text('#!/bin/sh\necho \'openjdk version "17.0.14"\' 2>&1\n', encoding="utf-8")
+            java.chmod(0o755)
+
+            self.assertIsNone(
+                bootstrap.usable_java_home({"JAVA_HOME": directory})
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

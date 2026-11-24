@@ -17,6 +17,7 @@
 | 文档 | 说明 |
 |---|---|
 | [项目说明](../README.md) | 环境准备、后端、Compose 客户端、API 与开发验证 |
+| [本地 Docker + PostgreSQL](deployment/local-docker-postgres.md) | 单机容器部署、Caddy 局域网 HTTPS、数据持久化、手工备份与回滚 |
 | [Compose 功能地图](feature-map.md) | 产品总览、各模块页面与业务路径、实现证据和跨端待办 |
 | [现金流水：存储、展示与操作](cash-ledger/cash-ledger.md) | 从业务对象、展示与操作顺序到存储职责、API 和一致性边界 |
 | [导入、关系与同步流程](import/import-flow.md) | 当前主要导入和数据提交流程 |

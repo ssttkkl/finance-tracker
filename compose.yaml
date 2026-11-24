@@ -1,0 +1,95 @@
+name: finance-tracker-local
+
+x-web-origin: &web-origin "https://${FT_WEB_HOST:?set FT_WEB_HOST in .env}:${FT_WEB_PORT:-8443}"
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${FT_POSTGRES_DB:-finance_tracker}
+      POSTGRES_USER: ${FT_POSTGRES_USER:-finance_tracker}
+      POSTGRES_PASSWORD: ${FT_POSTGRES_PASSWORD:?set FT_POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FT_HOST: 0.0.0.0
+      PORT: "8080"
+      FT_DATABASE_URL: postgresql://${FT_POSTGRES_USER:-finance_tracker}:${FT_POSTGRES_PASSWORD:?set FT_POSTGRES_PASSWORD in .env}@db:5432/${FT_POSTGRES_DB:-finance_tracker}
+      FT_WEB_ORIGIN: *web-origin
+      FT_IMPORT_STAGING_BACKEND: memory
+      FT_IMPORT_STAGING_ALLOW_MEMORY: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - backend
+
+  web:
+    build:
+      context: .
+      dockerfile: web.Dockerfile
+      args:
+        FT_API_ORIGIN: *web-origin
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      FT_WEB_HOST: ${FT_WEB_HOST:?set FT_WEB_HOST in .env}
+      FT_WEB_PORT: ${FT_WEB_PORT:-8443}
+    volumes:
+      - ./compose/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "${FT_WEB_BIND:-0.0.0.0}:${FT_WEB_PORT:-8443}:${FT_WEB_PORT:-8443}"
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 $$FT_WEB_PORT"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
+    driver: bridge

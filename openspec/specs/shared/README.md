@@ -13,6 +13,7 @@
 | [设计系统](design-system/spec.md) | `shared/design-system` |
 | [Compose 演示模式](compose-demo-mode/spec.md) | `shared/compose-demo-mode` |
 | [部署诊断](deployment-diagnostics/spec.md) | `shared/deployment-diagnostics` |
+| [本地 Docker 部署](local-docker-deployment/spec.md) | `shared/local-docker-deployment` |
 
 ## 相关能力
 

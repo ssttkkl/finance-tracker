@@ -3,6 +3,17 @@
 .venv
 .pytest_cache
 .commandcode
+.env
+.env.*
+.worktrees
+outputs
+exports
+certs
+**/*.sqlite*
+**/*.db*
+**/credentials.json
+**/*_real_*
+tests
 compose/.gradle
 compose/build
 compose/**/build
@@ -10,5 +21,6 @@ compose/kotlin-js-store
 compose/qa/web/node_modules
 compose/qa/web/test-results
 compose/qa/web/playwright-report
+compose/qa/local-evidence
 **/__pycache__
 **/*.pyc

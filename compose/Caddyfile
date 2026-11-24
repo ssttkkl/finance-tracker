@@ -1,0 +1,13 @@
+# 浏览器对 IP 字面量不发送 SNI，用配置的主机名选择证书。
+{
+	default_sni {$FT_WEB_HOST}
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+	}
+}
+
+https://{$FT_WEB_HOST}:{$FT_WEB_PORT} {
+	tls internal
+	reverse_proxy web:80
+}

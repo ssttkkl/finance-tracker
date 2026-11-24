@@ -1,5 +1,9 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
+## 本地 Docker + PostgreSQL
+
+仓库根目录的 `compose.yaml` 会构建 Kotlin 后端与 Compose Web，由 nginx 同源代理 `/api` 到后端，再由 Caddy 内部 CA 提供局域网 HTTPS。PostgreSQL 与 Caddy CA 数据保存在命名卷中。完整步骤、根证书安装、手工备份和回滚见[本地 Docker + PostgreSQL](../docs/deployment/local-docker-postgres.md)。
+
 ## Render Compose Web 部署
 
 在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。

@@ -44,6 +44,8 @@ FT_HOST=127.0.0.1 FT_KOTLIN_PORT=18240 FT_WEB_ORIGIN=http://127.0.0.1:5173 \
 
 生产部署使用 `Dockerfile` 和 `render.yaml`：Render 注入 `PORT`、`FT_DATABASE_URL`、`FT_WEB_ORIGIN` 与导入暂存配置，健康检查路径为 `/health`。Render 的实际创建与发布需要单独授权。
 
+本机 Docker + PostgreSQL 部署使用根目录 `compose.yaml`，通过 Caddy 内部 CA 从固定局域网 HTTPS 地址访问，数据和凭据留在仓库外；根证书安装、备份和回滚见[本地 Docker + PostgreSQL](docs/deployment/local-docker-postgres.md)。该部署不适用于公网。
+
 PostgreSQL／Neon 连接串中的 `sslmode`、`channel_binding` 按显式安全要求传给驱动，支持范围与失败边界见[后端部署参考](compose/backend/README.md#render-部署)。
 
 现金导入的文件和核对材料保存在客户端原范围加密批次；CSV／XLSX 不上传，PDF／旧 XLS 只做无状态解析。服务端暂存仍供维护计划使用，默认单对象 128 MiB、内存合计 256 MiB；它们不是新导入文件预算或 JVM 峰值内存。旧导入 HTTP 入口已退役，内部旧实现尚待清理，配置边界见[生命周期说明](docs/import/cash-import-flow.md#53-临时内容和长期数据)。
@@ -103,7 +105,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 ## 安全与权限
 
 - `FT_DATABASE_URL` 必须显式配置；不会回退到其他数据库或写第二份账本。
-- 生产 `FT_WEB_ORIGIN` 和 Compose API 地址必须是 HTTPS origin，不能包含路径、查询参数或凭据。
+- 生产 `FT_WEB_ORIGIN` 和 Compose API 地址必须是 HTTPS origin，不能包含路径、查询参数或凭据。后端保留 RFC1918 私有 IPv4 上带显式端口的 HTTP origin 兼容能力，但本地 Docker 部署使用 Caddy 内部 CA 的 HTTPS，不发布明文 Web 入口。
 - 连接器凭据只从后端受控配置加载；不会出现在请求体、客户端 bundle 或错误响应中。
 - 账单密码不写入日志、TokenStore、缓存或数据库。
 - 账户有正式事实后只能停用，不能硬删；关系确认、事实删除和投影重建都保留审计语义。

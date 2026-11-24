@@ -14,9 +14,10 @@ class StartupBoundaryTest {
         assertFailsWith<AccessFailure> { services.requireContext(null) }
     }
 
-    @Test fun webOriginAcceptsConfiguredHttpsAndOnlyExplicitLocalHttp() {
+    @Test fun webOriginAcceptsConfiguredHttpsLocalHttpAndPrivateIpv4Http() {
         assertEquals("https://example.invalid", validateWebOrigin("https://example.invalid/"))
         assertEquals("http://localhost:18888", validateWebOrigin("http://localhost:18888"))
+        assertEquals("http://192.168.1.111:8080", validateWebOrigin("http://192.168.1.111:8080"))
         for (invalid in listOf("http://example.invalid", "http://localhost", "https://user:password@example.invalid",
             "https://example.invalid/path", "https://example.invalid?q=1", "https://example.invalid#fragment")) {
             assertFailsWith<IllegalArgumentException>(invalid) { validateWebOrigin(invalid) }
