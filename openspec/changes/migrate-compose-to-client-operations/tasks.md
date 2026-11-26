@@ -23,13 +23,13 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 | 选择账户、查看编辑资格 | 记账账户选择／导入账户选择 → `LocalFirstFinanceRepository`／`LocalCashImportLifecycleRepository.selectionAccount` | `account`、`cashWrite`、`cashImport` → `ClientSessionOperations`／`ClientCashImportOperations` | 待迁。停用、币种、快照版本 |
 | 新建账户 | 记账账户表单／`CashImportAccountForm` → `LocalCashImportLifecycleRepository.createAccount` | `account`、`prepareImportAccounts` → `ClientCashWriteOperations.createAccount`／`ClientImportAccountOperations.create` | 待迁。无重复创建、账本刷新 |
 | 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 待迁。原修订、独立效果、并发后保留外部改动 |
-| 收支列表、月度汇总、定位 | `CashLedgerScreen` → `LocalFirstFinanceRepository` → `LocalCashLedgerReader.page` → `CashLedgerOperations.page` | `cash` → `CashLedgerOperations.page`（`summary` 委托同一查询） | 已共用查询实现。实际页面、安装包同快照验证精确分币种汇总、来源和游标 |
-| 详情与来源 | 收支详情 → `LocalCashMaintenanceRepository` → `LocalCashLedgerReader.record/sourceRecords` → `CashLedgerOperations.record/evidence` | `cash` → `CashLedgerOperations.record/evidence` | 已共用读取实现。详细事实与原始来源联验 |
+| 收支列表、月度汇总、定位 | `CashLedgerScreen` → `LocalFirstFinanceRepository` → `LocalCashLedgerReader.page`（Web 经 `CashLedgerWorker`）→ `CashLedgerOperations.page` | `cash` → `CashLedgerOperations.page`（`summary` 委托同一查询） | Web 与原生均进入共享查询。实际页面、安装包覆盖分币种精确金额、来源和游标 |
+| 详情与来源 | 收支详情 → `LocalCashMaintenanceRepository` → `LocalCashLedgerReader.record/sourceRecords`（Web 经 `CashLedgerWorker`）→ `CashLedgerOperations.record/evidence` | `cash` → `CashLedgerOperations.record/evidence` | 详细事实与原始来源联验 |
 | 手工记账、转账及原操作恢复 | `CashCreationPanel` → `CashCreationViewModel.save` → `KtorCashCreationRepository.save` | `cashWrite` → `ClientCashWriteOperations.add/transfer/resume` | 执行及收据核实已共用 `executeCashCommand`。输入组装和 Compose 原命令的加密持久化待迁。验证精确金额、双端事务、同键重试和提交中退出 |
-| 编辑、草稿转正式、身份与关联 | 收支详情 → `LocalCashMaintenanceRepository` → `KtorCashMaintenanceRepository.preview/plan/associationTargets/commit/resolve` | `cashMaintenance`、`cashWrite` → `ClientCashMaintenanceOperations.preview/plan/associationTargets` 与 `ClientCashWriteOperations.commitMaintenance/resume` | 待迁。有类型的完整编辑、候选、预览版本和原收据 |
-| 分类与批量删除、分类目录 | 账本选择／管理页 → `LocalFirstFinanceRepository` → `KtorFinanceRepository` | `cashMaintenance`、`category` → `ClientCashMaintenanceOperations` | 待迁。关系闭包、精确影响、修订冲突与 viewer |
+| 编辑、草稿转正式、身份与关联 | 收支详情 → `LocalCashMaintenanceRepository` → `KtorCashMaintenanceRepository.preview/plan/associationTargets/commit/resolve` | `cashMaintenance`、`cashWrite` → `ClientCashMaintenanceOperations.preview/plan/associationTargets/resolve` 与 `freezeMaintenanceCommand/executeCashCommand` | 共用验证、计划核对、原命令及提交执行。旧版加密命令按原路径恢复计划 ID |
+| 分类与批量删除、分类目录 | 账本选择／管理页 → `KtorFinanceRepository`；账本目录经原生读取器或 `CashLedgerWorker` | `cashMaintenance`、`category` → `ClientCashMaintenanceOperations` 与 `cashCategoryDirectory` | 已接共同影响预览、批量操作、目录写入及快照分类读取 |
 | 导入文件、修改、选择 | `CashImportTaskScreen` → `LocalCashImportLifecycleRepository.upload/removeFile` → `LocalCashImportTask` | `cashImport`、`editImportFiles` → `ClientCashImportOperations.prepare/addFile/replaceFile/removeFile` | 待迁。逐文件失败、四种格式、断网、显式修改 |
-| 整批核对、明细、确认、收据、恢复 | `CashImportTaskViewModel` → `LocalCashImportLifecycleRepository.preview/items/confirm/resumeBatch/restoreReceipt` → `LocalCashImportTask` 与提交协调 | `cashImport` → `ClientCashImportOperations.review/items/confirm/resume/result` | 待迁。完整结论、并发确认、原键恢复、真实收据与失败后的整理 |
+| 整批核对、明细、确认、收据、恢复 | `CashImportTaskViewModel` → `LocalCashImportLifecycleRepository.preview/items/confirm/resumeBatch/restoreReceipt` → `LocalCashImportTask` 与提交协调 | `cashImport` → `ClientCashImportOperations.review/items/confirm/resume/result` | Web Worker、原生和 CLI 已接 `calculateCashImportReview/rebaseCashImportReview`。冻结、确认执行、归档和恢复待迁 |
 | 账户详情独立余额查询 | 现金页面仅使用账户选择和能力；没有独立对应编辑或详情入口 | `account show` | CLI 独有展示。纳入共享账户操作的能力与修订，独立命令展现不新增页面 |
 | 待核实操作和本机批次独立列表 | 页面按当前任务恢复已持有的操作或批次 | `cash pending`、`import batches` | CLI 独有枚举入口。共同恢复业务仍在对应行验收 |
 | 维护上下文与详情换步、直接保存草稿 | Compose 使用既有上下文和草稿专用保存 | CLI 通过完整的草稿维护计划表达编辑 | 保留现行入口差异；直接草稿保存和上下文读取逐项核对是否需要 CLI 路径，草稿共同动作仍须调用同一实现 |
@@ -52,6 +52,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 
 邀请预览经独立工程复核确认两端直达共同操作，Ktor 原请求的状态与诊断处理保持。后续签名写入迁移须先确认原工作区头和错误类型映射。 记账执行器及发送前围栏经独立复核通过。区分持久化拒绝与账本成功，保留实际 401／403；旧测试改为请求已进入网络后再切换令牌，继续核对迟到结果。
 
+维护与 Web Worker 切片以 `2c346596` 为基线。独立复核确认动态计划读取、原计划和键的匹配、恢复时使用原会话，以及 Worker 只在需要时编码核对上下文。发现的旧版命令降级到普通收据查询、同工作区重取令牌两项已修复并重审。
+
 ## 6. 测试与 QA
 
 - [ ] 6.1 运行 Kotlin、后端、跨端编译和受影响回归，记录当前提交、基线、精确命令与结果。
@@ -63,6 +65,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 记账切片的 Chrome 三个回归使用预览 `http://127.0.0.1:5199` 与页面故障注入。基线会直接重发，修复前仍可在查无收据期间换令牌后重发，修复后三项均通过，覆盖单次收据、404 原样重放和令牌换代停止。Android `CashCreation*`、`SessionCacheRepositoryTest`、`LedgerReceiptMappingTest` 共 83 项通过。安装包在 SQLite 和专用 PostgreSQL 17.12 的同一子进程矩阵四项通过，覆盖服务端已拒绝而回包丢失、恢复原操作、无重发和精确金额。
 
 认证与工作区切片先在 Android 复现原管理写入不带 `workspace_id`。迁移后同一测试核对三种写入的固定令牌和工作区。旧工作区及同工作区的旧使用者页面均不能发出邀请。现有 iOS 退出清理测试验证无效服务地址仍清除原令牌，异常会话两项测试继续证明未打开或清理缓存。Chrome 上 7 项真实页面冒烟通过，覆盖取消及确认移除、发送的工作区、邀请、只读角色及管理加载故障。已安装包在 SQLite 和 PostgreSQL 真实 HTTP 的 4 项通过。工作区与使用者的最后围栏另经 Android 和独立复核。
+
+维护与 Worker 切片于 2026-11-26 通过受影响 Android 测试、`:shared:iosSimulatorArm64Test`、`:client-operations:jvmTest` 和 npm 安装后的 `node --test cli/test/{entry,offline,server}.test.cjs` 双库矩阵（4 项）。安装包的旧格式加密命令回归先失败于未请求原计划核实。修复后 SQLite 和 PostgreSQL 以原计划及原键取回同一收据。Chrome 158 在 390、768、1440 宽度验证月度视图，在 390 验证账本 Worker 和真实收支编辑。编辑回包丢失后，页面调用原计划核实，确认服务端只有一次写入并展示新的备注。用于真实编辑的脚本经同一已构建预览单独复跑通过。
 
 ## 7. 发布
 

@@ -111,7 +111,7 @@ class ClientSessionOperations(
     private val store: ClientSessionStore,
     private val encodeComponent: (String) -> String,
     private val now: () -> String,
-) {
+) : ClientCashWorkspaceTransport {
     private val access = ClientAccessOperations(http, encodeComponent)
 
     suspend fun login(email: String, password: String): SessionDto =
@@ -215,16 +215,37 @@ class ClientSessionOperations(
 
     internal fun component(value: String): String = encodeComponent(value)
 
-    internal suspend inline fun <reified T> cashWorkspaceRequest(
-        expected: String?, method: String, path: String, body: JsonObject? = null, write: Boolean = false, mutates: Boolean = false,
+    override suspend fun <T> request(
+        expected: String?, method: String, path: String, body: JsonObject?, write: Boolean, mutates: Boolean,
+        response: DeserializationStrategy<T>,
+    ): T = request(activeSession(expected), expected, method, path, body, write, mutates, response)
+
+    internal fun boundCashMaintenance(ledger: ClientLedgerRead): ClientCashMaintenanceOperations =
+        ClientCashMaintenanceOperations(object : ClientCashWorkspaceTransport {
+            override suspend fun <T> request(
+                expected: String?, method: String, path: String, body: JsonObject?, write: Boolean, mutates: Boolean,
+                response: DeserializationStrategy<T>,
+            ): T {
+                if (ledger.offline) throw ClientNetworkUnavailable()
+                val workspaceId = ledger.ledger.snapshot.workspaceId
+                if (expected != null && expected != workspaceId) throw ClientOperationFailure("workspace_conflict", 409)
+                return request(ledger.binding, workspaceId, method, path, body, write, mutates, response)
+            }
+        }, ::component)
+
+    private suspend fun <T> request(
+        binding: ClientStoredSession, expected: String?, method: String, path: String, body: JsonObject?,
+        write: Boolean, mutates: Boolean, response: DeserializationStrategy<T>,
     ): T {
-        val binding = activeSession(expected)
         val workspace = workspace(binding, expected)
         if (write && binding.session.workspaces.none { it.id == workspace && it.role.canWrite })
             throw ClientOperationFailure("workspace_forbidden", 403)
         return authenticated(binding) {
             try {
-                request<T>(method, path, binding.token, body?.toString(), mapOf("X-FT-Workspace-ID" to workspace)).also {
+                requireCurrent(binding)
+                val call = ClientHttpRequest(method, path, binding.token, body?.let { ClientHttpBody.Json(it.toString()) },
+                    mapOf("X-FT-Workspace-ID" to workspace))
+                readClientResponse(response, http.request(call)).also {
                     requireCurrent(binding)
                 }
             } catch (failure: ClientNetworkUnavailable) {

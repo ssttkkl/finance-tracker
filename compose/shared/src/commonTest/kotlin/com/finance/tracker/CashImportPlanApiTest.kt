@@ -114,7 +114,10 @@ class CashImportPlanApiTest {
     @Test fun recoveryKeepsAllFourResolveOutcomesDistinct() = runTest {
         for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
             var body: JsonObject? = null
-            val client = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") { body = json(it) }
+            val receipt = if (status == "committed")
+                RECEIPT.replace("\"ip_one\"", "\"mp_one\"").replace("\"operation_kind\":\"import\"", "\"operation_kind\":\"mutation\"")
+            else "null"
+            val client = client("""{"status":"$status","receipt":$receipt}""") { body = json(it) }
             val result = client.resolveCashMutation("mp_one", "original-key")
             assertEquals(status, result.status)
             assertEquals("original-key", body!!["idempotency_key"]!!.jsonPrimitive.content)

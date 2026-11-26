@@ -37,6 +37,34 @@ test("首笔记账内创建账户后保留金额并选中新账户", async ({ pa
     });
     return (await response.json()).facts.cash_transactions[0]?.amount;
   }).toBe("-15.80");
+
+  const snapshot = await page.request.get(`${baseURL}/api/v1/ledger/snapshot?workspace_id=${workspace}`, {
+    headers: { Authorization: `Bearer ${token}`, "X-FT-Workspace-ID": workspace },
+  });
+  const entryId = (await snapshot.json()).facts.cash_entries[0].id;
+  await click(page, `ledger.record-cash-entry:${entryId}`);
+  await click(page, "cash.current.edit");
+  await page.mouse.move(190, 680);
+  await page.mouse.wheel(0, 510);
+  await typeIntoComposeInput(page, '[id="cash.entry.note"]', "核实后的备注");
+  const submitted: Array<{ key: string; plan: string; receiptId: string }> = [];
+  await page.route(/\/api\/v1\/cash-mutations\/plans\/[^/]+\/commit$/, async route => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    const receipt = await response.json();
+    submitted.push({ key: route.request().headers()["idempotency-key"], plan: receipt.plan_id, receiptId: receipt.receipt_id });
+    await route.fulfill({ status: 503, json: { error: { code: "storage.connect" } } });
+  });
+  await click(page, "cash.entry.save");
+  const resolve = page.waitForResponse(response => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/v1/cash-mutations/resolve");
+  await click(page, "cash.current.resolve");
+  const resolved = await resolve;
+  expect(resolved.ok()).toBe(true);
+  expect(submitted).toHaveLength(1);
+  expect(resolved.request().postDataJSON()).toEqual({ plan_id: submitted[0].plan, idempotency_key: submitted[0].key });
+  expect((await resolved.json()).receipt.receipt_id).toBe(submitted[0].receiptId);
+  await expect(byId(page, "cash.current.detail")).toContainText("核实后的备注");
 });
 
 test("移除成员在确认前不写入，邀请防重复且显示生成角色", async ({ page }, info) => {

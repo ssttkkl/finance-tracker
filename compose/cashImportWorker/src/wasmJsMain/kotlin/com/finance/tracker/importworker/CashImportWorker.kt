@@ -2,20 +2,16 @@
 
 package com.finance.tracker.importworker
 
-import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.NormalizedCashDocumentDto
-import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.ParsedImportFile
-import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
-import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
 import com.finance.tracker.business.domain.localNormalizedCashDocument
+import com.finance.tracker.client.calculateCashImportReview
 import kotlinx.serialization.json.*
 import kotlin.js.ExperimentalJsExport
 import kotlin.js.JsExport
-import kotlin.time.Clock
 
 fun main() = Unit
 
@@ -40,14 +36,9 @@ internal fun computePreview(request: JsonObject,
 ): WorkerCashImportPreview {
     val input = request.getValue("choices").jsonObject
     val previous = request["previous"]?.jsonPrimitive?.content?.let(LocalCashImportReview::decode)
-    val (plan, changes) = calculateLocalCashImportBusinessPlan(
-        files, snapshot, input, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(), {}, Clock.System::now,
-    )
-    return WorkerCashImportPreview(freezeLocalCashImportPreviewPlan(plan),
-        LocalCashImportReview.freeze(input, plan, snapshot, changes).encode(),
-        LocalCashImportReview.encodePreviewContext(plan),
-        Json.encodeToJsonElement(CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, changes)),
-    )
+    val calculation = calculateCashImportReview(files, snapshot, input, previous, includePreviewContext = true) {}
+    return WorkerCashImportPreview(calculation.plan, calculation.review.encode(), checkNotNull(calculation.previewContext),
+        Json.encodeToJsonElement(calculation.request))
 }
 
 internal fun previewPlanError(failure: CashImportPlanError): JsonObject = buildJsonObject {

@@ -40,6 +40,10 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let sentBody;
     let sentKey;
     let manualWrites = 0;
+    let maintenancePreviews = 0;
+    let maintenanceCommit;
+    const maintenanceResolutions = [];
+    let loseMaintenanceResult = false;
     let afterManualCommit;
     let lostManualRejection;
     let authorization;
@@ -70,6 +74,14 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 body: body.length ? body : undefined,
             });
             const text = await response.text();
+            if (req.method === 'POST' && req.url === '/api/v1/cash-mutations/plans') maintenancePreviews++;
+            if (req.method === 'POST' && req.url === '/api/v1/cash-mutations/resolve') maintenanceResolutions.push(JSON.parse(body));
+            if (loseMaintenanceResult && req.method === 'POST' && req.url.endsWith('/commit') && response.ok) {
+                loseMaintenanceResult = false;
+                maintenanceCommit = { receipt: JSON.parse(text), key: req.headers['idempotency-key'] };
+                req.socket.destroy();
+                return;
+            }
             if (req.method === 'POST' && req.url.startsWith('/api/v1/cash-import/write-set?')) {
                 authorization = req.headers.authorization;
                 writeCount++;
@@ -255,12 +267,36 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const input = join(dir, 'edit.json');
         writeFileSync(input, JSON.stringify({
             intent: 'edit_entry', transaction_id: detail.transaction_id, expected_revision: Number(detail.row_revision),
+        }));
+        const invalidPreview = await run(['cash', 'edit', '--input', input]);
+        assert.equal(invalidPreview.value.error?.code, 'import_input_invalid');
+        assert.equal(maintenancePreviews, 0);
+        writeFileSync(input, JSON.stringify({
+            intent: 'edit_entry', transaction_id: detail.transaction_id, expected_revision: Number(detail.row_revision),
             entry_id: detail.entry.entry_id, expected_entry_revision: Number(detail.entry.revision), patch: { note: 'synthetic edited note' },
         }));
         const plan = await ok(['cash', 'edit', '--input', input]);
         assert.equal(plan.can_commit, true);
-        const edited = await ok(['cash', 'commit', plan.plan_id, '--review', String(plan.plan_revision)]);
+        loseMaintenanceResult = true;
+        const unclear = await run(['cash', 'commit', plan.plan_id, '--review', String(plan.plan_revision)]);
+        assert.equal(unclear.value.error?.code, 'result_unknown');
+        // Recreate the encrypted command record written by the previous ft version.
+        execFileSync(process.execPath, ['--input-type=module', '-e', `
+            import { openStore } from './node_modules/finance-tracker-cli/lib/host.mjs';
+            import assert from 'node:assert/strict';
+            const database = openStore(process.env.FT_CLI_SERVER, false);
+            const id = process.argv[1];
+            const slot = database.slots('').find(slot => slot.endsWith('.command.' + id));
+            assert.ok(slot);
+            const command = JSON.parse(database.read(slot));
+            delete command.planId;
+            database.write(slot, JSON.stringify(command));
+            database.close(true);
+        `, unclear.value.error.operation_id], { cwd: dir, env });
+        const edited = await ok(['cash', 'resume', unclear.value.error.operation_id]);
         assert.equal(edited.receipt.committed, true);
+        assert.equal(edited.receipt.receipt_id, maintenanceCommit.receipt.receipt_id);
+        assert.deepEqual(maintenanceResolutions, [{ plan_id: plan.plan_id, idempotency_key: maintenanceCommit.key }]);
         assert.equal((await ok(['cash', 'show', projection.projection_id])).evidence.projection.note, 'synthetic edited note');
 
         const next = await ok(['import', 'prepare', join(dir, 'missing.csv'), statement]);

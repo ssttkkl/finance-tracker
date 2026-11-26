@@ -5,13 +5,15 @@ package com.finance.tracker.importworker
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.*
+import com.finance.tracker.client.CashLedgerOperations
+import com.finance.tracker.client.cashCategoryDirectory
 import kotlinx.serialization.json.*
 import kotlin.js.JsExport
 import kotlin.time.Instant
 
 private class LedgerReader(val snapshot: LedgerSnapshotDto) {
     val workspace get() = snapshot.workspaceId
-    val query by lazy { LocalCashLedgerQuery(snapshot, ::wasmCashLedgerMonth) }
+    val query by lazy { CashLedgerOperations(snapshot, ::wasmCashLedgerMonth) }
 }
 private var ledgerReader: LedgerReader? = null
 
@@ -56,7 +58,7 @@ private fun readCashLedger(query: String, snapshot: String?): String {
                 it.id == input.value("id") && it.type in setOf("cash", "loan", "lend")
             })
             "accounts" -> Json.encodeToString(buildLocalCashAccountReferences(facts.accounts))
-            "categories" -> Json.encodeToString(buildLocalCashCategoryDirectory(facts.cashCategories, facts.categoryDirectoryRevision))
+            "categories" -> Json.encodeToString(cashCategoryDirectory(reader.snapshot))
             else -> error("ledger_query_invalid")
         }
     }
@@ -64,7 +66,7 @@ private fun readCashLedger(query: String, snapshot: String?): String {
     val bounds = CashLedgerDateBounds(input.optional("dateFrom"), input.optional("dateTo"), input.value("zone"),
         input.optional("from")?.let(Instant::parse), input.optional("until")?.let(Instant::parse))
     return Json.encodeToString(reader.query.page(
-        normalizeLocalCashLedgerQueryInput(filters, bounds.timeZoneId) { _, _, _ -> bounds },
+        filters, bounds,
         input.optional("cursor"), input["start"]?.jsonPrimitive?.int, input.optional("expectedSeq")?.toLong(),
         input.getValue("limit").jsonPrimitive.int,
     ))

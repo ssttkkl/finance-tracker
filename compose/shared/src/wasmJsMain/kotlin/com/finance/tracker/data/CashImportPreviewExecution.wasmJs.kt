@@ -40,11 +40,12 @@ internal actual suspend fun executeCashImportPreview(
             result["diagnostic"]?.let { diagnostic -> Json.decodeFromJsonElement(diagnostic) },
         )
     }
+    val previewContext = result.getValue("reviewContext")
     return LocalCashImportCalculation(
         result.getValue("plan").jsonObject,
         LocalCashImportReview.decode(result.getValue("review").jsonPrimitive.content),
         Json.decodeFromJsonElement<CashWriteSetRequestDto>(result.getValue("writeSet")),
-        LocalCashImportReview.restorePreviewReview(result.getValue("reviewContext")),
+        LocalCashImportReview.restorePreviewReview(previewContext),
     )
 }
 

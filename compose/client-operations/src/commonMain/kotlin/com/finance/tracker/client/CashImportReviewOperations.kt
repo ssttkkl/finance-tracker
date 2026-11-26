@@ -21,6 +21,7 @@ import com.finance.tracker.business.domain.parsePythonCashTimestamp
 import com.finance.tracker.business.domain.summarizeLocalCashImportMonths
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlin.time.Clock
@@ -31,6 +32,7 @@ class CashImportCalculation(
     val review: LocalCashImportReview,
     val request: CashWriteSetRequestDto,
     val previousReviewFor: (JsonObject) -> LocalCashImportReview,
+    val previewContext: JsonElement? = null,
 )
 
 fun calculateCashImportReview(
@@ -38,6 +40,7 @@ fun calculateCashImportReview(
     snapshot: LedgerSnapshotDto,
     input: JsonObject,
     previous: LocalCashImportReview?,
+    includePreviewContext: Boolean = false,
     requireActive: () -> Unit,
 ): CashImportCalculation {
     val choices = freezeCashImportChoices(input)
@@ -50,6 +53,7 @@ fun calculateCashImportReview(
         LocalCashImportReview.freeze(choices, plan, snapshot, changes),
         CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, changes),
         LocalCashImportReview.forPreview(plan),
+        if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
     )
 }
 
@@ -110,7 +114,7 @@ class CashImportReviewOperations(private val workspaceId: String, private val ca
         if (workspaceId != snapshot.workspaceId) throw ClientOperationFailure("workspace_conflict")
         if (choices.expectedSessionRevision != revision || revision < 1) throw CashImportPlanError("plan_changed")
         val input = clientJson.encodeToJsonElement(CashImportPreviewInput.serializer(), choices).jsonObject
-        val computation = calculateCashImportReview(files, snapshot, input, previous, requireActive)
+        val computation = calculateCashImportReview(files, snapshot, input, previous, requireActive = requireActive)
         val reader = cashImportPlanReader(identifyCashImportPreview(computation.plan, planId, batchId, revision), calendar)
         reader.validateReadable()
         val plan = clientJson.decodeFromJsonElement(CashImportPlanDto.serializer(), reader.view(choices.timezoneName))

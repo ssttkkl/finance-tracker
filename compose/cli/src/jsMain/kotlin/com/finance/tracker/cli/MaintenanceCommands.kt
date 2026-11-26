@@ -10,6 +10,7 @@ import com.finance.tracker.business.contracts.CashProjectionDeleteImpactDto
 import com.finance.tracker.business.contracts.CashProjectionDeleteResultDto
 import com.finance.tracker.business.contracts.CategoryDirectoryDto
 import com.finance.tracker.business.contracts.CategoryDirectoryItemDto
+import com.finance.tracker.client.cashCategoryDirectory
 import com.finance.tracker.client.CashAssociationQuery
 import com.finance.tracker.client.CashCategoryPatch
 import com.finance.tracker.client.CashCategoryParentChange
@@ -104,15 +105,15 @@ internal suspend fun category(action: String?, args: List<String>): TerminalResu
     }
     val options = parseOptions(if (id == null) args else args.drop(1), scopeOptions + allowed, flags)
     val workspace = options["--workspace"]
+    if (action == "list") return withClient(options["--server"]) { session ->
+        val directory = cashCategoryDirectory(session.ledger(workspace).ledger.snapshot)
+        terminal(CategoryDirectoryDto.serializer(), directory, buildString {
+            appendLine("Revision ${directory.revision}")
+            directory.items.forEach { appendLine("${it.id}  ${it.path.joinToString(" / ")}") }
+        }.trimEnd())
+    }
     return withMaintenance(options["--server"]) { operations ->
         when (action) {
-            "list" -> {
-                val directory = operations.categories(workspace)
-                terminal(CategoryDirectoryDto.serializer(), directory, buildString {
-                    appendLine("Revision ${directory.revision}")
-                    directory.items.forEach { appendLine("${it.id}  ${it.path.joinToString(" / ")}") }
-                }.trimEnd())
-            }
             "create" -> {
                 val saved = operations.createCategory(workspace, EditCashCategory(options.required("--name"), options["--parent"],
                     options["--description"].orEmpty(), nonnegative(options, "--revision")))

@@ -14,6 +14,7 @@ kotlin {
     sourceSets {
         wasmJsMain.dependencies {
             implementation(project(":business-domain"))
+            implementation(project(":client-operations"))
             implementation(libs.kotlinx.serialization.json)
         }
     }

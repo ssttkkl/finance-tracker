@@ -4,6 +4,9 @@ import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashMonthlySummaryDto
 import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
+import com.finance.tracker.business.domain.CashLedgerDateBounds
+import com.finance.tracker.business.domain.buildLocalCashCategoryDirectory
+import kotlin.time.Instant
 import com.finance.tracker.business.domain.LocalCashLedgerQuery
 import com.finance.tracker.business.domain.normalizeLocalCashLedgerQueryInput
 import kotlinx.serialization.SerialName
@@ -18,8 +21,13 @@ data class CashLedgerSummary(
     @SerialName("pending_item_count") val pendingItemCount: Long,
 )
 
-class CashLedgerOperations(private val snapshot: LedgerSnapshotDto, private val calendar: CashLedgerCalendar) {
-    private val query = LocalCashLedgerQuery(snapshot, calendar::monthAt)
+class CashLedgerOperations(
+    private val snapshot: LedgerSnapshotDto,
+    monthAt: (Instant, String) -> String,
+    private val dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)? = null,
+) {
+    constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar) : this(snapshot, calendar::monthAt, calendar::bounds)
+    private val query = LocalCashLedgerQuery(snapshot, monthAt)
 
     fun page(
         filters: CashFiltersDto = CashFiltersDto(),
@@ -28,9 +36,14 @@ class CashLedgerOperations(private val snapshot: LedgerSnapshotDto, private val 
         startIndex: Int? = null,
         expectedLedgerSeq: Long? = null,
         limit: Int = 20,
-    ): CashPageDto =
-        query.page(normalizeLocalCashLedgerQueryInput(filters, timeZoneId, calendar::bounds),
-            cursor, startIndex, expectedLedgerSeq, limit)
+    ): CashPageDto = page(filters, checkNotNull(dateBounds).invoke(filters.dateFrom, filters.dateTo, timeZoneId),
+        cursor, startIndex, expectedLedgerSeq, limit)
+
+    fun page(
+        filters: CashFiltersDto, bounds: CashLedgerDateBounds, cursor: String?,
+        startIndex: Int?, expectedLedgerSeq: Long?, limit: Int,
+    ): CashPageDto = query.page(normalizeLocalCashLedgerQueryInput(filters, bounds.timeZoneId) { _, _, _ -> bounds },
+        cursor, startIndex, expectedLedgerSeq, limit)
 
     fun summary(filters: CashFiltersDto = CashFiltersDto(), timeZoneId: String? = null): CashLedgerSummary {
         val page = page(filters, timeZoneId, limit = 1)
@@ -42,3 +55,6 @@ class CashLedgerOperations(private val snapshot: LedgerSnapshotDto, private val 
     fun evidence(projectionId: String) = query.evidence(projectionId)
     fun projectionRefs(transactionIds: List<String>) = query.projectionRefs(transactionIds)
 }
+
+fun cashCategoryDirectory(snapshot: LedgerSnapshotDto) =
+    buildLocalCashCategoryDirectory(snapshot.facts.cashCategories, snapshot.facts.categoryDirectoryRevision)

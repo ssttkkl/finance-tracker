@@ -13,14 +13,11 @@ import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.contracts.StoredImportBatch
 import com.finance.tracker.business.domain.decodeStoredImportBatch
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
-import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
-import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
-import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.prepareLocalCashImportView
 import com.finance.tracker.business.domain.page
-import kotlin.time.Clock
+import com.finance.tracker.client.rebaseCashImportReview
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 import kotlin.js.JsExport
@@ -97,11 +94,7 @@ fun rebaseCashImport(workspace: String, base: String, review: String, files: JsA
     check(snapshot.workspaceId == workspace) { "ledger_snapshot_workspace_mismatch" }
     check(snapshot.ledgerSeq == base) { "cash_import_snapshot_changed" }
     val parsed = readCapturedCashImportFiles(files)
-    val result = LocalCashImportReview.decode(review).recalculate(snapshot) { source, choices, previous, ids ->
-        calculateLocalCashImportBusinessPlan(parsed, source, choices, previous, ids, {}, Clock.System::now)
-    }
-    if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
-    val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes)
+    val request = rebaseCashImportReview(parsed, snapshot, LocalCashImportReview.decode(review)) {}
     rebaseResponse(cashWriteSetJson.encodeToString(request), null)
 } catch (failure: CashImportPlanError) {
     rebaseResponse(null, previewPlanError(failure).toString())

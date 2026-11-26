@@ -50,6 +50,7 @@ data class ClientPendingCommand(
     val reverses: String? = null,
     val completesReversal: Boolean = false,
     val rejection: String? = null,
+    val planId: String? = null,
 ) {
     override fun toString(): String = "ClientPendingCommand(id=$id, kind=$kind)"
 }
@@ -172,10 +173,10 @@ class ClientCashWriteOperations(
     }
 
     suspend fun commitMaintenance(workspace: String?, planId: String, revision: Long): ClientCashWriteResult {
-        if (revision < 1 || planId.isBlank()) throw ClientOperationFailure("plan_input_invalid")
-        return execute(workspace, "mutation", "/api/v1/cash-mutations/plans/${session.component(planId)}/commit", emptyList()) { _, _ ->
-            buildJsonObject { put("expected_plan_revision", revision) }
-        }
+        val command = freezeMaintenanceCommand(planId, revision, nextId(), session::component)
+        val ledger = session.ledger(workspace)
+        session.requireOnlineWriter(ledger)
+        return freezeAndExecute(ledger, command)
     }
 
     suspend fun pending(workspace: String?): List<ClientPendingWrite> {
@@ -203,7 +204,13 @@ class ClientCashWriteOperations(
         val id = nextId()
         val command = ClientPendingCommand(id, kind, path, payload(ledger, id).toString(), accountIds,
             method = method, batchId = batch?.batch?.id, beforeAccount = beforeAccount, reverses = reverses, completesReversal = completesReversal)
-        save(ledger, null, command, batch?.batch)
+        return freezeAndExecute(ledger, command, batch?.batch)
+    }
+
+    private suspend fun freezeAndExecute(
+        ledger: ClientLedgerRead, command: ClientPendingCommand, batch: ClientCashImportBatch? = null,
+    ): ClientCashWriteResult {
+        save(ledger, null, command, batch)
         store.checkpoint()
         return complete(ledger, original(ledger, command.id), lookupFirst = false)
     }
@@ -216,8 +223,12 @@ class ClientCashWriteOperations(
     }
 
     private suspend fun complete(ledger: ClientLedgerRead, command: ClientPendingCommand, lookupFirst: Boolean): ClientCashWriteResult {
+        val verified = withMaintenancePlan(command, session::component)
         val result = try {
-            executeCashCommand(command, lookupFirst,
+            val original = if (lookupFirst && verified.planId != null && command.receipt == null && command.rejection == null) {
+                resolveMaintenanceCommand(ledger, verified)
+            } else verified
+            executeCashCommand(original, lookupFirst && verified.planId == null,
                 findReceipt = { key ->
                     if (ledger.offline) throw ClientNetworkUnavailable()
                     session.cashImportReceipt(ledger, key)
@@ -228,12 +239,29 @@ class ClientCashWriteOperations(
                 })
         } catch (failure: ClientOperationFailure) {
             if (failure.commitState == "not_committed" && command.rejection == null)
-                save(ledger, command, command.copy(rejection = failure.code, receipt = null, body = "", accountIds = emptyList()))
+                save(ledger, command, verified.copy(rejection = failure.code, receipt = null, body = "", accountIds = emptyList()))
             throw failure
         }
         if (command.receipt == null)
-            save(ledger, command, command.copy(receipt = result.receipt, body = "", accountIds = emptyList()))
+            save(ledger, command, verified.copy(receipt = result.receipt, body = "", accountIds = emptyList()))
         return result
+    }
+
+    private suspend fun resolveMaintenanceCommand(ledger: ClientLedgerRead, command: ClientPendingCommand): ClientPendingCommand {
+        val resolution = try {
+            session.boundCashMaintenance(ledger).resolve(ledger.ledger.snapshot.workspaceId, checkNotNull(command.planId), command.id)
+        } catch (failure: ClientNetworkUnavailable) {
+            throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
+        } catch (failure: ClientOperationFailure) {
+            if (failure.status in setOf(401, 403)) throw failure
+            throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
+        }
+        return when (resolution.status) {
+            "committed" -> command.copy(receipt = checkNotNull(resolution.receipt))
+            "retry_original" -> command
+            "not_committed" -> throw ClientOperationFailure("commit_not_applied", 409, commitState = "not_committed", operationId = command.id)
+            else -> throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
+        }
     }
 
     private suspend fun save(
@@ -253,6 +281,23 @@ class ClientCashWriteOperations(
     }
 }
 
+private val legacyMaintenancePath = Regex("/api/v1/cash-mutations/plans/(mp_[A-Za-z0-9_-]{43}\\.[A-Za-z0-9_-]{16})/commit")
+
+private fun withMaintenancePlan(command: ClientPendingCommand, encode: (String) -> String): ClientPendingCommand {
+    if (command.kind != "mutation") return command
+    val planId = command.planId ?: legacyMaintenancePath.matchEntire(command.path)?.groupValues?.get(1)
+    if (planId == null || command.path != "/api/v1/cash-mutations/plans/${encode(planId)}/commit" ||
+        command.method != "POST" || !com.finance.tracker.business.domain.isCashWriteSetKey(command.id))
+        throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
+    return command.copy(planId = planId)
+}
+
+fun freezeMaintenanceCommand(planId: String, revision: Long, key: String, encode: (String) -> String): ClientPendingCommand {
+    if (revision < 1 || revision == Long.MAX_VALUE || planId.isBlank() || !com.finance.tracker.business.domain.isCashWriteSetKey(key))
+        throw ClientOperationFailure("plan_input_invalid")
+    return ClientPendingCommand(key, "mutation", "/api/v1/cash-mutations/plans/${encode(planId)}/commit",
+        buildJsonObject { put("expected_plan_revision", revision) }.toString(), emptyList(), planId = planId)
+}
 
 /** The host supplies the original scope, frozen command, and access to its permanent receipt. */
 suspend fun executeCashCommand(
@@ -284,6 +329,7 @@ suspend fun executeCashCommand(
     }
     val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
     if (receipt.operationKind != command.kind || !receipt.committed || receipt.receiptId.isBlank() ||
+        command.planId != null && receipt.planId != command.planId ||
         creation && receipt.ledgerSeq == null)
         throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
     if (creation && receipt.status == "failed") {
