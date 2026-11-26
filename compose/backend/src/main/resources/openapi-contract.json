@@ -7462,6 +7462,17 @@
     "/api/v1/auth/invitations": {
       "post": {
         "operationId": "invitation_api_v1_auth_invitations_post",
+        "parameters": [
+          {
+            "description": "Expected active workspace. The server checks it within the management write transaction.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7470,6 +7481,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "409": {
+            "description": "The active workspace differs from the expected workspace (workspace_conflict)."
           }
         },
         "summary": "Invitation"
@@ -7609,39 +7623,13 @@
               "title": "User Id",
               "type": "string"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
           },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Remove Member"
-      },
-      "put": {
-        "operationId": "update_member_api_v1_auth_members__user_id__put",
-        "parameters": [
           {
-            "in": "path",
-            "name": "user_id",
-            "required": true,
+            "description": "Expected active workspace. The server checks it within the management write transaction.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
             "schema": {
-              "title": "User Id",
               "type": "string"
             }
           }
@@ -7664,6 +7652,56 @@
               }
             },
             "description": "Validation Error"
+          },
+          "409": {
+            "description": "The active workspace differs from the expected workspace (workspace_conflict)."
+          }
+        },
+        "summary": "Remove Member"
+      },
+      "put": {
+        "operationId": "update_member_api_v1_auth_members__user_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Expected active workspace. The server checks it within the management write transaction.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "409": {
+            "description": "The active workspace differs from the expected workspace (workspace_conflict)."
           }
         },
         "summary": "Update Member"
@@ -7704,6 +7742,17 @@
     "/api/v1/auth/workspace": {
       "delete": {
         "operationId": "delete_workspace_api_v1_auth_workspace_delete",
+        "parameters": [
+          {
+            "description": "Expected active workspace. The server checks it within the management write transaction.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7712,6 +7761,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "409": {
+            "description": "The active workspace differs from the expected workspace (workspace_conflict)."
           }
         },
         "summary": "Delete Workspace"
@@ -7732,6 +7784,17 @@
       },
       "put": {
         "operationId": "update_workspace_api_v1_auth_workspace_put",
+        "parameters": [
+          {
+            "description": "Expected active workspace. The server checks it within the management write transaction.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7740,6 +7803,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "409": {
+            "description": "The active workspace differs from the expected workspace (workspace_conflict)."
           }
         },
         "summary": "Update Workspace"
