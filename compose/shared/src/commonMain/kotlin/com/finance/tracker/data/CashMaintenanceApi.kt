@@ -1,10 +1,10 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.maintenancePreviewBody
 import io.ktor.http.HttpMethod
 import kotlinx.serialization.json.*
 
 private const val MAINTENANCE = "/api/v1/cash-mutations"
-private val maintenanceJson = Json(apiJson) { encodeDefaults = true; explicitNulls = false }
 
 suspend fun FinanceApiClient.readCashAssociationTargets(transactionId: String, search: com.finance.tracker.domain.CashAssociationSearch): CashAssociationPageDto =
     request(HttpMethod.Get, appendQuery("/api/v1/cash-records/${encodePathSegment(transactionId)}/association-targets", buildList {
@@ -41,13 +41,13 @@ suspend fun FinanceApiClient.previewCashMaintenance(input: CashMaintenanceInput)
         requireCashRevision(it.expectedIssueRevision)
         if (it.resolution !in setOf("apply_source", "keep_existing", "create_independent", "merge_into")) invalidCashInput()
         if (it.resolution == "merge_into") {
-            if (it.targetTransactionId == null || it.expectedTargetRevision == null) invalidCashInput()
-            requireCashRevision(it.expectedTargetRevision)
+            val targetRevision = it.expectedTargetRevision ?: invalidCashInput()
+            if (it.targetTransactionId == null) invalidCashInput()
+            requireCashRevision(targetRevision)
         } else if (it.targetTransactionId != null || it.expectedTargetRevision != null) invalidCashInput()
     }
     if (input.relationChoices.any { it.action !in setOf("accept", "defer", "ignore", "remove") }) invalidCashInput()
-    val encoded = maintenanceJson.encodeToJsonElement(input).jsonObject
-    return request(HttpMethod.Post, "$MAINTENANCE/plans", JsonObject(encoded.filterKeys { it != "relation_additions" || input.relationAdditions.isNotEmpty() }))
+    return request(HttpMethod.Post, "$MAINTENANCE/plans", maintenancePreviewBody(input))
 }
 
 suspend fun FinanceApiClient.readCashMaintenancePlan(planId: String): CashMaintenancePlanDto =

@@ -2,7 +2,7 @@ package com.finance.tracker
 
 import com.finance.tracker.business.domain.CashProjectionDomainFailure
 import com.finance.tracker.core.localCashLedgerDateBounds
-import com.finance.tracker.core.cashLedgerTimeZoneIds
+import com.finance.tracker.client.cashLedgerTimeZoneIds
 import com.finance.tracker.core.cashLedgerPlatformTimeZoneExists
 import kotlin.time.Instant
 import kotlin.test.*

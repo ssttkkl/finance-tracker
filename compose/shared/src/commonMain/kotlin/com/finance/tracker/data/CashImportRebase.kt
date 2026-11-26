@@ -1,17 +1,16 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
+import com.finance.tracker.client.rebaseCashImportReview
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.core.LocalCashLedgerOwner
 import com.finance.tracker.domain.PreparedLedgerSnapshot
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
-import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
 import com.finance.tracker.business.domain.recalculate
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlin.time.Clock
 
 internal sealed interface CashImportRebaseSnapshot {
     val base: String
@@ -38,13 +37,15 @@ internal suspend fun rebaseCashImportLocally(source: CashImportRebaseInput, batc
     val review = LocalCashImportReview.decode(source.review)
     val files = source.files.map { LocalCashImportFile.decode(it).parsedFile() }
     require(files.size <= 20 && files.map { it.fileRef }.toSet().size == files.size) { "cash_import_files_invalid" }
-    val result = review.recalculate(snapshot) { facts, choices, previous, ids ->
-        if (calculate != null) calculate(files, facts, choices, previous, ids)
-        else calculateLocalCashImportBusinessPlan(files, facts, choices, previous, ids, {
+    val request = if (calculate == null) {
+        rebaseCashImportReview(files, snapshot, review) {
             context.ensureActive()
             requireOpen()
-        }, Clock.System::now)
+        }
+    } else {
+        val result = review.recalculate(snapshot) { facts, choices, previous, ids -> calculate(files, facts, choices, previous, ids) }
+        if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
+        CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes)
     }
-    if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
-    return LocalCashImportSubmission.freeze(batchId, CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes), input)
+    return LocalCashImportSubmission.freeze(batchId, request, input)
 }

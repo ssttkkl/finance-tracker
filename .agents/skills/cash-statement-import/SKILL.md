@@ -5,7 +5,9 @@ description: 用户明确要求导入现金账单时使用；通过当前客户�
 
 # 现金账单导入
 
-通过当前 Compose 客户端的本地生命周期导入用户指定的现金账单：文件准备、账户选择、完整核对、在线写集提交及原批次结果恢复。服务端旧会话／计划／确认方法已退役，不能继续调用。当前边界见[API 合同](references/api-contract.md)，覆盖与限制见[功能地图](../../../docs/feature-map.md)。
+通过当前 Compose 客户端或已安装的 `ft` 导入用户指定的现金账单：文件准备、账户选择、完整核对、在线写集提交及原批次结果恢复。服务端旧会话／计划／确认方法已退役，不能继续调用。当前边界见[API 合同](references/api-contract.md)，覆盖与限制见[功能地图](../../../docs/feature-map.md)。
+
+通过终端执行时，使用当前认证工作区。先用 `ft import prepare` 保存文件，以返回的批次继续 `map`、`review` 和 `items`。确认时提交最新整批 `review_revision`。断电或退出后用 `ft import resume` 接续原批次，实际明细通过 `ft import result` 分页读取。账户变更与原批次关联，撤回和取消按各自命令执行。参数见[账本 CLI](../../../compose/README.md#账本-cli)。
 
 ## 授权和边界
 

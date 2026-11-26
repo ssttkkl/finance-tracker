@@ -124,6 +124,48 @@ The Kotlin backend and the pure business modules (`business-contracts`, `busines
 
 `shared` is intentionally outside this gate because it contains Compose UI; Compose rules and Android Lint are not enabled. ktlint formatting rules are limited to unused imports, trailing spaces and final newline until the migrated code is reformatted.
 
+## 账本 CLI
+
+CLI 通过本地 npm 包安装为 `ft`。构建使用 JDK 21，运行使用 Node.js 26.2.0 或更新版本。
+
+```bash
+cd compose
+./gradlew :cli:stageNpm
+npm pack ./cli/build/npm --pack-destination ./cli/build
+npm install --global ./cli/build/finance-tracker-cli-0.1.0.tgz
+ft --version
+```
+
+设置 `FT_CLI_SERVER` 或在命令末尾传入 `--server URL`。服务地址使用 HTTPS，环回地址可使用 HTTP。后端须包含预期工作区守卫。登录和注册通过 `--password-stdin` 从标准输入接收密码。无交互调用缺少必需参数时退出。JSON 模式用 stdout 返回结果或结构化错误，金额、账本版本和操作引用按字符串保留。错误的 `commit_state` 为 `unknown` 时可接续同一操作。
+
+```bash
+ft auth status --json
+ft workspace use "$WORKSPACE_ID"
+ft cash summary --workspace "$WORKSPACE_ID" --timezone Asia/Shanghai --json
+ft cash list --workspace "$WORKSPACE_ID" --start-index 0 --json
+ft cash show "$PROJECTION_ID" --json
+```
+
+联网读取先核对认证会话和工作区版本。实际网络不可达时可用原登录令牌读取加密快照，结果包含 `offline` 和 `synced_at`。JSON 中的 `synced_at` 是该份快照取得的时间。请求失败或明确失去访问权时，错误由对应命令报告。
+
+macOS 默认使用登录钥匙串。无交互环境可由密钥管理器为每次进程注入同一个 `FT_CLI_STORAGE_KEY`，值为 32 字节随机密钥的 Base64 表示。默认状态目录是 `~/.finance-tracker-cli`，可通过 `FT_CLI_STATE_DIR` 选择独立目录。会话、快照、文件捕获和恢复材料按服务地址、原登录身份及工作区隔离。退出或确认失去访问权时清理对应材料。
+
+```bash
+ft import prepare statement.xlsx --workspace "$WORKSPACE_ID" --json
+ft import map "$BATCH_ID" --revision "$BATCH_REV" \
+  --source-account "$SOURCE_REF" --account "$ACCOUNT_ID" --account-revision "$ACCOUNT_REV" --json
+ft import review "$BATCH_ID" --json
+ft import items "$BATCH_ID" --status pending --json
+ft import confirm "$BATCH_ID" --review "$REVIEW_REV" --json
+ft import result "$BATCH_ID" --kind row --json
+```
+
+准备结果列出文件、来源账户与批次修订。每次文件或选择变化都使用最新修订；确认使用整批核对返回的 `review_revision`。CSV／XLSX 本地解析，PDF／旧 XLS 需要服务端解析。PDF 密码按文件从标准输入提供。退出后用 `ft import batches` 查批次，用 `ft import resume "$BATCH_ID"` 接续准备或核实收据。标为已保存但明细待补齐时，也用原批次继续。账户创建与补币种即时生效，用 `ft import account undo` 按原修订逐项撤回。
+
+记账、转账和维护确认由服务端保存。进程在结果返回前关闭时，用 `ft cash pending` 找原操作，再用 `ft cash resume "$OPERATION_ID"` 核实。分类和删除等需要确认实际影响的命令使用当前账本或目录修订；操作结果待核实时先重新读取目标。命令参数与子命令帮助见 `ft auth --help`、`ft workspace --help`、`ft cash --help`、`ft category --help`、`ft account --help`、`ft import --help`。
+
+Kotlin 调用方可依赖 `:client-ledger`。`CashLedgerOperations` 和 `CashImportReviewOperations` 读取已取得的账本与账单，`ClientSessionOperations`、`ClientCashWriteOperations` 和 `ClientCashImportOperations` 通过宿主提供的挂起式 HTTP 和存储接口运行。宿主实现存储接口时，需保留操作范围检查、条件更新和提交前检查点。CLI 的参数解析与打印位于 `:cli`。
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),

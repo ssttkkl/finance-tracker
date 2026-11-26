@@ -108,6 +108,7 @@ kotlin {
         }
         commonMain.dependencies {
             api(project(":business-contracts"))
+            implementation(project(":client-ledger"))
             implementation(project(":business-domain"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

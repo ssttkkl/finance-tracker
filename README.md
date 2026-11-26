@@ -2,7 +2,7 @@
 
 多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
-项目由 Kotlin/Ktor 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
+项目包含 Kotlin/Ktor 后端、Compose Multiplatform 客户端和账本 CLI。后端是金额、余额、权限、来源、关系和审计的唯一事实源。Compose 的 Web、Android、iOS 目标和 `ft` 通过同一套 HTTP API 访问账本。
 
 现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
@@ -65,6 +65,8 @@ node compose/qa/web/scripts/start-compose-offline-demo.mjs
 Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-demo.mjs`；无 API 后端演示使用 `node compose/qa/web/scripts/start-compose-offline-demo.mjs`。Compose Web QA 工具位于 `compose/qa/web/`。Android/iOS 演示方式见 [`compose/README.md`](compose/README.md)，历史 UI 设计资料见 [`design/README.md`](design/README.md)。
 
 本地 Compose 调试通过 `FT_API_PROXY_ORIGIN` 配置 API 代理；生产目标只接受 HTTPS。具体 target 和运行参数见 [`compose/README.md`](compose/README.md)。
+
+终端操作可以用本地 npm 包安装 `ft`。安装命令、账本缓存、现金导入及原操作恢复方式见 [账本 CLI](compose/README.md#账本-cli)。
 
 ## API 能力
 

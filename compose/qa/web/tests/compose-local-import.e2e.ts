@@ -666,17 +666,22 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     expect(writeKeys).toHaveLength(1);
     expect(receiptLookups).toHaveLength(1);
   }
-  if (interruptCompletion || interruptArchive) {
+  if (interruptCompletion) {
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result.getByText("暂时无法显示最新流水。", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(result.getByRole("button", { name: "返回账本" })).toBeEnabled();
+    await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
+    expect(completionFailures.length).toBeGreaterThan(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
+  }
+  if (interruptArchive) {
     await archiveCrash;
     const result = page.locator('[id="cash.import.result"]:visible').last();
     await expect(result).toBeVisible({ timeout: 30_000 });
     const pending = result.getByText("账本已保存，结果整理尚未完成。", { exact: true });
     const resume = page.locator('[id="cash.import.resolve"]:visible').last();
     expect(writeKeys).toHaveLength(1);
-    if (interruptCompletion) {
-      await expect(pending).toBeVisible();
-      expect(completionFailures.length).toBeGreaterThan(0);
-    }
     if (await pending.isVisible()) {
       await expect(resume).toHaveText("继续整理结果");
       await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
@@ -712,6 +717,15 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   ] : ["404 /api/v1/cash-mutations/receipts/by-key",
     ...completionFailures.map((path) => "503 " + path)];
   expect(diagnostics.expectedApiErrors).toEqual(expectedApiErrors);
+  if (interruptCompletion) {
+    blockCompletionRefresh = false;
+    await page.reload();
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result.getByRole("button", { name: "查看账本" })).toBeEnabled({ timeout: 30_000 });
+    await expect(result.getByText("暂时无法显示最新流水。", { exact: true })).toHaveCount(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });
+  }
 
   const previousBrowser = context.browser();
   expect(previousBrowser).not.toBeNull();

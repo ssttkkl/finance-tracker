@@ -1,5 +1,6 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.freezeCashImportChoices
 import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
@@ -280,22 +281,16 @@ internal class LedgerSessionCacheOwner(
         identity: CashImportPreviewIdentity): OpenedCashImportPreview = withImportFiles { batches ->
         val resource = checkNotNull(owned)
         val source = CashImportPreviewSource(batches, resource.browsing, batchId, scope.workspaceId)
-        val result = openCashImportPreview(source, frozenImportChoices(input), previous, identity, ::requireOpen)
+        val result = openCashImportPreview(source, freezeCashImportChoices(input), previous, identity, ::requireOpen)
         check(resource.storage.readOfflineSession(scope, token) != null) { "ledger_cache_identity_missing" }
         result
-    }
-
-    private fun frozenImportChoices(input: JsonObject): JsonObject {
-        val copied = Json.parseToJsonElement(input.toString()).jsonObject
-        return JsonObject(listOf("account_selections", "row_choices", "relation_choices", "entry_choices")
-            .associateWith { copied[it] ?: JsonArray(emptyList()) })
     }
 
     private suspend fun <T> calculateImportFromSnapshot(batchId: String, input: JsonObject,
         calculate: suspend (List<LocalCashImportFile>, com.finance.tracker.business.contracts.LedgerSnapshotDto, JsonObject) -> T): T {
         requireOpen()
         currentCoroutineContext().ensureActive()
-        val frozen = frozenImportChoices(input)
+        val frozen = freezeCashImportChoices(input)
         return withImportFiles { batches ->
             val files = checkNotNull(batches.read(batchId)) { "cash_import_files_missing" }
             val resource = checkNotNull(owned)

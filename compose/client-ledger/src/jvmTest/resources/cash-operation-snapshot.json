@@ -1,0 +1,100 @@
+{
+  "workspace_id": "workspace-a",
+  "ledger_seq": "9007199254740995",
+  "rules_version": "cash-rules-v1",
+  "facts": {
+    "accounts": [
+      {
+        "id": "10",
+        "name": "Synthetic cash",
+        "type": "cash",
+        "active": true,
+        "currencies": [
+          "CNY"
+        ],
+        "revision": "1"
+      }
+    ],
+    "cash_categories": [],
+    "account_aliases": [],
+    "statement_account_mappings": [],
+    "cash_transactions": [
+      {
+        "id": "9007199254740991",
+        "account_id": "10",
+        "state": "posted",
+        "record_origin": "import",
+        "manual_transfer_id": null,
+        "row_revision": "1",
+        "cash_granularity": "atomic",
+        "source_type": "alipay",
+        "record_id": "合成-交易号",
+        "source_payload": {
+          "merchant": "Synthetic store"
+        },
+        "relation_metadata": null,
+        "source_fingerprint": null,
+        "manual_overrides": [],
+        "occurred_at": "2026-07-31T18:00:00Z",
+        "amount": "-12.340000000000000001",
+        "currency": "CNY",
+        "counterparty": "Synthetic store",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "created_at": "2026-07-31T18:00:00Z",
+        "deleted_at": null,
+        "deleted_by": "",
+        "delete_reason": ""
+      }
+    ],
+    "cash_transaction_components": [
+      {
+        "id": "7001",
+        "cash_transaction_id": "9007199254740991",
+        "account_id": "10",
+        "amount": "-12.340000000000000001",
+        "currency": "CNY",
+        "ordinal": "0",
+        "label": "",
+        "source_key": "",
+        "metadata_json": {},
+        "created_at": "2026-07-31T18:00:00Z"
+      }
+    ],
+    "cash_source_bindings": [],
+    "cash_source_empty_pages": [],
+    "transaction_relations": [],
+    "cash_relation_candidates": [],
+    "cash_transaction_issues": [],
+    "cash_issue_candidates": [],
+    "cash_entries": [
+      {
+        "id": "example-entry",
+        "root_transaction_id": "9007199254740991",
+        "identity_transaction_id": "9007199254740991",
+        "revision": "1",
+        "category_id": null,
+        "note": "",
+        "counterparty": "Synthetic store",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "manual_fields": [],
+        "split_inherit": null
+      }
+    ],
+    "cash_entry_members": [
+      {
+        "transaction_id": "9007199254740991",
+        "entry_id": "example-entry",
+        "standalone_values": {},
+        "standalone_manual_fields": []
+      }
+    ],
+    "cash_investment_funding_relations": [],
+    "category_directory_revision": "8"
+  }
+}
