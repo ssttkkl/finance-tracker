@@ -80,7 +80,7 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 
 账户写入切片于 2026-11-26 通过 `:shared:testAndroidHostTest` 的账户与会话回归、`:shared:iosSimulatorArm64Test`、共享 JVM 及安装包 SQLite／PostgreSQL 4 项。旧包会接纳缺少账户的收据，修复后保留原待核实命令并取回正确收据。两库验证同一批次两轮扩币与撤回、外部改动阻止补偿。Compose 查据 503 先失败后转绿。Chrome 在 `http://127.0.0.1:5205` 验证创建账户后继续记账、账户保存遇到中断时以同键重试。补币种与撤回的实际页面验证见后续覆盖。
 
-最终工作差异以 `3ebf0c8f` 为基线，于 2026-11-26 验证。JDK 21、Node.js 26.8.1、Chrome 158.0.8127.37。完整 `./gradlew :backend:test --offline` 以专用 PostgreSQL 17.12 和 SQLite 执行，1,533 项通过，零跳过。
+最终实现提交为 `a434e72a`，以 `d07d8a43` 为变更比较基线，最后小步从 `3ebf0c8f` 开始，于 2026-11-26 验证。JDK 21、Node.js 26.8.1、Chrome 158.0.8127.37。完整 `./gradlew :backend:test --offline` 以专用 PostgreSQL 17.12 和 SQLite 执行，1,533 项通过，零跳过。
 
 - `./gradlew :shared:testAndroidHostTest` 受影响筛选通过 265 项，覆盖手工与转账、SQLite 恢复记录、维护、账户、现金导入和会话。采用 `-Pkotlin.incremental=false --offline`，`:shared:iosSimulatorArm64Test` 的 1,021 项、`:client-operations:jvmTest` 和 `:cli:stageNpm` 通过。Web `npm run test:node` 通过 44 项。
 - Chrome 在 `http://127.0.0.1:5207` 的 22 个已通过场景覆盖登录与邀请、成员和只读权限、收支汇总、Worker、真实编辑、分类及导入。账户撤回用例确认实际界面已打开后，改用渲染坐标避开既有弹层辅助语义残留。受影响流程在 `http://127.0.0.1:5209` 再通过 10 项，在 `http://127.0.0.1:5211` 通过真实补币种并撤回的用例。代表视口为 390、768、960、1100、1440 宽度。停用原账户后冷启动核实转账，返回同一收据和确切的 `-5.80`／`5.80` 两笔，未重发。导入覆盖文件读取、冲突复核及已提交后离线重新打开。浏览器预览产生既有构建体积提示。
@@ -90,6 +90,6 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 ## 7. 发布
 
 - [x] 7.1 核对功能地图、文档、历史兼容、观察项和用户决策的适用边界。
-- [ ] 7.2 同步主规格并归档，准备目标为 `main` 的 PR #126 正文和验证证据。
+- [x] 7.2 同步主规格并归档，准备目标为 `main` 的 PR #126 正文和验证证据。
 
 用户确认的生产入口共享原则适用于本变更的一期现金业务，保留在对应规格。界面、终端、原生存储和调度继续适用各自边界。现有通用规范无需新增条款。文档已核对安装示例、现金账户目录、恢复入口和功能地图。回滚前在本版本核实已有的未决操作，旧版本照常读取原本机材料，新增恢复表由当前客户端读取。
