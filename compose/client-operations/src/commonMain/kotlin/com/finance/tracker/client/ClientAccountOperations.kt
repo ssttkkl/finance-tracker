@@ -1,6 +1,7 @@
 package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.AccountCommandViewDto
+import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.ImportCurrencyRequirementDto
 import com.finance.tracker.business.contracts.ImportCurrencyRequirementResultDto
 import com.finance.tracker.business.contracts.ImportCurrencyRequirementsViewDto
@@ -8,6 +9,7 @@ import com.finance.tracker.business.contracts.LedgerAccountFactDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.buildLocalCashAccountReferences
 import com.finance.tracker.business.domain.isCashWriteSetKey
+import com.finance.tracker.business.domain.pythonWhitespace
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -114,4 +116,27 @@ fun cashAccountSelection(account: LedgerAccountFactDto, canWrite: Boolean): Acco
     val reference = buildLocalCashAccountReferences(listOf(account)).single()
     return AccountCommandViewDto(account.id, account.name, account.type, account.active, reference.currencies.orEmpty(),
         account.revision.toLong(), false, mapOf("can_update" to canWrite, "can_delete" to false))
+}
+
+fun cashAccountDirectory(accounts: List<LedgerAccountFactDto>): List<AccountReferenceDto> =
+    buildLocalCashAccountReferences(accounts)
+
+fun cashAccountFact(accounts: List<LedgerAccountFactDto>, accountId: String): LedgerAccountFactDto? =
+    accounts.singleOrNull { it.id == accountId && it.type in setOf("cash", "loan", "lend") }
+
+fun isSelectableCashAccount(account: AccountCommandViewDto): Boolean =
+    !account.deleted && account.active && account.type in setOf("cash", "loan", "lend")
+
+fun missingCashAccountCurrencies(account: AccountCommandViewDto, required: List<String>): List<String> {
+    if (required.size > 100) throw ClientOperationFailure("account_payload_invalid", 422)
+    return required.map { value ->
+        val currency = value.trim { it.code in pythonWhitespace }
+        if (!currency.matches(Regex("[A-Za-z]{3}"))) throw ClientOperationFailure("account_payload_invalid", 422)
+        currency.uppercase()
+    }.distinct().filterNot { it in account.currencies }
+}
+
+fun validateCashAccountCurrencyChange(account: AccountCommandViewDto) {
+    if (account.deleted || account.capabilities["can_update"] != true)
+        throw ClientOperationFailure("workspace_forbidden", 403)
 }

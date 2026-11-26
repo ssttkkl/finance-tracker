@@ -2,6 +2,10 @@ package com.finance.tracker.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finance.tracker.client.CashMaintenanceRecoveryStatus
+import com.finance.tracker.client.cashMaintenanceRecovery
+import com.finance.tracker.client.cashWriteWasRejected
+import com.finance.tracker.client.resumeCashMaintenance
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.*
@@ -248,12 +252,10 @@ class CashRecordTaskViewModel(
         mutableState.value = state.value.copy(frozenCommand = command, retryOriginalAllowed = false)
         sendOriginal(command)
     }
-    private suspend fun sendOriginal(command: ImportFrozenCommand) {
+    private suspend fun sendOriginal(command: ImportFrozenCommand, publish: Boolean = true): ImportReceipt {
         val receipt = try { repository.commit(command) }
         catch (failure: DomainFailure) {
-            val rejectedBeforeWrite = failure.commitState != "unknown" && failure.status in setOf(409, 410) &&
-                failure.code in setOf("record_changed", "issue_changed", "relation_context_changed", "plan_changed", "plan_expired")
-            if (failure.commitState == "not_committed" || rejectedBeforeWrite) {
+            if (cashWriteWasRejected("mutation", failure.status, failure.code, failure.commitState)) {
                 recovery.clear()
                 mutableState.value = state.value.copy(frozenCommand = null, retryOriginalAllowed = false,
                     plan = null, details = emptyList(), input = null, previewDirty = false, selectionPlan = false,
@@ -262,49 +264,49 @@ class CashRecordTaskViewModel(
             throw failure
         }
         if (receipt.planId != command.planId) invalid("request_failed")
-        publishReceipt(receipt)
+        if (publish) publishReceipt(receipt)
+        return receipt
     }
     fun retryOriginal() {
-        val command = state.value.frozenCommand ?: return
-        if (state.value.busy || !state.value.retryOriginalAllowed) return
-        execute {
-            mutableState.value = state.value.copy(retryOriginalAllowed = false)
-            sendOriginal(command)
-        }
+        if (state.value.busy || !state.value.retryOriginalAllowed || state.value.frozenCommand == null) return
+        execute { resolveOriginal { true } }
     }
 
     fun continueSave(canSubmit: () -> Boolean) {
-        val command = state.value.frozenCommand ?: return
-        if (state.value.busy || !canSubmit()) return
-        execute {
-            if (!state.value.retryOriginalAllowed) resolveOriginal()
-            if (canSubmit() && state.value.frozenCommand == command && state.value.retryOriginalAllowed) {
-                mutableState.value = state.value.copy(retryOriginalAllowed = false)
-                sendOriginal(command)
-            }
-        }
+        if (state.value.busy || state.value.frozenCommand == null || !canSubmit()) return
+        execute { resolveOriginal(canSubmit) }
     }
 
     fun resolve() {
         if (state.value.busy || !state.value.unresolved) return
         execute { resolveOriginal() }
     }
-    private suspend fun resolveOriginal() {
+
+    private suspend fun resolveOriginal(canReplay: () -> Boolean = { false }) {
         val command = state.value.frozenCommand ?: return
-        val result = repository.resolve(command)
+        val result = resumeCashMaintenance(
+            originalRetryVerified = state.value.retryOriginalAllowed && canReplay(),
+            canReplay = { state.value.frozenCommand == command && canReplay() },
+            verify = {
+                val response = repository.resolve(command)
+                if (response.receipt != null && response.receipt.planId != command.planId) invalid("request_failed")
+                cashMaintenanceRecovery(response.status, response.receipt)
+            },
+            submit = {
+                mutableState.value = state.value.copy(retryOriginalAllowed = false)
+                sendOriginal(command, publish = false)
+            },
+        )
         when (result.status) {
-            "committed" -> {
-                val receipt = result.receipt ?: invalid("request_failed")
-                if (receipt.planId != command.planId) invalid("request_failed")
-                publishReceipt(receipt)
-            }
-            "not_committed" -> {
+            CashMaintenanceRecoveryStatus.COMMITTED -> publishReceipt(result.receipt ?: invalid("request_failed"))
+            CashMaintenanceRecoveryStatus.NOT_COMMITTED -> {
                 recovery.clear()
                 mutableState.value = state.value.copy(frozenCommand = null, plan = null, details = emptyList(), input = null,
                     errorCode = "commit_not_applied")
             }
-            "pending", "retry_original" -> mutableState.value = state.value.copy(errorCode = "commit_result_unknown", retryOriginalAllowed = result.status == "retry_original")
-            else -> invalid("request_failed")
+            CashMaintenanceRecoveryStatus.PENDING, CashMaintenanceRecoveryStatus.RETRY_ORIGINAL ->
+                mutableState.value = state.value.copy(errorCode = "commit_result_unknown",
+                    retryOriginalAllowed = result.status == CashMaintenanceRecoveryStatus.RETRY_ORIGINAL)
         }
     }
     private suspend fun publishReceipt(receipt: ImportReceipt) {

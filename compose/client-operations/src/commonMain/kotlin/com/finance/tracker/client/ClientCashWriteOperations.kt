@@ -6,6 +6,9 @@ import com.finance.tracker.business.contracts.ImportCurrencyRequirementDto
 import com.finance.tracker.business.domain.CashAmount
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -21,6 +24,9 @@ data class NewCashRecord(
     val counterparty: String? = null,
     val note: String? = null,
     val categoryId: String? = null,
+    val includeCategory: Boolean = categoryId != null,
+    val counterpartyAccount: String? = null,
+    val counterpartyAccountAttributes: List<String>? = null,
 )
 
 data class NewCashTransfer(
@@ -127,43 +133,16 @@ class ClientCashWriteOperations(
         return commands
     }
 
-    suspend fun add(workspace: String?, input: NewCashRecord): ClientCashWriteResult {
-        if (CashAmount.parseOrNull(input.amount) == null) throw ClientOperationFailure("invalid_amount")
-        return execute(workspace, "cash_create_manual", "/api/v1/cash-records/commands", listOf(input.accountId)) { ledger, _ ->
-            val account = accountNames(ledger, listOf(input.accountId)).single()
-            buildJsonObject {
-                put("account_name", account)
-                put("amount", input.amount)
-                put("currency", input.currency)
-                put("occurred_at", input.occurredAt)
-                put("record_type", input.recordType)
-                input.recordSubtype?.let { put("record_subtype", it) }
-                input.counterparty?.let { put("counterparty", it) }
-                input.note?.let { put("note", it) }
-                input.categoryId?.let { put("category_id", it) }
-            }
+    suspend fun add(workspace: String?, input: NewCashRecord): ClientCashWriteResult =
+        execute(workspace) { ledger, key ->
+            freezeCashRecord(input, accountNames(ledger, listOf(input.accountId)).single(), key)
         }
-    }
 
-    suspend fun transfer(workspace: String?, input: NewCashTransfer): ClientCashWriteResult {
-        if (CashAmount.parseOrNull(input.amount) == null || input.toAmount?.let { CashAmount.parseOrNull(it) == null } == true)
-            throw ClientOperationFailure("invalid_amount")
-        val ids = listOf(input.fromAccountId, input.toAccountId)
-        return execute(workspace, "cash_create_transfer", "/api/v1/cashflow/transfer/commands", ids) { ledger, _ ->
-            val (from, to) = accountNames(ledger, ids)
-            buildJsonObject {
-                put("from_account", from)
-                put("to_account", to)
-                put("amount", input.amount)
-                put("from_currency", input.fromCurrency)
-                put("to_currency", input.toCurrency)
-                put("date", input.date)
-                put("time", input.time)
-                input.toAmount?.let { put("to_amount", it) }
-                input.note?.let { put("note", it) }
-            }
+    suspend fun transfer(workspace: String?, input: NewCashTransfer): ClientCashWriteResult =
+        execute(workspace) { ledger, key ->
+            val (from, to) = accountNames(ledger, listOf(input.fromAccountId, input.toAccountId))
+            freezeCashTransfer(input, from, to, key)
         }
-    }
 
     suspend fun commitMaintenance(workspace: String?, planId: String, revision: Long): ClientCashWriteResult {
         val command = freezeMaintenanceCommand(planId, revision, nextId(), session::component)
@@ -187,13 +166,11 @@ class ClientCashWriteOperations(
     }
 
     private suspend fun execute(
-        workspace: String?, kind: String, path: String, accountIds: List<String>,
-        payload: (ClientLedgerRead, String) -> JsonObject,
+        workspace: String?, freeze: (ClientLedgerRead, String) -> ClientPendingCommand,
     ): ClientCashWriteResult {
         val ledger = session.ledger(workspace)
         session.requireOnlineWriter(ledger)
-        val id = nextId()
-        return freezeAndExecute(ledger, ClientPendingCommand(id, kind, path, payload(ledger, id).toString(), accountIds))
+        return freezeAndExecute(ledger, freeze(ledger, nextId()))
     }
 
     private suspend fun freezeAndExecute(
@@ -261,19 +238,27 @@ class ClientCashWriteOperations(
     }
 
     private suspend fun resolveMaintenanceCommand(ledger: ClientLedgerRead, command: ClientPendingCommand): ClientPendingCommand {
-        val resolution = try {
-            session.boundCashMaintenance(ledger).resolve(ledger.ledger.snapshot.workspaceId, checkNotNull(command.planId), command.id)
-        } catch (failure: ClientNetworkUnavailable) {
-            throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
-        } catch (failure: ClientOperationFailure) {
-            if (failure.status in setOf(401, 403)) throw failure
-            throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
-        }
+        val resolution = resumeCashMaintenance(canReplay = { true }, verify = {
+            try {
+                val response = session.boundCashMaintenance(ledger).resolve(ledger.ledger.snapshot.workspaceId,
+                    checkNotNull(command.planId), command.id)
+                cashMaintenanceRecovery(response.status, response.receipt)
+            } catch (failure: ClientNetworkUnavailable) {
+                throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
+            } catch (failure: ClientOperationFailure) {
+                if (failure.status in setOf(401, 403)) throw failure.withoutWriteProof()
+                throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
+            }
+        }, submit = {
+            executeCashCommand(command, lookupFirst = false, findReceipt = { error("original_retry_does_not_query") },
+                submit = { session.submitCommand(ledger, it) }).receipt
+        })
         return when (resolution.status) {
-            "committed" -> command.copy(receipt = checkNotNull(resolution.receipt))
-            "retry_original" -> command
-            "not_committed" -> throw ClientOperationFailure("commit_not_applied", 409, commitState = "not_committed", operationId = command.id)
-            else -> throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
+            CashMaintenanceRecoveryStatus.COMMITTED -> command.copy(receipt = checkNotNull(resolution.receipt))
+            CashMaintenanceRecoveryStatus.NOT_COMMITTED -> throw ClientOperationFailure("commit_not_applied", 409,
+                commitState = "not_committed", operationId = command.id)
+            CashMaintenanceRecoveryStatus.PENDING, CashMaintenanceRecoveryStatus.RETRY_ORIGINAL ->
+                throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
         }
     }
 
@@ -286,13 +271,48 @@ class ClientCashWriteOperations(
     }
 
     private fun accountNames(ledger: ClientLedgerRead, ids: List<String>): List<String> {
-        val accounts = ledger.ledger.snapshot.facts.accounts.associateBy { it.id }
+        val accounts = ledger.ledger.snapshot.facts.accounts
         return ids.map { id ->
-            accounts[id]?.let { cashAccountSelection(it, canWrite = true) }
-                ?.takeIf { it.active && it.type in setOf("cash", "loan", "lend") }?.name
+            cashAccountFact(accounts, id)?.takeIf { it.active }?.name
                 ?: throw ClientOperationFailure("account_not_available")
         }
     }
+}
+
+fun freezeCashRecord(input: NewCashRecord, accountName: String, key: String): ClientPendingCommand {
+    if (CashAmount.parseOrNull(input.amount) == null) throw ClientOperationFailure("invalid_amount")
+    val body = buildJsonObject {
+        put("account_name", accountName)
+        put("amount", input.amount)
+        put("currency", input.currency)
+        put("occurred_at", input.occurredAt)
+        put("record_type", input.recordType)
+        input.recordSubtype?.let { put("record_subtype", it) }
+        input.counterparty?.let { put("counterparty", it) }
+        input.counterpartyAccount?.let { put("counterparty_account", it) }
+        input.counterpartyAccountAttributes?.let { put("counterparty_account_attrs", JsonArray(it.map(::JsonPrimitive))) }
+        input.note?.let { put("note", it) }
+        if (input.includeCategory) put("category_id", input.categoryId?.let(::JsonPrimitive) ?: JsonNull)
+    }
+    return ClientPendingCommand(key, "cash_create_manual", "/api/v1/cash-records/commands", body.toString(), listOf(input.accountId))
+}
+
+fun freezeCashTransfer(input: NewCashTransfer, from: String, to: String, key: String): ClientPendingCommand {
+    if (CashAmount.parseOrNull(input.amount) == null || input.toAmount?.let { CashAmount.parseOrNull(it) == null } == true)
+        throw ClientOperationFailure("invalid_amount")
+    val body = buildJsonObject {
+        put("from_account", from)
+        put("to_account", to)
+        put("amount", input.amount)
+        put("from_currency", input.fromCurrency)
+        put("to_currency", input.toCurrency)
+        put("date", input.date)
+        put("time", input.time)
+        input.toAmount?.let { put("to_amount", it) }
+        input.note?.let { put("note", it) }
+    }
+    return ClientPendingCommand(key, "cash_create_transfer", "/api/v1/cashflow/transfer/commands", body.toString(),
+        listOf(input.fromAccountId, input.toAccountId))
 }
 
 private val legacyMaintenancePath = Regex("/api/v1/cash-mutations/plans/(mp_[A-Za-z0-9_-]{43}\\.[A-Za-z0-9_-]{16})/commit")
@@ -313,6 +333,16 @@ fun freezeMaintenanceCommand(planId: String, revision: Long, key: String, encode
         buildJsonObject { put("expected_plan_revision", revision) }.toString(), emptyList(), planId = planId)
 }
 
+fun cashWriteWasRejected(kind: String, status: Int?, code: String, commitState: String?): Boolean {
+    if (commitState != null) return commitState == "not_committed"
+    return when (kind) {
+        "cash_create_manual" -> status in setOf(400, 422) && code == "invalid_record"
+        "mutation" -> status in setOf(409, 410) &&
+            code in setOf("record_changed", "issue_changed", "relation_context_changed", "plan_changed", "plan_expired")
+        else -> false
+    }
+}
+
 /** The host supplies the original scope, frozen command, and access to its permanent receipt. */
 suspend fun executeCashCommand(
     command: ClientPendingCommand,
@@ -323,12 +353,13 @@ suspend fun executeCashCommand(
     command.rejection?.let {
         throw ClientOperationFailure(it, commitState = "not_committed", operationId = command.id)
     }
+    val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
     val receipt = command.receipt ?: try {
         val known = if (lookupFirst) {
             try {
                 findReceipt(command.id)
             } catch (failure: ClientOperationFailure) {
-                if (failure.status in setOf(401, 403)) throw failure
+                if (failure.status in setOf(401, 403)) throw failure.withoutWriteProof()
                 throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
             }
         } else null
@@ -336,12 +367,14 @@ suspend fun executeCashCommand(
     } catch (failure: ClientNetworkUnavailable) {
         throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
     } catch (failure: ClientOperationFailure) {
+        if (failure.status in setOf(401, 403) && failure.commitState == "unknown") throw failure
+        if (cashWriteWasRejected(command.kind, failure.status, failure.code, failure.commitState))
+            throw ClientOperationFailure(failure.code, failure.status, failure, "not_committed", command.id)
         if (failure.commitState == "unknown" || failure.status == 408 || failure.status?.let { it >= 500 } == true ||
             failure.code in setOf("transport_error", "protocol_error"))
             throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
         throw failure
     }
-    val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
     if (receipt.operationKind != command.kind || !receipt.committed || receipt.receiptId.isBlank() ||
         command.planId != null && receipt.planId != command.planId ||
         creation && receipt.ledgerSeq == null)

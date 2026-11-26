@@ -7,6 +7,8 @@ import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.*
 import com.finance.tracker.client.CashLedgerOperations
 import com.finance.tracker.client.cashCategoryDirectory
+import com.finance.tracker.client.cashAccountDirectory
+import com.finance.tracker.client.cashAccountFact
 import kotlinx.serialization.json.*
 import kotlin.js.JsExport
 import kotlin.time.Instant
@@ -54,10 +56,8 @@ private fun readCashLedger(query: String, snapshot: String?): String {
                 put("version", reader.snapshot.ledgerSeq)
                 put("refs", Json.encodeToJsonElement(reader.query.projectionRefs(Json.decodeFromJsonElement<List<String>>(input.getValue("ids")))))
             }.toString()
-            "selectionAccount" -> Json.encodeToString(facts.accounts.singleOrNull {
-                it.id == input.value("id") && it.type in setOf("cash", "loan", "lend")
-            })
-            "accounts" -> Json.encodeToString(buildLocalCashAccountReferences(facts.accounts))
+            "selectionAccount" -> Json.encodeToString(cashAccountFact(facts.accounts, input.value("id")))
+            "accounts" -> Json.encodeToString(cashAccountDirectory(facts.accounts))
             "categories" -> Json.encodeToString(cashCategoryDirectory(reader.snapshot))
             else -> error("ledger_query_invalid")
         }

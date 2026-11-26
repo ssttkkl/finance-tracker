@@ -1,5 +1,6 @@
 package com.finance.tracker.client
 
+import com.finance.tracker.business.contracts.AccountCommandViewDto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -10,6 +11,11 @@ data class ImportAccountChangeResult(
     val status: String,
     val code: String? = null,
 )
+
+sealed interface CashAccountCurrenciesResult {
+    data class Unchanged(val account: AccountCommandViewDto) : CashAccountCurrenciesResult
+    data class Updated(val write: ClientCashWriteResult) : CashAccountCurrenciesResult
+}
 
 class ClientImportAccountOperations(
     private val imports: ClientCashImportOperations,
@@ -25,11 +31,15 @@ class ClientImportAccountOperations(
 
     suspend fun ensureCurrencies(
         workspace: String?, batchId: String, revision: Long, accountId: String, accountRevision: Long, currencies: List<String>,
-    ): ClientCashWriteResult {
+    ): CashAccountCurrenciesResult {
         val batch = imports.editable(workspace, batchId, revision)
         val account = session.account(batch.ledger, accountId)
         if (account.accountRevision != accountRevision) throw ClientOperationFailure("account_changed", 409)
-        return writes.ensureImportAccountCurrencies(batch, account, currencies)
+        if (!isSelectableCashAccount(account)) throw ClientOperationFailure("account_unavailable")
+        val missing = missingCashAccountCurrencies(account, currencies)
+        if (missing.isEmpty()) return CashAccountCurrenciesResult.Unchanged(account)
+        validateCashAccountCurrencyChange(account)
+        return CashAccountCurrenciesResult.Updated(writes.ensureImportAccountCurrencies(batch, account, missing))
     }
 
     suspend fun cancel(workspace: String?, batchId: String, revision: Long): List<ImportAccountChangeResult> {

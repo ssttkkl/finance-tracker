@@ -35,6 +35,7 @@ internal interface LedgerSessionLocal : LedgerLocalReader, LedgerSessionResource
     /** The exact bearer token this operation was created for; used to scope rejection cleanup. */
     val token: String?
     suspend fun restore(): SessionDto
+    suspend fun cashCreationJournal(): CashCreationJournal? = null
     suspend fun imports(): LedgerSessionImports?
     /** Refresh committed facts; [committedLedgerSeq] is the confirmed receipt version lower bound. */
     suspend fun refreshFacts(committedLedgerSeq: String?)

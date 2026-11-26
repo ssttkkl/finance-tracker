@@ -103,6 +103,26 @@ internal class SessionCacheRepository(
         }
     }
 
+    internal suspend fun captureCashCreationJournal(api: FinanceApiClient): CashCreationJournal {
+        val token = checkNotNull(api.boundCredentials?.token)
+        suspend fun ensureScope(original: ActiveLocal) {
+            api.requireCurrentRequest()
+            if (local !== original || original.local.token != token)
+                throw CancellationException("ledger_session_operation_superseded")
+        }
+        val original = publishedLocal.value ?: throw CancellationException("ledger_session_operation_superseded")
+        ensureScope(original)
+        val journal = checkNotNull(original.local.cashCreationJournal()) { "cash_creation_storage_missing" }
+        ensureScope(original)
+        return object : CashCreationJournal {
+            override suspend fun read() = journal.read().also { ensureScope(original) }
+            override suspend fun swap(previous: CashCreationRecovery?, next: CashCreationRecovery?): Boolean {
+                ensureScope(original)
+                return journal.swap(previous, next).also { ensureScope(original) }
+            }
+        }
+    }
+
     /** User-requested synchronization may retain an already readable cache only on transport loss. */
     internal suspend fun refreshBrowsingFacts(): Boolean {
         val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)

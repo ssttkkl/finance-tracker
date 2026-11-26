@@ -1,6 +1,11 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.*
+import com.finance.tracker.client.CashImportFileCapture
+import com.finance.tracker.client.CashImportFileInput
+import com.finance.tracker.client.captureCashImportFile
+import com.finance.tracker.client.completeCashImportFile
+import com.finance.tracker.client.retainCashImportFileFailure
 import com.finance.tracker.domain.BoundedFileSource
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
@@ -43,23 +48,26 @@ private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpor
             return bytes.copyOf()
         }
     }, input.password, input.sourceHint)
-    val document = try {
-        val format = cashStatementFormat(bytes, fixed.sourceHint)
-        captureRemoteCashStatement(this, fixed, bytes, format, credentials)?.let {
-            coroutineContext.ensureActive()
-            return it
+    val material = CashImportFileInput(input.clientFileRef, name, modified, bytes, input.sourceHint, input.password, mediaType)
+    return try {
+        val file = when (val result = captureCashImportFile(material, retainKnownFailure)) {
+            is CashImportFileCapture.Prepared -> LocalCashImportFile.fromCapture(result.file)
+            is CashImportFileCapture.RequiresRemoteParser -> {
+                val remote = captureRemoteCashStatement(this, fixed, bytes, result.format, credentials)
+                remote ?: LocalCashImportFile.fromCapture(completeCashImportFile(material,
+                    parseLocalCashStatementBytes(fixed, bytes, credentials, result.format)))
+            }
         }
-        parseLocalCashStatementBytes(fixed, bytes, credentials)
-    }
-    catch (failure: StatementDocumentFailure) {
         coroutineContext.ensureActive()
-        if (!retainKnownFailure || failure.code !in localCashImportFailureCodes) throw failure
-        return LocalCashImportFile.captureFailure(fixed, bytes, failure.code)
+        file
+    } catch (failure: StatementDocumentFailure) {
+        coroutineContext.ensureActive()
+        val retained = retainCashImportFileFailure(material, retainKnownFailure, failure.code) ?: throw failure
+        LocalCashImportFile.fromCapture(retained)
     } catch (failure: ApiFailure) {
         coroutineContext.ensureActive()
-        if (!retainKnownFailure || failure.status != 422 ||
-            failure.code !in localCashImportFailureCodes && failure.code !in localCashImportPasswordCodes) throw failure
-        return LocalCashImportFile.captureFailure(fixed, bytes, failure.code)
+        val retained = retainCashImportFileFailure(material, retainKnownFailure, failure.code, failure.status) ?: throw failure
+        LocalCashImportFile.fromCapture(retained)
     } catch (failure: kotlinx.io.IOException) {
         if (!retainKnownFailure) throw failure
         throw LocalCashImportParseTransportFailure(failure)
@@ -67,10 +75,6 @@ private suspend fun FinanceApiClient.captureLocalCashImportFile(input: CashImpor
         if (!retainKnownFailure) throw failure
         throw LocalCashImportParseTransportFailure(failure)
     }
-    coroutineContext.ensureActive()
-    val captured = LocalCashImportFile.capture(fixed, bytes, document)
-    coroutineContext.ensureActive()
-    return captured
 }
 
 private suspend fun localStatementBytes(input: CashImportUploadInput): ByteArray {
@@ -82,7 +86,8 @@ private suspend fun localStatementBytes(input: CashImportUploadInput): ByteArray
 }
 
 private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImportUploadInput, bytes: ByteArray,
-    credentials: ApiCredentialSnapshot? = null): ParsedCashDocument {
+    credentials: ApiCredentialSnapshot? = null,
+    detected: CashStatementFormat = cashStatementFormat(bytes, input.sourceHint)): ParsedCashDocument {
     val source = input.sourceHint?.replace('-', '_')
     // The upload uses the already bounded bytes, never a second read of the original file.
     fun upload(extension: String) = CashImportUploadInput(input.clientFileRef, object : BoundedFileSource {
@@ -96,10 +101,10 @@ private suspend fun FinanceApiClient.parseLocalCashStatementBytes(input: CashImp
             return bytes
         }
     }, input.password, input.sourceHint)
-    val document = when (val format = cashStatementFormat(bytes, source)) {
+    val document = when (detected) {
         CashStatementFormat.PDF -> localNormalizedCashDocument(parseCashPdf(upload("pdf"), credentials).document)
         CashStatementFormat.XLS -> normalizeLocalCashStatement(parseCashXls(upload("xls"), credentials).document)
-        else -> parseCashStatementLocally(format, bytes, source)
+        else -> parseCashStatementLocally(detected, bytes, source)
     }
     coroutineContext.ensureActive()
     return document

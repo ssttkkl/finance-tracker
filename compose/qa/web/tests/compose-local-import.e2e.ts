@@ -130,6 +130,75 @@ const feedbackCsv = [
     "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
   ].join("\n");
 
+test("导入补币种后按原修订撤销账户改动", async ({ page, baseURL }, info) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  const authentication = await page.request.post(`${baseURL}/api/v1/auth/register`, {
+    data: { email: `account-compensation-${crypto.randomUUID()}@example.invalid`, password: "Synthetic account password" },
+  });
+  expect(authentication.ok()).toBe(true);
+  const { access_token: token } = await authentication.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const createdWorkspace = await page.request.post(`${baseURL}/api/v1/auth/workspaces`, { headers, data: { name: "账户撤销验证" } });
+  expect(createdWorkspace.ok()).toBe(true);
+  const { active_workspace_id: workspace } = await createdWorkspace.json();
+  const seeded = await page.request.post(`${baseURL}/api/v1/accounts?workspace_id=${workspace}`, {
+    headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+    data: { name: "本地外币账户", type: "cash", currencies: ["USD"] },
+  });
+  expect(seeded.ok()).toBe(true);
+  const account = await seeded.json();
+  await page.addInitScript(value => localStorage.setItem("finance-tracker:session-token", value), token);
+  await page.goto(`/w/${workspace}/cash-import`);
+  const tagged = (id: string) => page.locator(`[id="${id}"]:visible`).last();
+  const click = (id: string) => clickStableComposeTarget(page, tagged(id));
+  const chooser = page.waitForEvent("filechooser");
+  await click("cash.import.add-files");
+  await (await chooser).setFiles({ name: "account-undo.csv", mimeType: "text/csv", buffer: Buffer.from(feedbackCsv) });
+  await expect(tagged("cash.import.to-accounts")).toBeEnabled();
+  await click("cash.import.to-accounts");
+  const group = page.locator('[id^="cash.import.account-group-"]:visible').last();
+  const review = tagged("cash.import.review");
+  await expect(review).toBeEnabled();
+  const bounds = (await review.boundingBox())!;
+  const closeBounds = (await tagged("cash.import.close").boundingBox())!;
+  await clickStableComposeTarget(page, group.locator('[id^="cash.import.account-"]:visible').last());
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await clickStableComposeTarget(page, menu.getByText("本地外币账户", { exact: true }).last());
+  await waitForCanvasToSettle(page);
+  const ensure = page.waitForResponse(response => new URL(response.url()).pathname === "/api/v1/cash-import/accounts/currency-requirements");
+  await page.mouse.click(bounds.x + bounds.width - 16, bounds.y + bounds.height / 2);
+  const expanded = await ensure;
+  expect(expanded.ok()).toBe(true);
+  const updated = (await expanded.json()).results[0].account;
+  expect(updated.currencies.slice().sort()).toEqual(["CNY", "USD"]);
+
+  const writes: Array<{ method: string; revision: number; patch: unknown }> = [];
+  const path = `/api/v1/accounts/by-id/${account.account_id}`;
+  page.on("request", request => {
+    if (new URL(request.url()).pathname !== path || !["PATCH", "DELETE"].includes(request.method())) return;
+    const body = request.postDataJSON();
+    writes.push({ method: request.method(), revision: body.expected_revision, patch: body.patch });
+  });
+  await waitForCanvasToSettle(page);
+  await page.screenshot({ path: info.outputPath("currency-requirement-completed.png") });
+  await page.mouse.click(closeBounds.x + closeBounds.width / 2, closeBounds.y + closeBounds.height / 2);
+  await waitForCanvasToSettle(page);
+  await page.screenshot({ path: info.outputPath("currency-requirement-exit.png") });
+  // The disposed picker can remain in the accessibility overlay. Use the
+  // rendered dialog controls in the fixed 1440 × 1100 viewport.
+  expect(writes).toHaveLength(0);
+  await page.mouse.click(500, 539);
+  await waitForCanvasToSettle(page);
+  const update = page.waitForResponse(response => new URL(response.url()).pathname === path && response.request().method() === "PATCH");
+  await page.mouse.click(910, 615);
+  expect((await update).ok()).toBe(true);
+  expect(writes).toEqual([{ method: "PATCH", revision: updated.account_revision, patch: { currencies: ["USD"] } }]);
+  const restored = await page.request.get(`${baseURL}${path}?workspace_id=${workspace}`, { headers });
+  expect(restored.ok()).toBe(true);
+  expect((await restored.json()).currencies).toEqual(["USD"]);
+
+});
+
 test("读取账单期间点击关闭在当前导入任务提示一次，原读取继续", async ({ page }) => {
   await installComposeApiFixtures(page);
   await page.addInitScript(() => {

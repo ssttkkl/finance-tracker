@@ -40,6 +40,8 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let sentBody;
     let sentKey;
     let manualWrites = 0;
+    let transferWrites = 0;
+    let transferReceipt;
     let maintenancePreviews = 0;
     let maintenanceCommit;
     const maintenanceResolutions = [];
@@ -75,6 +77,14 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 body: body.length ? body : undefined,
             });
             const text = await response.text();
+            if (req.method === 'POST' && req.url === '/api/v1/cashflow/transfer/commands') {
+                transferWrites++;
+                if (response.ok && transferWrites === 1) {
+                    transferReceipt = JSON.parse(text);
+                    req.socket.destroy();
+                    return;
+                }
+            }
             if (damageAccountReceipt && req.method === 'GET' && req.url.startsWith('/api/v1/cash-mutations/receipts/by-key?') && response.ok) {
                 const receipt = JSON.parse(text);
                 if (receipt.operation_kind === 'account_create') {
@@ -167,6 +177,16 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         writeFileSync(statement, [...lines.slice(0, 7), lines[9], ''].join('\r\n'));
         const prepared = await ok(['import', 'prepare', statement, '--workspace', workspace]);
         assert.ok(prepared.source_accounts.length > 0);
+        const invalidMapping = join(dir, 'invalid-account-choice.json');
+        writeFileSync(invalidMapping, JSON.stringify({
+            expected_session_revision: Number(prepared.revision), previous_plan_id: null,
+            account_selections: [{
+                source_account_ref: prepared.source_accounts[0].source_account_ref,
+                account_id: '9223372036854775807', expected_account_revision: 1,
+            }],
+            row_choices: [], relation_choices: [], entry_choices: [],
+        }));
+        assert.equal((await run(['import', 'review', prepared.batch_id, '--choices', invalidMapping])).value.error?.code, 'account_not_found');
         let revision = prepared.revision;
         for (const group of prepared.source_accounts) {
             const review = await ok(['import', 'map', prepared.batch_id, '--revision', revision,
@@ -345,6 +365,11 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const accountData = (await ok(['account', 'show', account.account_id])).account;
         const ensure = (current, currency) => ok(['import', 'account', 'currencies', formats.batch_id, '--revision', formats.revision,
             '--account', current.account_id, '--account-revision', String(current.account_revision), '--currency', currency]);
+        const previousLedger = await ok(['cash', 'list']);
+        const redundant = await ensure(accountData, ' cNy ');
+        assert.equal(redundant.changed, false);
+        assert.equal(redundant.account.account_revision, accountData.account_revision);
+        assert.equal((await ok(['cash', 'list'])).ledger_seq, previousLedger.ledger_seq);
         await ensure(accountData, 'USD');
         assert.deepEqual((await ok(['import', 'account', 'undo', formats.batch_id, '--revision', formats.revision]))
             .account_changes.map(item => item.status), ['restored']);
@@ -367,6 +392,16 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.ok(conflicted.account_changes.every((item) => item.code === 'account_changed'));
         const latestDetails = await ok(['account', 'show', account.account_id]);
         assert.deepEqual(latestDetails.account.currencies, latest.account.currencies);
+
+        const target = (await ok(['account', 'create', '--name', 'Transfer destination', '--type', 'cash', '--currency', 'CNY'])).account;
+        const transfer = await run(['cash', 'transfer', '--from-account', account.account_id, '--to-account', target.account_id,
+            '--from-currency', 'CNY', '--to-currency', 'CNY', '--amount', '5.80', '--date', '2026-11-26', '--time', '04:00']);
+        assert.equal(transfer.value.error?.code, 'result_unknown');
+        const transferRecovery = await ok(['cash', 'resume', transfer.value.error.operation_id]);
+        assert.equal(transferRecovery.receipt.receipt_id, transferReceipt.receipt_id);
+        assert.equal(transferWrites, 1);
+        const targetBalance = await ok(['account', 'show', target.account_id]);
+        assert.equal(targetBalance.balances.find(item => item.currency === 'CNY').balance, '5.80');
     } finally {
         if (proxy.listening) await new Promise((resolve) => proxy.close(resolve));
         if (backend.exitCode === null) {

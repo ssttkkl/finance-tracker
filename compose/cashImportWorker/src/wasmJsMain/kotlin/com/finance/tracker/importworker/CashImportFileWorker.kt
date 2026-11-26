@@ -3,12 +3,11 @@
 package com.finance.tracker.importworker
 
 import com.finance.tracker.business.contracts.StoredCashImportFile
-import com.finance.tracker.business.domain.CashStatementFormat
 import com.finance.tracker.business.domain.StatementDocumentFailure
-import com.finance.tracker.business.domain.captureCashStatement
-import com.finance.tracker.business.domain.cashStatementFormat
-import com.finance.tracker.business.domain.localCashImportFailureCodes
-import com.finance.tracker.business.domain.parseCashStatementLocally
+import com.finance.tracker.client.CashImportFileCapture
+import com.finance.tracker.client.CashImportFileInput
+import com.finance.tracker.client.captureCashImportFile
+import com.finance.tracker.client.completeCashImportFile
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 
@@ -16,17 +15,14 @@ import kotlin.js.JsAny
 fun captureStatement(metadata: String, content: JsAny): String {
     val input = Json.parseToJsonElement(metadata).jsonObject
     val bytes = ByteArray(byteLength(content)) { byteAt(content, it).toByte() }
-    val source = input["source"]?.jsonPrimitive?.content
+    val material = captureMaterial(input, bytes)
     val capture = try {
-        val format = cashStatementFormat(bytes, source)
-        if (format == CashStatementFormat.PDF || format == CashStatementFormat.XLS) return """{"remote":true}"""
-        buildJsonObject { putCapture(capture(input, bytes, format, source)) }
-    } catch (failure: StatementDocumentFailure) {
-        buildJsonObject {
-            if (input.getValue("retainKnownFailure").jsonPrimitive.boolean && failure.code in localCashImportFailureCodes)
-                putCapture(capture(input, bytes, null, source, failure.code))
-            else put("parseFailure", failure.code)
+        when (val result = captureCashImportFile(material, input.getValue("retainKnownFailure").jsonPrimitive.boolean)) {
+            is CashImportFileCapture.Prepared -> buildJsonObject { putCapture(result.file) }
+            is CashImportFileCapture.RequiresRemoteParser -> return """{"remote":true}"""
         }
+    } catch (failure: StatementDocumentFailure) {
+        buildJsonObject { put("parseFailure", failure.code) }
     }
     return capture.toString()
 }
@@ -36,17 +32,14 @@ private fun JsonObjectBuilder.putCapture(file: StoredCashImportFile) {
     put("captured", Json.encodeToString(file))
 }
 
-private fun capture(input: JsonObject, bytes: ByteArray, format: CashStatementFormat?, source: String?,
-    failure: String? = null): StoredCashImportFile {
-    val document = format?.let { parseCashStatementLocally(it, bytes, source?.replace('-', '_')) }
-    return captureCashStatement(
-        input.getValue("fileRef").jsonPrimitive.content,
-        input.getValue("filename").jsonPrimitive.content,
-        input["mediaType"]?.jsonPrimitive?.content,
-        input["lastModified"]?.jsonPrimitive?.long,
-        source, bytes, document, failure,
-    )
-}
+private fun captureMaterial(input: JsonObject, bytes: ByteArray) = CashImportFileInput(
+    input.getValue("fileRef").jsonPrimitive.content,
+    input.getValue("filename").jsonPrimitive.content,
+    input["lastModified"]?.jsonPrimitive?.long,
+    bytes,
+    input["source"]?.jsonPrimitive?.content,
+    mediaType = input["mediaType"]?.jsonPrimitive?.content,
+)
 
 private fun byteLength(buffer: JsAny): Int = js("buffer.length")
 private fun byteAt(buffer: JsAny, index: Int): Int = js("buffer[index]")
@@ -64,9 +57,7 @@ fun captureRemoteStatement(metadata: String, format: String, content: JsAny, tex
             remoteStatementJson.decodeFromString<com.finance.tracker.business.contracts.CashXlsParseResultDto>(text).document)
         else -> error("cash_import_remote_format_invalid")
     }
-    val stored = captureCashStatement(input.getValue("fileRef").jsonPrimitive.content,
-        input.getValue("filename").jsonPrimitive.content, input["mediaType"]?.jsonPrimitive?.content,
-        input["lastModified"]?.jsonPrimitive?.long, input["source"]?.jsonPrimitive?.content, bytes, document, null)
+    val stored = completeCashImportFile(captureMaterial(input, bytes), document)
     remoteCaptureResponse(Json.encodeToString(stored), null, false)
 } catch (failure: StatementDocumentFailure) {
     remoteCaptureResponse(null, failure.code, false)

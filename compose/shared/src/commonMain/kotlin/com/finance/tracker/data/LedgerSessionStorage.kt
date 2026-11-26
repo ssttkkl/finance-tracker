@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 /** Local identity history, not a new server authorization. Its owner also owns the encrypted facts. */
 internal interface LedgerStorage : LedgerFactCache {
     val imports: LedgerImportBatches
+    fun cashCreationJournal(token: String): CashCreationJournal? = null
     suspend fun matchesOfflineSession(scope: LedgerCacheScope, token: String): Boolean = readOfflineSession(scope, token) != null
     suspend fun readOfflineSession(scope: LedgerCacheScope, token: String): SessionDto?
     suspend fun saveOfflineSession(scope: LedgerCacheScope, token: String, session: SessionDto)
@@ -23,7 +24,7 @@ internal fun ledgerOfflinePrincipal(email: String): String {
     return sha256Hex(("ledger-offline-principal-v1:" + email).encodeToByteArray(throwOnInvalidSequence = true))
 }
 
-private fun tokenDigest(token: String): String {
+internal fun ledgerOfflineTokenDigest(token: String): String {
     require(token.isNotBlank()) { "ledger_session_token_invalid" }
     return sha256Hex(("ledger-offline-token-v1:" + token).encodeToByteArray(throwOnInvalidSequence = true))
 }
@@ -55,7 +56,7 @@ internal class SqlLedgerSessionStore private constructor(private val driver: Sql
     }
 
     suspend fun read(scope: LedgerCacheScope, token: String): SessionDto? {
-        val digest = tokenDigest(token)
+        val digest = ledgerOfflineTokenDigest(token)
         val text = driver.executeQuery(null, """
             SELECT session_json FROM ledger_cache_sessions
             WHERE api_origin = ? AND principal = ? AND workspace_id = ?
@@ -72,7 +73,7 @@ internal class SqlLedgerSessionStore private constructor(private val driver: Sql
 
     suspend fun save(scope: LedgerCacheScope, token: String, session: SessionDto) {
         validateSession(scope, session)
-        val text = Json.encodeToString(StoredLedgerSession(tokenDigest(token), session))
+        val text = Json.encodeToString(StoredLedgerSession(ledgerOfflineTokenDigest(token), session))
         driver.execute(null, """
             INSERT INTO ledger_cache_sessions (api_origin, principal, workspace_id, session_json)
             VALUES (?, ?, ?, ?)

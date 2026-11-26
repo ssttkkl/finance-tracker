@@ -15,7 +15,10 @@ internal suspend fun FinanceApiClient.executeFixedCashCommand(
             try {
                 readCashMutationReceiptByKey(originalKey)
             } catch (failure: ApiFailure) {
-                if (failure.status == 404 && failure.code == "receipt_not_found") null else throw failure
+                if (failure.status == 404 && failure.code == "receipt_not_found") null
+                else if (failure.status in setOf(401, 403)) throw ApiFailure(failure.code, failure.status, failure.receiptId,
+                    "unknown", failure.diagnostic, failure).also { it.rejectedToken = failure.rejectedToken }
+                else throw failure
             }
         }
     },

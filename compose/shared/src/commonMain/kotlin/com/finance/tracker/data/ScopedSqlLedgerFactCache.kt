@@ -4,6 +4,7 @@ import app.cash.sqldelight.db.SqlDriver
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.SessionDto
 import com.finance.tracker.domain.LedgerCacheScope
+import com.finance.tracker.domain.CashCreationRecovery
 import com.finance.tracker.domain.LedgerSnapshotTextCache
 import com.finance.tracker.domain.PreparedLedgerSnapshot
 import kotlinx.coroutines.CancellationException
@@ -33,6 +34,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private enum class Termination { PRESERVE, ERASE }
     private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
+    private var cashCreationStore: SqlCashCreationJournal? = null
     private var importStore: SqlLedgerImportBatchStore? = null // Access only while holding mutex.
     private data class RetainedSnapshot(val text: String, val ledgerVersion: Long)
     private var retainedSnapshot: RetainedSnapshot? = null // Scoped owner and storage mutex.
@@ -89,6 +91,26 @@ internal class ScopedSqlLedgerFactCache private constructor(
             requireActive()
             batches.completeSubmission(scope, batchId, version, archived)
         }
+    }
+
+    override fun cashCreationJournal(token: String): CashCreationJournal {
+        val tokenKey = ledgerOfflineTokenDigest(token)
+        return object : CashCreationJournal {
+            override suspend fun read() = withCashCreation { it.read(scope, tokenKey) }
+            override suspend fun swap(previous: CashCreationRecovery?, next: CashCreationRecovery?) =
+                withCashCreation { it.swap(scope, tokenKey, previous, next) }
+        }
+    }
+
+    private suspend fun <T> withCashCreation(call: suspend (SqlCashCreationJournal) -> T): T = mutex.withLock {
+        currentCoroutineContext().ensureActive()
+        requireActive()
+        val journal = cashCreationStore ?: SqlCashCreationJournal.open(driver).also { cashCreationStore = it }
+        requireActive()
+        val result = call(journal)
+        requireActive()
+        currentCoroutineContext().ensureActive()
+        result
     }
 
     private suspend fun <T> withImports(action: suspend (SqlLedgerImportBatchStore) -> T): T = mutex.withLock {

@@ -10,6 +10,9 @@ import com.finance.tracker.client.accountResponseEvidence
 import com.finance.tracker.client.executeAccountWrite
 import com.finance.tracker.client.isAccountWriteRefusal
 import com.finance.tracker.client.validateAccountWrite
+import com.finance.tracker.client.isSelectableCashAccount
+import com.finance.tracker.client.missingCashAccountCurrencies
+import com.finance.tracker.client.validateCashAccountCurrencyChange
 import com.finance.tracker.data.toDomain
 import com.finance.tracker.client.ClientOperationFailure
 import com.finance.tracker.client.ImportAccountCompensationHost
@@ -157,7 +160,7 @@ class ImportAccountViewModel(
         }
         if (!current(token)) return@execute
         adoptCurrent(token, account, accountId)
-        if (account.deleted || !account.active || account.type !in setOf("cash", "loan", "lend")) {
+        if (!isSelectableCashAccount(account.compensationAccount())) {
             mutableState.value = state.value.copy(errorCode = "account_unavailable")
         } else onLoaded(account)
     }
@@ -228,14 +231,20 @@ class ImportAccountViewModel(
                         read
                     }
                 }
-                val missing = required.distinct().filterNot { it in snapshot.currencies }
+                val operationAccount = snapshot.compensationAccount()
+                if (!isSelectableCashAccount(operationAccount)) {
+                    mutableState.value = state.value.copy(errorCode = "account_unavailable")
+                    return@execute
+                }
+                val missing = missingCashAccountCurrencies(operationAccount, required)
                 if (missing.isEmpty()) { ready[accountId] = snapshot; continue }
                 if (!canSubmit()) {
                     mutableState.value = state.value.copy(errorCode = "network_unavailable")
                     return@execute
                 }
-                if (snapshot.deleted || snapshot.capabilities["can_update"] != true) {
-                    mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
+                try { validateCashAccountCurrencyChange(operationAccount) }
+                catch (failure: ClientOperationFailure) {
+                    mutableState.value = state.value.copy(errorCode = failure.code)
                     return@execute
                 }
                 val key = newKey()
@@ -352,7 +361,7 @@ class ImportAccountViewModel(
             if (!current(token)) return@execute
             unknownFailure?.let { throw it }
             if (failureCode != null) mutableState.value = state.value.copy(errorCode = failureCode)
-            else if (ready.any { (id, account) -> !account.currencies.containsAll(requiredByAccount.getValue(id)) }) {
+            else if (ready.any { (id, account) -> missingCashAccountCurrencies(account.compensationAccount(), requiredByAccount.getValue(id)).isNotEmpty() }) {
                 mutableState.value = state.value.copy(errorCode = "account_changed")
             } else if (state.value.errorCode == null) onComplete(ready)
         }

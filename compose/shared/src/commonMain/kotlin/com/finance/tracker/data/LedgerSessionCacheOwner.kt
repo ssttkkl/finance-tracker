@@ -561,7 +561,20 @@ internal class LedgerSessionCacheOwner(
     }
 
     /** No HTTP or substitute materials; a cached original identity is required for file recovery. */
-    private suspend fun <T> withImportFiles(action: suspend (LedgerImportBatches) -> T): T {
+    fun cashCreationJournal(): CashCreationJournal = object : CashCreationJournal {
+        override suspend fun read() = withLedgerStorage { storage ->
+            checkNotNull(storage.cashCreationJournal(token)) { "cash_creation_storage_missing" }.read()
+        }
+        override suspend fun swap(previous: com.finance.tracker.domain.CashCreationRecovery?, next: com.finance.tracker.domain.CashCreationRecovery?) =
+            withLedgerStorage { storage ->
+                checkNotNull(storage.cashCreationJournal(token)) { "cash_creation_storage_missing" }.swap(previous, next)
+            }
+    }
+
+    private suspend fun <T> withImportFiles(action: suspend (LedgerImportBatches) -> T): T =
+        withLedgerStorage { action(it.imports) }
+
+    private suspend fun <T> withLedgerStorage(action: suspend (LedgerStorage) -> T): T {
         currentCoroutineContext().ensureActive()
         requireOpen()
         return resourceMutex.withLock {
@@ -573,7 +586,7 @@ internal class LedgerSessionCacheOwner(
             requireCurrent(requirePublished = true)
             requireOpen()
             currentCoroutineContext().ensureActive()
-            val result = action(resource.storage.imports)
+            val result = action(resource.storage)
             currentCoroutineContext().ensureActive()
             requireCurrent(requirePublished = true)
             requireOpen()

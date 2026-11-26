@@ -1,6 +1,7 @@
 package com.finance.tracker.cli
 
 import com.finance.tracker.business.contracts.CashImportAccountInput
+import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.CashImportArchivePage
 import com.finance.tracker.business.contracts.CashImportPlanDto
 import com.finance.tracker.business.contracts.CashImportPreviewInput
@@ -12,6 +13,7 @@ import com.finance.tracker.business.contracts.CashPlanProcessingPageDto
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.business.domain.page
 import com.finance.tracker.client.CashAccountType
+import com.finance.tracker.client.CashAccountCurrenciesResult
 import com.finance.tracker.client.CashImportPreparedFile
 import com.finance.tracker.client.CashImportReviewOperations
 import com.finance.tracker.client.ClientCashImportListing
@@ -147,8 +149,14 @@ private suspend fun prepareImportAccounts(action: String, args: List<String>, sc
                 val kind = CashAccountType.entries.firstOrNull { it.name.lowercase() == type } ?: throw CliFailure("invalid_parameter", "--type")
                 writeResult(operations.create(expected, batch, revision, options.required("--name"), kind, options.required("--currency").split(',')))
             }
-            "currencies" -> writeResult(operations.ensureCurrencies(expected, batch, revision,
-                options.required("--account"), options.revision("--account-revision"), options.required("--currency").split(',')))
+            "currencies" -> when (val result = operations.ensureCurrencies(expected, batch, revision,
+                options.required("--account"), options.revision("--account-revision"), options.required("--currency").split(','))) {
+                is CashAccountCurrenciesResult.Updated -> writeResult(result.write)
+                is CashAccountCurrenciesResult.Unchanged -> TerminalResult(buildJsonObject {
+                    put("changed", false)
+                    put("account", exactReadIdentifiers(outputJson.encodeToJsonElement(AccountCommandViewDto.serializer(), result.account)))
+                }, "The account already supports these currencies.")
+            }
             else -> {
                 val changes = if (command == "cancel") operations.cancel(expected, batch, revision) else operations.undo(expected, batch, revision)
                 TerminalResult(buildJsonObject {

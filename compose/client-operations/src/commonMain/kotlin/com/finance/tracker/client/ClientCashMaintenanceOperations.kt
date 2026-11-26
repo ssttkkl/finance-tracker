@@ -29,6 +29,34 @@ interface ClientCashWorkspaceTransport {
     ): T
 }
 
+enum class CashMaintenanceRecoveryStatus { COMMITTED, PENDING, RETRY_ORIGINAL, NOT_COMMITTED }
+
+data class CashMaintenanceRecovery<Receipt>(val status: CashMaintenanceRecoveryStatus, val receipt: Receipt? = null)
+
+fun <Receipt> cashMaintenanceRecovery(status: String, receipt: Receipt?): CashMaintenanceRecovery<Receipt> {
+    val outcome = when (status) {
+        "committed" -> CashMaintenanceRecoveryStatus.COMMITTED
+        "pending" -> CashMaintenanceRecoveryStatus.PENDING
+        "retry_original" -> CashMaintenanceRecoveryStatus.RETRY_ORIGINAL
+        "not_committed" -> CashMaintenanceRecoveryStatus.NOT_COMMITTED
+        else -> throw ClientOperationFailure("protocol_error")
+    }
+    if ((outcome == CashMaintenanceRecoveryStatus.COMMITTED) != (receipt != null))
+        throw ClientOperationFailure("protocol_error")
+    return CashMaintenanceRecovery(outcome, receipt)
+}
+
+/** Only the original plan's verified retry state authorizes resending its frozen request. */
+suspend fun <Receipt> resumeCashMaintenance(
+    originalRetryVerified: Boolean = false, canReplay: () -> Boolean,
+    verify: suspend () -> CashMaintenanceRecovery<Receipt>, submit: suspend () -> Receipt,
+): CashMaintenanceRecovery<Receipt> {
+    val outcome: CashMaintenanceRecovery<Receipt> =
+        if (originalRetryVerified) CashMaintenanceRecovery(CashMaintenanceRecoveryStatus.RETRY_ORIGINAL) else verify()
+    if (outcome.status != CashMaintenanceRecoveryStatus.RETRY_ORIGINAL || !canReplay()) return outcome
+    return CashMaintenanceRecovery(CashMaintenanceRecoveryStatus.COMMITTED, submit())
+}
+
 class ClientCashMaintenanceOperations(
     private val transport: ClientCashWorkspaceTransport,
     private val encodeComponent: (String) -> String,
@@ -55,12 +83,10 @@ class ClientCashMaintenanceOperations(
             put("plan_id", planId)
             put("idempotency_key", key)
         })
-        when (resolved.status) {
-            "committed" -> if (resolved.receipt?.let { it.committed && it.operationKind == "mutation" && it.planId == planId } != true)
-                throw ClientOperationFailure("protocol_error")
-            "pending", "retry_original", "not_committed" -> if (resolved.receipt != null) throw ClientOperationFailure("protocol_error")
-            else -> throw ClientOperationFailure("protocol_error")
-        }
+        val outcome = cashMaintenanceRecovery(resolved.status, resolved.receipt)
+        if (outcome.status == CashMaintenanceRecoveryStatus.COMMITTED &&
+            outcome.receipt?.let { it.committed && it.operationKind == "mutation" && it.planId == planId } != true)
+            throw ClientOperationFailure("protocol_error")
         return resolved
     }
 

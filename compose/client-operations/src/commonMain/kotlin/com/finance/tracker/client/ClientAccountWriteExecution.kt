@@ -61,7 +61,7 @@ suspend fun <Result> executeAccountWrite(
         val known = try { read() } catch (failure: ClientNetworkUnavailable) {
             throw unknownAccountWrite(failure)
         } catch (failure: ClientOperationFailure) {
-            if (failure.status in setOf(401, 403)) throw failure
+            if (failure.status in setOf(401, 403)) throw failure.withoutWriteProof()
             throw unknownAccountWrite(failure)
         }
         if (known != null) return confirmAccountWrite(expected, known)

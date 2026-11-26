@@ -2,7 +2,7 @@
 
 多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
-项目包含 Kotlin/Ktor 后端、Compose Multiplatform 客户端和账本 CLI。后端是金额、余额、权限、来源、关系和审计的唯一事实源。Compose 的 Web、Android、iOS 目标和 `ft` 通过同一套 HTTP API 访问账本。
+项目包含 Kotlin/Ktor 后端、Compose Multiplatform 客户端和账本 CLI。后端是金额、余额、权限、来源、关系和审计的唯一事实源。Compose 的 Web、Android、iOS 客户端与 `ft` 使用同一个 Kotlin 操作层处理会话、现金账户、收支、分类和现金导入，通过同一套 HTTP API 访问账本。
 
 现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 

@@ -18,6 +18,7 @@ import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.prepareLocalCashImportView
 import com.finance.tracker.business.domain.page
 import com.finance.tracker.client.rebaseCashImportReview
+import com.finance.tracker.client.freezeCashImportConfirmation
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 import kotlin.js.JsExport
@@ -26,8 +27,9 @@ import kotlin.js.JsExport
 fun freezeCashImportConfirmation(material: String): JsAny {
     val confirmation = Json.parseToJsonElement(material).jsonObject
     val writeSet = Json.decodeFromJsonElement<CashWriteSetRequestDto>(confirmation.getValue("writeSet"))
-    val result = LocalCashImportResultInput.freeze(confirmation.getValue("resultPlan").jsonObject)
-    return confirmationResponse(cashWriteSetJson.encodeToString(writeSet), result.encode(), writeSet.baseLedgerSeq)
+    val frozen = freezeCashImportConfirmation(confirmation.getValue("batchId").jsonPrimitive.content,
+        confirmation.getValue("canCommit").jsonPrimitive.boolean, writeSet, confirmation.getValue("resultPlan").jsonObject)
+    return confirmationResponse(frozen.request, checkNotNull(frozen.resultInput), writeSet.baseLedgerSeq)
 }
 
 private fun confirmationResponse(body: String, resultInput: String, base: String): JsAny = js("({ body, resultInput, base })")

@@ -13,7 +13,8 @@ import com.finance.tracker.business.contracts.LedgerOptionsDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.buildCashLedgerOptions
 import com.finance.tracker.client.cashCategoryDirectory
-import com.finance.tracker.business.domain.buildLocalCashAccountReferences
+import com.finance.tracker.client.cashAccountDirectory
+import com.finance.tracker.client.cashAccountFact
 import com.finance.tracker.domain.LedgerCacheScope
 import com.finance.tracker.domain.LedgerFactCache
 import com.finance.tracker.domain.LedgerSnapshotSource
@@ -82,7 +83,7 @@ internal class LocalCashLedgerOwner(private val scope: LedgerCacheScope, cache: 
     suspend fun options(): LedgerOptionsDto? = sync.cachedVersion()?.let { buildCashLedgerOptions() }
 
     suspend fun accounts(): List<AccountReferenceDto>? =
-        if (background == null) readSnapshot { buildLocalCashAccountReferences(it.facts.accounts) }
+        if (background == null) readSnapshot { cashAccountDirectory(it.facts.accounts) }
         else backgroundRead("accounts", {}) { detailJson.decodeFromJsonElement(it) }
 
     private suspend fun <T> backgroundRead(mode: String, args: JsonObjectBuilder.() -> Unit, decode: (JsonElement) -> T): T? =
@@ -103,7 +104,7 @@ internal class LocalCashLedgerOwner(private val scope: LedgerCacheScope, cache: 
 
     suspend fun importSelectionAccount(accountId: String): com.finance.tracker.business.contracts.LedgerAccountFactDto? =
         if (background == null) readSnapshot { snapshot ->
-            snapshot.facts.accounts.singleOrNull { it.id == accountId && it.type in setOf("cash", "loan", "lend") }
+            cashAccountFact(snapshot.facts.accounts, accountId)
         } else backgroundRead("selectionAccount", { put("id", accountId) }) {
             detailJson.decodeFromJsonElement<com.finance.tracker.business.contracts.LedgerAccountFactDto?>(it)
         }

@@ -1,6 +1,6 @@
 # 账户模块
 
-`ft account` 提供记账和导入所需的账户清单、币种与分币种余额。单独生效的导入账户改动可按原批次查看和撤回，入口见[账本 CLI](../../compose/README.md#账本-cli)。
+`ft account list`、Compose 记账与导入页面从现金账本快照读取同一账户目录。现金导入共用账户资格、补齐缺失币种和按原修订撤回的操作。`ft account show` 独立展示分币种余额。入口见[账本 CLI](../../compose/README.md#账本-cli)。
 
 
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)

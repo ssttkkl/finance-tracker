@@ -1,6 +1,9 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.client.CashImportFileEdit
+import com.finance.tracker.client.cancelPreparedCashImport
+import com.finance.tracker.client.changeCashImportFiles
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -51,10 +54,9 @@ internal class LocalCashImportTask(
         val file = imports.parseImportFile(input)
         return mutex.withLock {
             val files = mutableFiles(allowMissing = true)
-            files.find { it.fileRef == file.fileRef }?.let { existing ->
-                if (existing.encode() != file.encode()) throw CashImportPlanError("plan_changed")
-                return@withLock preparation()
-            }
+            val edit = changeCashImportFiles(files, file.fileRef, CashImportFileEdit.ADD, file,
+                LocalCashImportFile::fileRef) { previous, replacement -> previous.encode() == replacement.encode() }
+            if (!edit.changed) return@withLock preparation()
             ensureRevisionAvailable()
             currentPlan = null
             imports.savePreparedImportFile(batchId, file)
@@ -72,9 +74,11 @@ internal class LocalCashImportTask(
         }
         val file = imports.parseImportFile(input)
         return mutex.withLock {
-            mutableFiles()
+            val files = mutableFiles()
             requireRevision(expectedRevision)
-            if (original.encode() == file.encode()) return@withLock preparation()
+            val edit = changeCashImportFiles(files, fileRef, CashImportFileEdit.REPLACE, file,
+                LocalCashImportFile::fileRef) { previous, replacement -> previous.encode() == replacement.encode() }
+            if (!edit.changed) return@withLock preparation()
             ensureRevisionAvailable()
             currentPlan = null
             imports.savePreparedImportFile(batchId, file, original)
@@ -86,7 +90,9 @@ internal class LocalCashImportTask(
     suspend fun remove(fileRef: String, expectedRevision: Long): CashImportSessionDto = mutex.withLock {
         val files = mutableFiles()
         requireRevision(expectedRevision)
-        val original = files.singleOrNull { it.fileRef == fileRef } ?: throw CashImportPlanError("plan_changed")
+        val edit = try { changeCashImportFiles(files, fileRef, CashImportFileEdit.REMOVE, fileRef = LocalCashImportFile::fileRef) }
+        catch (_: CashImportPlanError) { throw CashImportPlanError("plan_changed") }
+        val original = checkNotNull(edit.previous)
         ensureRevisionAvailable()
         currentPlan = null
         imports.removeImportFile(batchId, original)
@@ -108,7 +114,9 @@ internal class LocalCashImportTask(
             closing = true
             currentPlan = null
         }
-        if (cancellationHasBatch) imports.removeImportFiles(batchId)
+        cancelPreparedCashImport(imports.importSubmission(batchId) != null, completed != null) {
+            if (cancellationHasBatch) imports.removeImportFiles(batchId)
+        }
         revision++
         checkNotNull(beforeCancellation).copy(sessionRevision = revision, state = "cancelled", canPreview = false,
             lastPlanId = null).also { cancellation = it }

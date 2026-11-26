@@ -164,7 +164,11 @@ ft import result "$BATCH_ID" --kind row --json
 
 记账、转账和维护确认由服务端保存。进程在结果返回前关闭时，用 `ft cash pending` 找原操作，再用 `ft cash resume "$OPERATION_ID"` 核实。分类和删除等需要确认实际影响的命令使用当前账本或目录修订；操作结果待核实时先重新读取目标。命令参数与子命令帮助见 `ft auth --help`、`ft workspace --help`、`ft cash --help`、`ft category --help`、`ft account --help`、`ft import --help`。
 
-Kotlin 调用方可依赖共享客户端操作层 `:client-operations`。`CashLedgerOperations` 和 `CashImportReviewOperations` 读取已取得的账本与账单，`ClientSessionOperations`、`ClientCashWriteOperations` 和 `ClientCashImportOperations` 通过宿主提供的挂起式 HTTP 和存储接口运行。宿主实现存储接口时，需保留操作范围检查、条件更新和提交前检查点。CLI 的参数解析与打印位于 `:cli`。
+Compose 正式页面和 `ft` 共用 Kotlin 模块 `:client-operations`。账本读取和现金账户目录使用原工作区的快照。记账、转账、维护和整批现金导入使用原请求和幂等键核实收据。Compose 使用平台的加密账本缓存和 Worker，`ft` 使用自己的加密本机状态。客户端退出、切换工作区或断网后，回到原工作区打开原有入口即可继续核实。
+
+`ft import account currencies` 只提交缺失币种。账户已支持所需币种时，JSON 返回 `"changed": false` 和当前账户，账户修订与账本版本保持原值。`ft account list` 使用现金账户快照，已同步的账本可断网查询。
+
+Kotlin 宿主实现挂起式 HTTP、加密持久化和会话检查。写入前保存冻结命令，通过条件更新记录权威收据。CLI 的参数解析与打印位于 `:cli`。
 
 ---
 

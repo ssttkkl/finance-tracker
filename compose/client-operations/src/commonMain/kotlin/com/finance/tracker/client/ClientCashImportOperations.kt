@@ -11,17 +11,11 @@ import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.domain.LocalCashImportResultInput
 import com.finance.tracker.business.domain.cashWriteSetJson
 import com.finance.tracker.business.contracts.StoredCashImportFile
-import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.business.domain.CashStatementFormat
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.ParsedCashDocument
 import com.finance.tracker.business.domain.StatementDocumentFailure
-import com.finance.tracker.business.domain.captureCashStatement
-import com.finance.tracker.business.domain.cashStatementFormat
 import com.finance.tracker.business.domain.decodeStoredCashImportFile
-import com.finance.tracker.business.domain.localCashImportFailureCodes
-import com.finance.tracker.business.domain.localCashImportPasswordCodes
-import com.finance.tracker.business.domain.parseCashStatementLocally
 import com.finance.tracker.business.domain.toParsedImportFile
 import com.finance.tracker.business.domain.prepareLocalCashImportView
 import com.finance.tracker.business.domain.ParsedImportFile
@@ -38,6 +32,7 @@ class CashImportFileInput(
     val bytes: ByteArray,
     val source: String? = null,
     val password: String? = null,
+    val mediaType: String? = null,
 )
 
 class CashImportFileSource(val ref: String, val name: String, val read: suspend () -> CashImportFileInput)
@@ -156,8 +151,7 @@ class ClientCashImportOperations(
     }
 
     private fun validateFiles(files: List<CashImportFileSource>) {
-        if (files.size !in 1..20 || files.map { it.ref }.distinct().size != files.size ||
-            files.any { !it.ref.matches(Regex("[A-Za-z0-9_-]{1,128}")) }) throw ClientOperationFailure("import_payload_invalid")
+        if (!validCashImportFileSelection(files.map { it.ref })) throw ClientOperationFailure("import_payload_invalid")
     }
 
     private suspend fun appendFiles(
@@ -183,7 +177,9 @@ class ClientCashImportOperations(
                 continue
             }
             val file = capturePayload(captured)
-            val next = invalidateFileReview(batch, batch.files + ClientCashImportFileRef(source.ref, file.storageId), null)
+            val selection = changeCashImportFiles(batch.files, source.ref, CashImportFileEdit.ADD,
+                ClientCashImportFileRef(source.ref, file.storageId), ClientCashImportFileRef::ref)
+            val next = invalidateFileReview(batch, selection.selected, null)
             save(ledger, batch, next, file)
             store.checkpoint()
             batch = next
@@ -198,8 +194,9 @@ class ClientCashImportOperations(
         requireEditable(batch, revision)
         val old = batch.files.singleOrNull { it.ref == source.ref } ?: throw ClientOperationFailure("file_not_found", 404)
         val file = capturePayload(capture(ledger, source.read().also { check(it.ref == old.ref) }))
-        val refs = batch.files.map { if (it == old) ClientCashImportFileRef(old.ref, file.storageId) else it }
-        val next = invalidateFileReview(batch, refs, old.ref)
+        val selection = changeCashImportFiles(batch.files, old.ref, CashImportFileEdit.REPLACE,
+            ClientCashImportFileRef(old.ref, file.storageId), ClientCashImportFileRef::ref)
+        val next = invalidateFileReview(batch, selection.selected, old.ref)
         save(ledger, batch, next, file, listOf(old.storageId))
         return prepared(ledger, next)
     }
@@ -208,8 +205,10 @@ class ClientCashImportOperations(
         val ledger = session.ledger(workspaceId)
         val batch = batch(ledger, batchId)
         requireEditable(batch, revision)
-        val old = batch.files.singleOrNull { it.ref == fileRef } ?: throw ClientOperationFailure("file_not_found", 404)
-        val next = invalidateFileReview(batch, batch.files - old, old.ref)
+        val selection = try { changeCashImportFiles(batch.files, fileRef, CashImportFileEdit.REMOVE, fileRef = ClientCashImportFileRef::ref) }
+        catch (failure: CashImportPlanError) { throw ClientOperationFailure(failure.code, 404, failure) }
+        val old = checkNotNull(selection.previous)
+        val next = invalidateFileReview(batch, selection.selected, old.ref)
         save(ledger, batch, next, removedFileIds = listOf(old.storageId))
         return prepared(ledger, next)
     }
@@ -238,8 +237,10 @@ class ClientCashImportOperations(
         val binding = editable.ledger.binding
         val batch = editable.batch
         session.requireCurrent(binding)
-        if (!store.compareAndDelete(binding, editable.workspaceId, batch))
-            throw ClientOperationFailure("plan_changed", 409)
+        cancelPreparedCashImport(batch.submission != null, batch.result != null) {
+            if (!store.compareAndDelete(binding, editable.workspaceId, batch))
+                throw ClientOperationFailure("plan_changed", 409)
+        }
     }
 
     suspend fun mapAccounts(
@@ -250,7 +251,7 @@ class ClientCashImportOperations(
         requireEditable(batch, revision)
         val retained = choices(batch)
         val mappings = (retained.accountSelections + choices).associateBy { it.sourceAccountRef }.values.toList()
-        return review(workspaceId, batchId, timezone, retained.copy(accountSelections = mappings))
+        return review(ledger, batch, timezone, retained.copy(accountSelections = mappings))
     }
 
     private fun requireEditable(batch: ClientCashImportBatch, revision: Long) {
@@ -294,17 +295,35 @@ class ClientCashImportOperations(
         updatedChoices: CashImportPreviewInput? = null,
     ): CashImportReviewOperations.Review {
         val ledger = session.ledger(workspaceId)
+        return review(ledger, batch(ledger, batchId), timezone, updatedChoices)
+    }
+
+    private suspend fun review(
+        ledger: ClientLedgerRead, batch: ClientCashImportBatch,
+        timezone: String, updatedChoices: CashImportPreviewInput?,
+    ): CashImportReviewOperations.Review {
         val snapshot = ledger.ledger.snapshot
-        val batch = store.read(ledger.binding, snapshot.workspaceId, batchId) ?: throw ClientOperationFailure("batch_not_found", 404)
         if (batch.submission != null || batch.result != null) throw ClientOperationFailure("plan_changed", 409)
         if (updatedChoices != null && (updatedChoices.expectedSessionRevision != batch.revision ||
                 updatedChoices.previousPlanId != batch.planId)) throw ClientOperationFailure("plan_changed", 409)
+        val retained = choices(batch)
+        if (updatedChoices != null) {
+            val previousSelections = retained.accountSelections.associateBy { it.sourceAccountRef }
+            for (selection in updatedChoices.accountSelections) {
+                if (selection == previousSelections[selection.sourceAccountRef]) continue
+                val accountId = selection.accountId ?: continue
+                val fact = cashAccountFact(snapshot.facts.accounts, accountId) ?: throw ClientOperationFailure("account_not_found", 404)
+                val account = cashAccountSelection(fact, canWrite = false)
+                if (!isSelectableCashAccount(account)) throw ClientOperationFailure("account_unavailable")
+                if (account.accountRevision != selection.expectedAccountRevision) throw ClientOperationFailure("account_changed", 409)
+            }
+        }
 
         val reusable = updatedChoices == null && batch.planId != null && batch.ledgerSeq == snapshot.ledgerSeq
         val revision = if (reusable) batch.revision else nextRevision(batch)
         val planId = if (reusable) checkNotNull(batch.planId) else nextId()
         val previous = batch.review?.let(LocalCashImportReview::decode)
-        val choices = (updatedChoices ?: choices(batch)).copy(expectedSessionRevision = revision, timezoneName = timezone)
+        val choices = (updatedChoices ?: retained).copy(expectedSessionRevision = revision, timezoneName = timezone)
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
             snapshot, batch.id, planId, revision, parsedFiles(ledger, batch),
             choices, previous,
@@ -332,15 +351,15 @@ class ClientCashImportOperations(
         result(batch)?.let { return it }
         session.requireOnlineWriter(ledger)
         if (batch.submission != null) return finish(ledger, batch)
-        val review = review(workspaceId, batchId, "UTC")
+        val review = review(ledger, batch, "UTC", updatedChoices = null)
         val expected = checkNotNull(batch.review).let(LocalCashImportReview::decode)
         if (review.plan.sessionRevision != revision || !review.plan.canCommit ||
             expected.conclusion() != review.calculation.review.conclusion())
             throw ClientOperationFailure("plan_changed", 409)
         if (ledger.ledger.snapshot.ledgerSeq != review.calculation.request.baseLedgerSeq)
             throw ClientOperationFailure("plan_changed", 409)
-        val frozen = StoredCashImportSubmission(attemptKey(batch.id, batch.attempt), cashWriteSetJson.encodeToString(review.calculation.request), null, false,
-            review.resultInput().encode(), null)
+        val frozen = freezeCashImportConfirmation(attemptKey(batch.id, batch.attempt), review.plan.canCommit,
+            review.calculation.request, review.calculation.plan)
         save(ledger, batch, batch.copy(submission = frozen))
         store.checkpoint()
         val durable = batch(ledger, batchId)
@@ -477,28 +496,22 @@ class ClientCashImportOperations(
     private fun result(batch: ClientCashImportBatch): CashImportResultContent? =
         batch.result?.let(CashImportResultContent::decode)
 
-    private suspend fun capture(ledger: ClientLedgerRead, file: CashImportFileInput): StoredCashImportFile {
-        if (!file.ref.matches(Regex("[A-Za-z0-9_-]{1,128}")) || file.name.any { it in "\r\n\u0000" } ||
-            file.source?.matches(Regex("[a-z][a-z0-9_-]{0,63}")) == false) throw ClientOperationFailure("import_payload_invalid")
-        if (file.bytes.size > CASH_STATEMENT_MAX_BYTES) throw ClientOperationFailure("import_file_too_large")
-        val bytes = file.bytes.copyOf()
-        val source = file.source?.replace('-', '_')
-        val document = try {
-            when (val format = cashStatementFormat(bytes, source)) {
-                CashStatementFormat.PDF, CashStatementFormat.XLS -> {
-                    if (ledger.offline) throw ClientOperationFailure("online_required")
-                    remoteParser.parse(ledger, format, CashImportFileInput(file.ref, file.name, file.modifiedAtMillis, bytes, source, file.password))
+    private suspend fun capture(ledger: ClientLedgerRead, source: CashImportFileInput): StoredCashImportFile {
+        val file = CashImportFileInput(source.ref, source.name, source.modifiedAtMillis, source.bytes.copyOf(),
+            source.source?.replace('-', '_'), source.password, source.mediaType)
+        return when (val result = captureCashImportFile(file, retainKnownFailure = true)) {
+            is CashImportFileCapture.Prepared -> result.file
+            is CashImportFileCapture.RequiresRemoteParser -> {
+                if (ledger.offline) throw ClientOperationFailure("online_required")
+                try {
+                    completeCashImportFile(file, remoteParser.parse(ledger, result.format, file))
+                } catch (failure: StatementDocumentFailure) {
+                    retainCashImportFileFailure(file, true, failure.code) ?: throw failure
+                } catch (failure: ClientOperationFailure) {
+                    retainCashImportFileFailure(file, true, failure.code, failure.status ?: 0) ?: throw failure
                 }
-                else -> parseCashStatementLocally(format, bytes, source)
             }
-        } catch (failure: StatementDocumentFailure) {
-            if (failure.code !in localCashImportFailureCodes) throw failure
-            return captureCashStatement(file.ref, file.name, null, file.modifiedAtMillis, source, bytes, null, failure.code)
-        } catch (failure: ClientOperationFailure) {
-            if (failure.status != 422 || failure.code !in localCashImportFailureCodes + localCashImportPasswordCodes) throw failure
-            return captureCashStatement(file.ref, file.name, null, file.modifiedAtMillis, source, bytes, null, failure.code)
         }
-        return captureCashStatement(file.ref, file.name, null, file.modifiedAtMillis, source, bytes, document)
     }
 
     private suspend fun save(

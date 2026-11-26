@@ -260,8 +260,8 @@ class ClientSessionOperations(
     }
 
     suspend fun accounts(expectedWorkspace: String?): List<AccountReferenceDto> {
-        val binding = activeSession(expectedWorkspace)
-        return scopedRequest<AccountList>("GET", "/api/v1/accounts", binding, expectedWorkspace).items
+        val read = ledger(expectedWorkspace)
+        return cashAccountDirectory(read.ledger.snapshot.facts.accounts)
     }
 
     suspend fun account(expectedWorkspace: String?, id: String): AccountCommandViewDto {
@@ -298,7 +298,7 @@ class ClientSessionOperations(
             return try {
                 accountReceipt(ledger, command.id) ?: throw ClientOperationFailure("protocol_error")
             } catch (failure: ClientOperationFailure) {
-                if (failure.status in setOf(401, 403)) throw failure
+                if (failure.status in setOf(401, 403)) throw failure.withoutWriteProof()
                 throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
             }
         }
@@ -547,9 +547,6 @@ class ClientSessionOperations(
         readClientResponse(serializer<T>(), http.request(request))
 
     @Serializable
-    private data class AccountList(val items: List<AccountReferenceDto>)
-
-    @Serializable
     private data class BalanceList(val accounts: List<CashAccountBalance>)
 
 }
@@ -559,6 +556,9 @@ private val definitiveAccountRejections = setOf(
 )
 
 private val safeServerCode = Regex("[a-z][a-z0-9_.]{0,79}")
+
+internal fun ClientOperationFailure.withoutWriteProof() =
+    ClientOperationFailure(code, status, this, "unknown", operationId)
 
 internal fun <T> readClientResponse(decoder: DeserializationStrategy<T>, response: ClientHttpResponse): T {
     if (response.status !in 200..299) {

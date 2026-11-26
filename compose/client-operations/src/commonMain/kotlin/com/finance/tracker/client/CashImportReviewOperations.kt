@@ -6,6 +6,9 @@ import com.finance.tracker.business.contracts.CashPlanItemDetailDto
 import com.finance.tracker.business.contracts.CashPlanProcessingPageDto
 import com.finance.tracker.business.contracts.CashImportPreviewInput
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
+import com.finance.tracker.business.contracts.StoredCashImportSubmission
+import com.finance.tracker.business.domain.cashWriteSetJson
+import com.finance.tracker.business.domain.isCashWriteSetKey
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashImportPlanError
@@ -68,6 +71,16 @@ fun rebaseCashImportReview(
     }
     if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
     return CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes)
+}
+
+/** Freeze the exact confirmed request and the result context used to present its permanent receipt. */
+fun freezeCashImportConfirmation(
+    key: String, canCommit: Boolean, request: CashWriteSetRequestDto, resultPlan: JsonObject,
+): StoredCashImportSubmission {
+    if (!canCommit) throw CashImportPlanError("plan_changed")
+    if (!isCashWriteSetKey(key)) throw CashImportPlanError("plan_input_invalid")
+    return StoredCashImportSubmission(key, cashWriteSetJson.encodeToString(request), null, false,
+        LocalCashImportResultInput.freeze(resultPlan).encode(), null)
 }
 
 fun freezeCashImportChoices(input: JsonObject): JsonObject {
