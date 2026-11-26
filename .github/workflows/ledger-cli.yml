@@ -1,0 +1,66 @@
+name: Ledger CLI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ledger-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and verify ft npm package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: compose/cli/npm/package.json
+          package-manager-cache: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build npm package contents
+        working-directory: compose
+        run: ./gradlew :cli:stageNpm --no-configuration-cache
+
+      - name: Pack and verify installed ft
+        id: npm-package
+        shell: bash
+        run: |
+          package_dir=$(mktemp -d "$RUNNER_TEMP/finance-tracker-cli-package.XXXXXX")
+          install_dir=$(mktemp -d "$RUNNER_TEMP/finance-tracker-cli-install.XXXXXX")
+          package_name=$(npm pack ./compose/cli/build/npm --pack-destination "$package_dir")
+          package_path="$package_dir/$package_name"
+          test -f "$package_path"
+
+          cd "$install_dir"
+          npm install --engine-strict --ignore-scripts --no-audit --no-fund "$package_path"
+          ./node_modules/.bin/ft --version
+          ./node_modules/.bin/ft --help
+          printf 'path=%s\n' "$package_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified npm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-tracker-cli-${{ github.run_attempt }}
+          path: ${{ steps.npm-package.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
