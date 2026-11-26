@@ -209,7 +209,7 @@ test('管理目录随手动滚动高亮，工作区失败不阻断分类', async
   await expect.poll(async () => (await directoryMarker(page, 'workspace')).equals(selected)).toBe(false);
   await page.mouse.wheel(0, -5000);
   await expect.poll(async () => (await directoryMarker(page, 'workspace')).equals(selected)).toBe(true);
-  await page.route('**/api/v1/auth/workspace', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'network_unavailable' } }) }));
+  await page.route('**/api/v1/auth/members', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'network_unavailable' } }) }));
   await page.goto(`${root}/cash-categories`);
   await expect(id(page, 'cash-category.search')).toBeVisible();
   await openEditor(page, 'coffee');

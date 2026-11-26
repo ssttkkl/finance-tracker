@@ -73,7 +73,7 @@ class LedgerSessionRestorationTest {
         val f = fixture(disconnected = false)
         f.online = session.copy(workspaces = emptyList())
         try {
-            assertFailsWith<IllegalStateException> { f.operation.restore() }
+            assertEquals("request_failed", assertFailsWith<com.finance.tracker.data.ApiFailure> { f.operation.restore() }.code)
             assertTrue(f.createdErasures.isEmpty())
             assertEquals(listOf(scope), f.directory.scopes(origin))
             assertTrue(f.modes.isEmpty())
@@ -236,7 +236,7 @@ class LedgerSessionRestorationTest {
         val f = fixture(disconnected = false)
         f.online = session.copy(workspaces = emptyList())
         try {
-            assertFailsWith<IllegalStateException> { f.operation.restore() }
+            assertEquals("request_failed", assertFailsWith<com.finance.tracker.data.ApiFailure> { f.operation.restore() }.code)
             assertTrue(f.modes.isEmpty())
             assertEquals(1, f.requests)
         } finally { f.operation.close(); f.api.close() }

@@ -45,7 +45,7 @@ internal object NoRequestBody
 internal class FrozenJsonBody(val text: String, val gzip: ByteArray? = null, val compressInBrowser: Boolean = false)
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
-internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
+internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String, val workspaceId: String? = null)
 
 class FinanceApiClient private constructor(
     internal val baseUrl: () -> String,
@@ -125,16 +125,20 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
         preserveHttpRejectionOnBodyFailure, browserJson, beforeSend, readPayload)
 }
 
-internal fun FinanceApiClient.clientHttp(credentials: ApiCredentialSnapshot? = null): ClientHttp = ClientHttp { request ->
+internal fun FinanceApiClient.clientHttp(
+    credentials: ApiCredentialSnapshot, clearUnauthorizedToken: Boolean = true,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
+): ClientHttp = ClientHttp { request ->
+    check(request.token == credentials.token) { "request_token_scope_invalid" }
     val body = when (val supplied = request.body) {
         null -> NoRequestBody
         is ClientHttpBody.Json -> FrozenJsonBody(supplied.text)
         is ClientHttpBody.Statement -> error("Statement requests use the platform statement transport")
     }
     exchange(HttpMethod.parse(request.method), request.path,
-        normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp), request.token,
-        body, request.headers) { status, response ->
-        if (status !in 200..299) rejectApiPayload(status, response, request.token, clearUnauthorizedToken = true)
+        normalizeApiOrigin(credentials.apiOrigin, allowInsecureHttp), request.token, body, request.headers,
+        clearUnauthorizedToken = clearUnauthorizedToken, preserveHttpRejectionOnBodyFailure = preserveHttpRejectionOnBodyFailure) { status, response ->
+        if (status !in 200..299) rejectApiPayload(status, response, request.token, clearUnauthorizedToken)
         ClientHttpResponse(status, response)
     }
 }

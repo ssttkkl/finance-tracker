@@ -11,6 +11,8 @@ class KtorSessionRepository(private val apiClient: FinanceApiClient) : SessionRe
         override suspend fun selectWorkspace(id: String): Session = guarded { apiClient.selectWorkspace(id, credentials).toDomain() }
         override suspend fun createWorkspace(name: String): Session = guarded { apiClient.createWorkspace(name, credentials).toDomain() }
         override suspend fun acceptInvitation(token: String): Session = guarded { apiClient.acceptInvitation(token, credentials).toDomain() }
+        override suspend fun members(): WorkspaceMembers = guarded { apiClient.members(credentials).toDomain() }
+        override suspend fun workspaceDetails(): WorkspaceMembers = members()
         override suspend fun updateWorkspace(name: String): Session = guarded { apiClient.updateWorkspace(name, credentials).toDomain() }
         override suspend fun deleteWorkspace(name: String): Session = guarded { apiClient.deleteWorkspace(name, credentials).toDomain() }
         override suspend fun invite(role: WorkspaceRole): String = guarded { apiClient.invite(role.toData(), credentials).token }

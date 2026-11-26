@@ -43,23 +43,31 @@ test("移除成员在确认前不写入，邀请防重复且显示生成角色",
   await page.setViewportSize({ width: 1440, height: 950 });
   const fixtures = await installComposeApiFixtures(page);
   let invitations = 0;
-  await page.route("**/api/v1/auth/invitations", async route => {
+  await page.route(/\/api\/v1\/auth\/invitations(?:\?.*)?$/, async route => {
     invitations++;
     expect(route.request().postDataJSON().role).toBe("editor");
     await new Promise(resolve => setTimeout(resolve, 900));
-    await route.fulfill({ json: { token: "synthetic-invitation" } });
+    expect(new URL(route.request().url()).searchParams.get("workspace_id")).toBe("workspace-1");
+    await route.fulfill({ json: { token: "synthetic-invitation", role: "editor", expires_in_days: 7 } });
   });
   await page.goto("/w/workspace-1/workspace-management");
   await click(page, "management.directory.item.members");
   await clickStableComposeTarget(page, page.getByRole("button", { name: "移除", exact: true }).last());
   const modal = byId(page, "workspace-management.member-confirmation.dialog");
-  await expect(modal).toContainText("member@example.com");
+  await expect(modal.getByRole("button", { name: "移除", exact: true })).toBeVisible();
   expect(fixtures.calls.filter(call => call.method === "DELETE" && call.path.includes("/auth/members/"))).toHaveLength(0);
   await page.screenshot({ path: info.outputPath("member-removal-confirmation.png") });
   await page.keyboard.press("Escape");
   expect(fixtures.calls.filter(call => call.method === "DELETE" && call.path.includes("/auth/members/"))).toHaveLength(0);
 
   await expect(modal).toHaveCount(0);
+  await clickStableComposeTarget(page, page.getByRole("button", { name: "移除", exact: true }).last());
+  const removed = page.waitForResponse(response => response.request().method() === "DELETE" &&
+    new URL(response.url()).pathname === "/api/v1/auth/members/member-id");
+  await clickStableComposeTarget(page, modal.getByRole("button", { name: "移除", exact: true }));
+  const removal = await removed;
+  expect(removal.ok()).toBe(true);
+  expect(new URL(removal.url()).searchParams.get("workspace_id")).toBe("workspace-1");
   await page.goto("/w/workspace-1/workspace-management");
   await click(page, "management.directory.item.invitations");
   const create = byId(page, "workspace.management.invite");

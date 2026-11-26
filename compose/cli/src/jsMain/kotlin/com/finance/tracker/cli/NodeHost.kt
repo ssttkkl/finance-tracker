@@ -16,7 +16,7 @@ import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.client.ClientHttp
 import com.finance.tracker.client.ClientHttpBody
 import com.finance.tracker.client.ClientHttpResponse
-import com.finance.tracker.client.previewWorkspaceInvitation
+import com.finance.tracker.client.ClientAccessOperations
 import com.finance.tracker.client.ClientLedgerState
 import com.finance.tracker.client.ClientNetworkUnavailable
 import com.finance.tracker.client.ClientOperationFailure
@@ -110,7 +110,7 @@ private suspend fun <T> withHost(
 }
 
 internal suspend fun previewInvitation(server: String?, token: String) =
-    previewWorkspaceInvitation(nodeTransport(requireServerOrigin(server)), token, ::encodeUrlComponent)
+    ClientAccessOperations(nodeTransport(requireServerOrigin(server)), ::encodeUrlComponent).previewInvitation(token)
 
 private fun requireServerOrigin(server: String?): String {
     val address = server ?: (process.env.FT_CLI_SERVER as String?) ?: throw CliFailure("missing_parameter", "--server")

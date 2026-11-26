@@ -16,10 +16,10 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 
 | 业务操作 | Compose 页面、状态与仓储 | CLI handler 与公共操作 | 状态与验证 |
 |---|---|---|---|
-| 登录、注册、确认会话、退出 | 认证页面／`SessionCacheRepository` → `KtorSessionRepository` 与 `AuthApi` 凭据入口 | `auth` → `ClientSessionOperations.login/register/status/logout` | 待迁。真实登录／退出、失效会话继续缓存拒绝、旧令牌与换区围栏 |
-| 工作区列表、当前工作区、选择、创建 | 工作区入口／侧栏 → `SessionCacheRepository` → `KtorSessionRepository` | `workspace` → `ClientSessionOperations.status/currentWorkspace/selectWorkspace/createWorkspace` | 待迁。创建、切换及晚到旧请求 |
-| 改名、删除、列成员、成员变更、创建邀请 | 管理页 → `WorkspaceManagementViewModel` → `SessionCacheRepository` 与 `KtorSessionRepository.boundTo` | `workspace` → `ClientSessionOperations.renameWorkspace/deleteWorkspace/members/setRole/removeMember/createInvitation` | 待迁。双库权限、旧范围冲突、确认名称 |
-| 邀请预览、接受 | 邀请入口 → `KtorSessionRepository.invitationPreview`／会话切换 | `workspace` → `previewWorkspaceInvitation`／`ClientSessionOperations.acceptInvitation` | 预览已迁至 `previewWorkspaceInvitation`。接受待迁。验证无会话预览、加入 viewer 和原会话绑定 |
+| 登录、注册、确认会话、退出 | 认证页面／`SessionCacheRepository` → `KtorSessionRepository` 与 `AuthApi` 凭据入口 | `auth` → `ClientSessionOperations.login/register/status/logout` | 已接 `ClientAccessOperations.login/register/session/logout`。宿主保留发布与加密缓存清理 |
+| 工作区列表、当前工作区、选择、创建 | 工作区入口／侧栏 → `SessionCacheRepository` → `KtorSessionRepository` | `workspace` → `ClientSessionOperations.status/currentWorkspace/selectWorkspace/createWorkspace` | 已接 `ClientAccessOperations.session/selectWorkspace/createWorkspace`。切换在关闭旧缓存前固定原令牌 |
+| 改名、删除、列成员、成员变更、创建邀请 | 管理页 → `WorkspaceManagementViewModel` → `SessionCacheRepository` 与 `KtorSessionRepository.boundTo` | `workspace` → `ClientSessionOperations.renameWorkspace/deleteWorkspace/members/setRole/removeMember/createInvitation` | 已接 `ClientAccessOperations` 的管理操作。页面范围固定原工作区与使用者，服务端事务继续授权 |
+| 邀请预览、接受 | 邀请入口 → `KtorSessionRepository.invitationPreview`／会话切换 | `workspace` → `previewWorkspaceInvitation`／`ClientSessionOperations.acceptInvitation` | 已接 `ClientAccessOperations.previewInvitation/acceptInvitation`。预览匿名，接受固定原令牌 |
 | 选择账户、查看编辑资格 | 记账账户选择／导入账户选择 → `LocalFirstFinanceRepository`／`LocalCashImportLifecycleRepository.selectionAccount` | `account`、`cashWrite`、`cashImport` → `ClientSessionOperations`／`ClientCashImportOperations` | 待迁。停用、币种、快照版本 |
 | 新建账户 | 记账账户表单／`CashImportAccountForm` → `LocalCashImportLifecycleRepository.createAccount` | `account`、`prepareImportAccounts` → `ClientCashWriteOperations.createAccount`／`ClientImportAccountOperations.create` | 待迁。无重复创建、账本刷新 |
 | 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 待迁。原修订、独立效果、并发后保留外部改动 |
@@ -37,7 +37,7 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 
 ## 4. 构建
 
-- [ ] 4.1 先写失败回归，迁移会话、工作区与成员邀请并核对边界。
+- [x] 4.1 先写失败回归，迁移会话、工作区与成员邀请并核对边界。
 - [ ] 4.2 迁移记账、转账、分类和收支维护，收敛确认、待核实与收据，登记真实页面调用。
 - [ ] 4.3 迁移账户选择、创建、补币种及有修订保护的补偿。
 - [ ] 4.4 迁移现金导入从文件准备到核对、冻结、确认、收据、恢复与取消。
@@ -61,6 +61,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 邀请预览切片于 2026-11-26 使用 Chrome 158 在 `http://127.0.0.1:5199` 点击邀请和换账号入口，`npm run test:e2e -- compose-core-ui-workflows.e2e.ts --grep '从邀请链接进入|接受邀请时'` 通过 2 项。实际 npm 安装包的 `node --test cli/test/entry.test.cjs cli/test/offline.test.cjs cli/test/server.test.cjs` 在 SQLite 通过 3 项，包含匿名预览。此切片没有存储合同变化；写入矩阵所需的双库验证见 6.3。
 
 记账切片的 Chrome 三个回归使用预览 `http://127.0.0.1:5199` 与页面故障注入。基线会直接重发，修复前仍可在查无收据期间换令牌后重发，修复后三项均通过，覆盖单次收据、404 原样重放和令牌换代停止。Android `CashCreation*`、`SessionCacheRepositoryTest`、`LedgerReceiptMappingTest` 共 83 项通过。安装包在 SQLite 和专用 PostgreSQL 17.12 的同一子进程矩阵四项通过，覆盖服务端已拒绝而回包丢失、恢复原操作、无重发和精确金额。
+
+认证与工作区切片先在 Android 复现原管理写入不带 `workspace_id`。迁移后同一测试核对三种写入的固定令牌和工作区。旧工作区及同工作区的旧使用者页面均不能发出邀请。现有 iOS 退出清理测试验证无效服务地址仍清除原令牌，异常会话两项测试继续证明未打开或清理缓存。Chrome 上 7 项真实页面冒烟通过，覆盖取消及确认移除、发送的工作区、邀请、只读角色及管理加载故障。已安装包在 SQLite 和 PostgreSQL 真实 HTTP 的 4 项通过。工作区与使用者的最后围栏另经 Android 和独立复核。
 
 ## 7. 发布
 

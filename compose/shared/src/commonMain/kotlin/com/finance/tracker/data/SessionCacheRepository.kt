@@ -320,7 +320,12 @@ internal class SessionCacheRepository(
 
     override suspend fun register(email: String, password: String): Session = authenticate(email, password, true)
 
-    override suspend fun selectWorkspace(id: String): Session = changeSession { selectWorkspace(id) }
+    override suspend fun selectWorkspace(id: String): Session {
+        val original = publishedLocal.value
+        val credentials = captureCredentials()
+        if (original != null && credentials.token != original.local.token) superseded()
+        return changeSession(selection = credentials, selectingFrom = original) { selectWorkspace(id) }
+    }
 
     override suspend fun createWorkspace(name: String): Session = changeSession(write = true) { createWorkspace(name) }
 
@@ -332,11 +337,38 @@ internal class SessionCacheRepository(
 
     override suspend fun invitationPreview(token: String): InvitationPreview = delegate.invitationPreview(token)
 
-    override suspend fun workspaceDetails(): WorkspaceMembers = delegate.workspaceDetails()
+    private data class ManagementScope(val workspaceId: String, val principalEmail: String)
+
+    override fun forWorkspace(id: String, principalEmail: String): SessionRepository {
+        val scope = ManagementScope(id, principalEmail)
+        return object : SessionRepository by this {
+            override suspend fun workspaceDetails() = workspaceRead(scope)
+            override suspend fun members() = workspaceRead(scope)
+            override suspend fun updateWorkspace(name: String) = changeSession(write = true, managementScope = scope) { updateWorkspace(name) }
+            override suspend fun deleteWorkspace(name: String) = changeSession(write = true, managementScope = scope) { deleteWorkspace(name) }
+            override suspend fun invite(role: WorkspaceRole) = workspaceWrite(scope) { invite(role) }
+            override suspend fun updateMember(id: String, role: WorkspaceRole) = workspaceWrite(scope) { updateMember(id, role) }
+            override suspend fun removeMember(id: String) = workspaceWrite(scope) { removeMember(id) }
+        }
+    }
+
+    override suspend fun workspaceDetails(): WorkspaceMembers = workspaceRead(null)
+    override suspend fun members(): WorkspaceMembers = workspaceRead(null)
+
+    private suspend fun workspaceRead(managementScope: ManagementScope?): WorkspaceMembers {
+        val original = publishedLocal.value ?: if (managementScope == null) return delegate.workspaceDetails()
+            else throw DomainFailure("workspace_conflict", 409, FailureCategory.RECOVERABLE)
+        checkWorkspace(original, managementScope)
+        mutex.withLock { requireCurrentPublication(original) }
+        return withRejectionCleanup(original) {
+            bindSession(ApiCredentialSnapshot(original.local.token, origin, original.session.activeWorkspaceId)).workspaceDetails()
+        }.also {
+            currentCoroutineContext().ensureActive()
+            mutex.withLock { requireCurrentPublication(original) }
+        }
+    }
 
     override suspend fun invite(role: WorkspaceRole): String = workspaceWrite { invite(role) }
-
-    override suspend fun members(): WorkspaceMembers = delegate.members()
 
     override suspend fun updateMember(id: String, role: WorkspaceRole) = workspaceWrite { updateMember(id, role) }
 
@@ -419,19 +451,29 @@ internal class SessionCacheRepository(
     private fun captureWriteSession(): ActiveLocal = publishedLocal.value
         ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
 
-    /** Under mutex; this is write eligibility, not a replacement for server role authorization. */
-    private fun requireOnlineSession(original: ActiveLocal): ActiveLocal {
+    private fun checkWorkspace(original: ActiveLocal, expected: ManagementScope?) {
+        if (expected != null && (original.session.activeWorkspaceId != expected.workspaceId || original.session.user.email != expected.principalEmail))
+            throw DomainFailure("workspace_conflict", 409, FailureCategory.RECOVERABLE)
+    }
+
+    private fun requireCurrentPublication(original: ActiveLocal) {
         if (local !== original || generation != original.generation)
             throw CancellationException("ledger_session_operation_superseded")
+    }
+
+    /** Under mutex; the server still authorizes the actual write. */
+    private fun requireOnlineSession(original: ActiveLocal): ActiveLocal {
+        requireCurrentPublication(original)
         if (original.local.offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
         return original
     }
 
-    private suspend fun <T> workspaceWrite(call: suspend SessionRepository.() -> T): T {
+    private suspend fun <T> workspaceWrite(managementScope: ManagementScope? = null, call: suspend SessionRepository.() -> T): T {
         val original = captureWriteSession()
+        checkWorkspace(original, managementScope)
         return restoreMutex.withLock {
             mutex.withLock { requireOnlineSession(original) }
-            val bound = bindSession(ApiCredentialSnapshot(original.local.token, origin))
+            val bound = bindSession(ApiCredentialSnapshot(original.local.token, origin, original.session.activeWorkspaceId))
             currentCoroutineContext().ensureActive()
             mutex.withLock { requireOnlineSession(original) }
             val result = withRejectionCleanup(original) { bound.call() }
@@ -442,24 +484,29 @@ internal class SessionCacheRepository(
     }
 
     private suspend fun changeSession(detachBefore: Boolean = true, write: Boolean = false,
+        managementScope: ManagementScope? = null, selection: ApiCredentialSnapshot? = null, selectingFrom: ActiveLocal? = null,
         call: suspend SessionRepository.() -> Session): Session {
-        val writeSession = if (write) captureWriteSession() else null
+        val writeSession = if (write) captureWriteSession().also { checkWorkspace(it, managementScope) } else null
         return restoreMutex.withLock {
             val (original, operationGeneration) = mutex.withLock {
+                if (selection != null && local !== selectingFrom) superseded()
+                selectingFrom?.let(::requireCurrentPublication)
                 val active = if (write) requireOnlineSession(checkNotNull(writeSession)) else local
                 active to if (detachBefore) ++this.generation else this.generation
             }
             var generation = operationGeneration
-            val originalCredentials = if (write) ApiCredentialSnapshot(checkNotNull(original).local.token, origin) else null
+            val originalCredentials = if (write) ApiCredentialSnapshot(checkNotNull(original).local.token, origin,
+                original.session.activeWorkspaceId) else null
             if (detachBefore) closeLocal()
-            if (write) {
+            if (write || selection != null) {
+                if (selection != null && captureCredentials().token != selection.token) superseded()
                 currentCoroutineContext().ensureActive()
                 mutex.withLock {
                     if (this.generation != operationGeneration)
                         throw CancellationException("ledger_session_operation_superseded")
                 }
             }
-            val credentials = originalCredentials ?: captureCredentials()
+            val credentials = originalCredentials ?: selection ?: captureCredentials()
             val session = withRejectionCleanup(original) { bindSession(credentials).call() }
             if (!detachBefore) {
                 generation = mutex.withLock {

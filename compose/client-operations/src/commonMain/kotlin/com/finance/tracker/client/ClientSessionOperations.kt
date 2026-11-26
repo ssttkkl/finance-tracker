@@ -1,6 +1,5 @@
 package com.finance.tracker.client
 
-import com.finance.tracker.business.contracts.AuthResponseDto
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
@@ -10,12 +9,10 @@ import com.finance.tracker.business.contracts.CashXlsParseResultDto
 import com.finance.tracker.business.contracts.CashPdfParseResultDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.LedgerVersionDto
-import com.finance.tracker.business.contracts.InvitationPreviewDto
 import com.finance.tracker.business.contracts.Role
 import com.finance.tracker.business.contracts.WorkspaceMembersDto
 import com.finance.tracker.business.contracts.WorkspaceDto
 import com.finance.tracker.business.contracts.SessionDto
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
@@ -115,15 +112,18 @@ class ClientSessionOperations(
     private val encodeComponent: (String) -> String,
     private val now: () -> String,
 ) {
-    suspend fun login(email: String, password: String): SessionDto = authenticate("login", email, password)
-    suspend fun register(email: String, password: String): SessionDto = authenticate("register", email, password)
+    private val access = ClientAccessOperations(http, encodeComponent)
 
-    private suspend fun authenticate(action: String, email: String, password: String): SessionDto {
+    suspend fun login(email: String, password: String): SessionDto =
+        authenticate { access.login(email, password) }
+
+    suspend fun register(email: String, password: String): SessionDto =
+        authenticate { access.register(email, password) }
+
+    private suspend fun authenticate(request: suspend () -> com.finance.tracker.business.contracts.AuthResponseDto): SessionDto {
         val previous = store.session()
-        val body = buildJsonObject { put("email", email.trim()); put("password", password) }
-        val response: AuthResponseDto = request("POST", "/api/v1/auth/$action", body = body.toString())
-        val session = validate(response.session())
-        if (response.accessToken.isBlank()) throw ClientOperationFailure("protocol_error")
+        val response = request()
+        val session = response.session()
         if (!store.authenticate(previous, ClientStoredSession(response.accessToken, session)))
             throw ClientOperationFailure("session_changed")
         return session
@@ -133,33 +133,11 @@ class ClientSessionOperations(
 
     suspend fun logout() {
         val stored = requireSession()
-        var originalFailure: Throwable? = null
-        try {
-            request<LogoutResult>("POST", "/api/v1/auth/logout", stored.token)
-        } catch (failure: Throwable) {
-            originalFailure = failure
-            throw failure
-        } finally {
-            try {
-                withContext(NonCancellable) { store.clear(stored) }
-            } catch (cleanupFailure: Throwable) {
-                val original = originalFailure
-                if (original is CancellationException) original.addSuppressed(cleanupFailure)
-                else {
-                    if (original != null && original !== cleanupFailure) cleanupFailure.addSuppressed(original)
-                    throw cleanupFailure
-                }
-            }
-        }
+        access.logout(stored.token) { store.clear(stored) }
     }
 
-    suspend fun selectWorkspace(workspaceId: String): SessionDto {
-        val original = requireSession()
-        val session = authenticated(original) {
-            request<SessionDto>("POST", "/api/v1/auth/workspaces/${encodeComponent(workspaceId)}/select", original.token)
-        }
-        if (session.activeWorkspaceId != workspaceId) throw ClientOperationFailure("protocol_error")
-        return accept(original, session).session
+    suspend fun selectWorkspace(workspaceId: String): SessionDto = workspaceState { binding ->
+        authenticated(binding) { access.selectWorkspace(binding.token, workspaceId) }
     }
 
     suspend fun currentWorkspace(): WorkspaceDto {
@@ -168,48 +146,43 @@ class ClientSessionOperations(
             ?: throw ClientOperationFailure("workspace_required")
     }
 
-    suspend fun createWorkspace(name: String): SessionDto {
-        val original = requireSession()
-        val response: SessionDto = authenticated(original) {
-            request("POST", "/api/v1/auth/workspaces", original.token, stringField("name", name))
-        }
-        return accept(original, response).session
+    suspend fun createWorkspace(name: String): SessionDto = workspaceState { binding ->
+        authenticated(binding) { access.createWorkspace(binding.token, name) }
     }
 
-    suspend fun renameWorkspace(expected: String?, name: String): SessionDto =
-        workspaceState { binding ->
-            scopedRequest("PUT", "/api/v1/auth/workspace", binding, expected, stringField("name", name))
-        }
-
-    suspend fun deleteWorkspace(expected: String?, confirmation: String): SessionDto =
-        workspaceState { binding ->
-            scopedRequest("DELETE", "/api/v1/auth/workspace", binding, expected, stringField("name", confirmation))
-        }
-
-    suspend fun members(expected: String?): WorkspaceMembersDto {
-        val binding = activeSession(expected)
-        val members: WorkspaceMembersDto = authenticated(binding) { request("GET", "/api/v1/auth/members", binding.token) }
-        if (members.workspace.id != binding.session.activeWorkspaceId) throw ClientOperationFailure("workspace_conflict", 409)
-        requireCurrent(binding)
-        return members
+    suspend fun renameWorkspace(expected: String?, name: String): SessionDto = workspaceState { binding ->
+        val fixed = workspace(binding, expected)
+        authenticated(binding) { requireCurrent(binding); access.renameWorkspace(binding.token, fixed, name) }
     }
+
+    suspend fun deleteWorkspace(expected: String?, confirmation: String): SessionDto = workspaceState { binding ->
+        val fixed = workspace(binding, expected)
+        authenticated(binding) { requireCurrent(binding); access.deleteWorkspace(binding.token, fixed, confirmation) }
+    }
+
+    suspend fun members(expected: String?): WorkspaceMembersDto =
+        workspaceMemberOperation(expected) { binding, fixed -> access.members(binding.token, fixed) }
 
     suspend fun setRole(expected: String?, memberId: String, role: Role): WorkspaceMembersDto =
-        scopedRequest("PUT", "/api/v1/auth/members/${encodeComponent(memberId)}", activeSession(expected), expected,
-            stringField("role", role.name.lowercase()))
+        workspaceMemberOperation(expected) { binding, fixed -> access.setRole(binding.token, fixed, memberId, role) }
 
     suspend fun removeMember(expected: String?, memberId: String): Boolean =
-        scopedRequest<LogoutResult>("DELETE", "/api/v1/auth/members/${encodeComponent(memberId)}", activeSession(expected), expected).ok
+        workspaceMemberOperation(expected) { binding, fixed -> access.removeMember(binding.token, fixed, memberId) }
 
     suspend fun createInvitation(expected: String?, role: Role): ClientInvitation =
-        scopedRequest("POST", "/api/v1/auth/invitations", activeSession(expected), expected, stringField("role", role.name.lowercase()))
+        workspaceMemberOperation(expected) { binding, fixed -> access.createInvitation(binding.token, fixed, role) }
 
-    suspend fun acceptInvitation(token: String): SessionDto {
-        val binding = requireSession()
-        val result: SessionDto = authenticated(binding) {
-            request("POST", "/api/v1/auth/invitations/${encodeComponent(token)}/accept", binding.token)
+    private suspend fun <T> workspaceMemberOperation(expected: String?, request: suspend (ClientStoredSession, String) -> T): T {
+        val binding = activeSession(expected)
+        val fixed = workspace(binding, expected)
+        return authenticated(binding) {
+            requireCurrent(binding)
+            request(binding, fixed).also { requireCurrent(binding) }
         }
-        return accept(binding, result).session
+    }
+
+    suspend fun acceptInvitation(token: String): SessionDto = workspaceState { binding ->
+        authenticated(binding) { access.acceptInvitation(binding.token, token) }
     }
 
     private suspend fun workspaceState(action: suspend (ClientStoredSession) -> SessionDto): SessionDto {
@@ -239,8 +212,6 @@ class ClientSessionOperations(
         requireCurrent(binding)
         request(method, "$path?workspace_id=${encodeComponent(workspace)}", binding.token, body, headers)
     }
-
-    private fun stringField(key: String, value: String): String = buildJsonObject { put(key, value) }.toString()
 
     internal fun component(value: String): String = encodeComponent(value)
 
@@ -476,22 +447,14 @@ class ClientSessionOperations(
         store.session() ?: throw ClientOperationFailure("authentication_required", 401)
 
     private suspend fun onlineSession(original: ClientStoredSession): ClientStoredSession =
-        accept(original, authenticated(original) { request("GET", "/api/v1/auth/session", original.token) })
+        accept(original, authenticated(original) { access.session(original.token) })
 
     private suspend fun accept(original: ClientStoredSession, response: SessionDto): ClientStoredSession {
-        val session = validate(response)
+        val session = validateClientSession(response)
         if (session.user != original.session.user) throw ClientOperationFailure("protocol_error")
         return ClientStoredSession(original.token, session).also {
             if (!store.verify(original, it)) throw ClientOperationFailure("session_changed")
         }
-    }
-
-    private fun validate(session: SessionDto): SessionDto {
-        val ids = session.workspaces.map { it.id }
-        if (session.user.email.isBlank() || ids.any(String::isBlank) || ids.distinct().size != ids.size ||
-            session.activeWorkspaceId?.let { it !in ids } == true
-        ) throw ClientOperationFailure("protocol_error")
-        return session
     }
 
     private fun revision(value: String): Long =
@@ -552,13 +515,7 @@ class ClientSessionOperations(
     @Serializable
     private data class BalanceList(val accounts: List<CashAccountBalance>)
 
-    @Serializable
-    private data class LogoutResult(val ok: Boolean)
-
 }
-
-suspend fun previewWorkspaceInvitation(http: ClientHttp, token: String, encodeComponent: (String) -> String): InvitationPreviewDto =
-    readClientResponse(InvitationPreviewDto.serializer(), http.request(ClientHttpRequest("GET", "/api/v1/auth/invitations/${encodeComponent(token)}", null, null, emptyMap())))
 
 private val definitiveAccountRejections = setOf(
     "account_payload_invalid", "account_changed", "account_not_found", "account_in_use", "account_active", "account_name_unavailable",
@@ -566,7 +523,7 @@ private val definitiveAccountRejections = setOf(
 
 private val safeServerCode = Regex("[a-z][a-z0-9_.]{0,79}")
 
-private fun <T> readClientResponse(decoder: DeserializationStrategy<T>, response: ClientHttpResponse): T {
+internal fun <T> readClientResponse(decoder: DeserializationStrategy<T>, response: ClientHttpResponse): T {
     if (response.status !in 200..299) {
         val serverError = try {
             clientJson.decodeFromString<ServerError>(response.body)

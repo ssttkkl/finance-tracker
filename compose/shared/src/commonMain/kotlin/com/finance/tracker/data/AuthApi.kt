@@ -1,13 +1,10 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.client.ClientOperationFailure
-import com.finance.tracker.client.previewWorkspaceInvitation
+import com.finance.tracker.client.ClientAccessOperations
 import com.finance.tracker.domain.*
-import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.withLock
@@ -15,12 +12,11 @@ import kotlinx.serialization.Serializable
 
 suspend fun FinanceApiClient.hasStoredSessionToken(): Boolean = readToken() != null
 
-suspend fun FinanceApiClient.session(): SessionDto = request(HttpMethod.Get, "/api/v1/auth/session")
+suspend fun FinanceApiClient.session(): SessionDto = session(captureCredentials())
 
 internal suspend fun FinanceApiClient.session(credentials: ApiCredentialSnapshot,
     preserveHttpRejectionOnBodyFailure: Boolean = false): SessionDto =
-    request(HttpMethod.Get, "/api/v1/auth/session", credentials = credentials,
-        preserveHttpRejectionOnBodyFailure = preserveHttpRejectionOnBodyFailure)
+    access(credentials, preserveHttpRejectionOnBodyFailure = preserveHttpRejectionOnBodyFailure) { session(credentials.token) }
 
 suspend fun FinanceApiClient.restoreSession(attempts: Int = 3, retryDelayMillis: Long = 200): SessionDto {
     if (!hasStoredSessionToken()) throw ApiFailure("authentication_required", 401)
@@ -65,114 +61,74 @@ internal suspend fun FinanceApiClient.registerWithCredentials(email: String, pas
 suspend fun FinanceApiClient.logout(): LogoutResultDto = logout(null)
 
 internal suspend fun FinanceApiClient.logout(credentials: ApiCredentialSnapshot?): LogoutResultDto {
-    val token = if (credentials == null) readToken() else credentials.token
-    var requestFailure: Throwable? = null
-    return try {
-        request(
-            HttpMethod.Post,
-            "/api/v1/auth/logout",
-            body = null,
-            clearUnauthorizedToken = false,
-            credentials = credentials ?: ApiCredentialSnapshot(token, baseUrl()),
-        )
-    } catch (failure: Throwable) {
-        requestFailure = failure
-        throw failure
-    } finally {
-        try {
-            withContext(NonCancellable) { clearTokenIfCurrent(token) }
-        } catch (cleanupFailure: Throwable) {
-            val original = requestFailure
-            if (original is CancellationException) {
-                if (original !== cleanupFailure) original.addSuppressed(cleanupFailure)
-            } else {
-                if (original != null && original !== cleanupFailure) cleanupFailure.addSuppressed(original)
-                throw cleanupFailure
-            }
-        }
-    }
+    val original = credentials ?: ApiCredentialSnapshot(readToken(), baseUrl())
+    return LogoutResultDto(access(original, clearUnauthorizedToken = false) {
+        logout(original.token) { clearTokenIfCurrent(original.token) }
+    })
 }
 
 suspend fun FinanceApiClient.selectWorkspace(id: String): SessionDto = selectWorkspace(id, captureCredentials())
 
-internal suspend fun FinanceApiClient.selectWorkspace(id: String, credentials: ApiCredentialSnapshot): SessionDto = request(
-    HttpMethod.Post,
-    "/api/v1/auth/workspaces/${encodePathSegment(id)}/select",
-    body = null,
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.selectWorkspace(id: String, credentials: ApiCredentialSnapshot): SessionDto =
+    access(credentials) { selectWorkspace(credentials.token, id) }
 
 suspend fun FinanceApiClient.createWorkspace(name: String): SessionDto = createWorkspace(name, captureCredentials())
 
-internal suspend fun FinanceApiClient.createWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto = request(
-    HttpMethod.Post,
-    "/api/v1/auth/workspaces",
-    body = WorkspaceNameRequest(name),
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.createWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto =
+    access(credentials) { createWorkspace(credentials.token, name) }
 
-suspend fun FinanceApiClient.invitationPreview(token: String): InvitationPreviewDto = try {
-    previewWorkspaceInvitation(clientHttp(), token, ::encodePathSegment)
-} catch (failure: ClientOperationFailure) {
-    throw ApiFailure("request_failed", 200, cause = failure)
-}
+suspend fun FinanceApiClient.invitationPreview(token: String): InvitationPreviewDto =
+    access(ApiCredentialSnapshot(null, baseUrl())) { previewInvitation(token) }
 
 suspend fun FinanceApiClient.acceptInvitation(token: String): SessionDto = acceptInvitation(token, captureCredentials())
 
-internal suspend fun FinanceApiClient.acceptInvitation(token: String, credentials: ApiCredentialSnapshot): SessionDto = request(
-    HttpMethod.Post,
-    "/api/v1/auth/invitations/${encodePathSegment(token)}/accept",
-    body = null,
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.acceptInvitation(token: String, credentials: ApiCredentialSnapshot): SessionDto =
+    access(credentials) { acceptInvitation(credentials.token, token) }
 
-suspend fun FinanceApiClient.workspaceDetails(): WorkspaceMembersDto = request(HttpMethod.Get, "/api/v1/auth/workspace")
+suspend fun FinanceApiClient.workspaceDetails(): WorkspaceMembersDto = members()
 
 suspend fun FinanceApiClient.updateWorkspace(name: String): SessionDto = updateWorkspace(name, captureCredentials())
 
-internal suspend fun FinanceApiClient.updateWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto = request(
-    HttpMethod.Put,
-    "/api/v1/auth/workspace",
-    body = WorkspaceNameRequest(name),
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.updateWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto =
+    access(credentials) { renameWorkspace(credentials.token, credentials.workspaceId, name) }
 
 suspend fun FinanceApiClient.deleteWorkspace(name: String): SessionDto = deleteWorkspace(name, captureCredentials())
 
-internal suspend fun FinanceApiClient.deleteWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto = request(
-    HttpMethod.Delete,
-    "/api/v1/auth/workspace",
-    body = WorkspaceNameRequest(name),
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.deleteWorkspace(name: String, credentials: ApiCredentialSnapshot): SessionDto =
+    access(credentials) { deleteWorkspace(credentials.token, credentials.workspaceId, name) }
 
 suspend fun FinanceApiClient.invite(role: Role): InviteResultDto = invite(role, captureCredentials())
 
-internal suspend fun FinanceApiClient.invite(role: Role, credentials: ApiCredentialSnapshot): InviteResultDto = request(
-    HttpMethod.Post,
-    "/api/v1/auth/invitations",
-    body = InviteRequest(role),
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.invite(role: Role, credentials: ApiCredentialSnapshot): InviteResultDto =
+    access(credentials) { InviteResultDto(createInvitation(credentials.token, credentials.workspaceId, role).token) }
 
-suspend fun FinanceApiClient.members(): WorkspaceMembersDto = request(HttpMethod.Get, "/api/v1/auth/members")
+suspend fun FinanceApiClient.members(): WorkspaceMembersDto = members(captureCredentials())
 
-suspend fun FinanceApiClient.updateMember(id: String, role: Role): EmptyResultDto = updateMember(id, role, captureCredentials())
+internal suspend fun FinanceApiClient.members(credentials: ApiCredentialSnapshot): WorkspaceMembersDto =
+    access(credentials) { members(credentials.token, credentials.workspaceId) }
 
-internal suspend fun FinanceApiClient.updateMember(id: String, role: Role, credentials: ApiCredentialSnapshot): EmptyResultDto = request(
-    HttpMethod.Put,
-    "/api/v1/auth/members/${encodePathSegment(id)}",
-    body = UpdateMemberRequest(role),
-    credentials = credentials,
-)
+suspend fun FinanceApiClient.updateMember(id: String, role: Role): WorkspaceMembersDto = updateMember(id, role, captureCredentials())
+
+internal suspend fun FinanceApiClient.updateMember(id: String, role: Role, credentials: ApiCredentialSnapshot): WorkspaceMembersDto =
+    access(credentials) { setRole(credentials.token, credentials.workspaceId, id, role) }
 
 suspend fun FinanceApiClient.removeMember(id: String): OkResultDto = removeMember(id, captureCredentials())
 
-internal suspend fun FinanceApiClient.removeMember(id: String, credentials: ApiCredentialSnapshot): OkResultDto = request(
-    HttpMethod.Delete,
-    "/api/v1/auth/members/${encodePathSegment(id)}",
-    credentials = credentials,
-)
+internal suspend fun FinanceApiClient.removeMember(id: String, credentials: ApiCredentialSnapshot): OkResultDto =
+    OkResultDto(access(credentials) { removeMember(credentials.token, credentials.workspaceId, id) })
+
+private suspend fun <T> FinanceApiClient.access(
+    credentials: ApiCredentialSnapshot,
+    clearUnauthorizedToken: Boolean = true,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
+    action: suspend ClientAccessOperations.() -> T,
+): T = try {
+    ClientAccessOperations(clientHttp(credentials, clearUnauthorizedToken, preserveHttpRejectionOnBodyFailure),
+        ::encodePathSegment).action()
+} catch (failure: ClientOperationFailure) {
+    throw ApiFailure(if (failure.code == "protocol_error") "request_failed" else failure.code,
+        failure.status ?: 200, commitState = failure.commitState, cause = failure)
+}
 
 private class LedgerAuthenticationOperation(private val directory: LedgerSessionDirectory, private val ticket: LedgerSessionTicket) {
     suspend fun requireCurrent(credentials: ApiCredentialSnapshot) {
@@ -186,13 +142,9 @@ private suspend fun FinanceApiClient.authenticate(action: String, email: String,
     val original = captureCredentials()
     operation?.requireCurrent(original)
     val response: AuthResponseDto = try {
-        request(
-            HttpMethod.Post,
-            "/api/v1/auth/$action",
-            body = CredentialsRequest(email.trim(), password),
-            credentials = original,
-            clearUnauthorizedToken = false,
-        )
+        access(original, clearUnauthorizedToken = false) {
+            if (action == "register") register(email, password, original.token) else login(email, password, original.token)
+        }
     } catch (failure: ApiFailure) {
         if (failure.status == 401) failure.rejectedToken = null
         throw failure
@@ -207,18 +159,6 @@ private suspend fun FinanceApiClient.authenticate(action: String, email: String,
     return AuthenticatedApiSession(response.session(), ApiCredentialSnapshot(response.accessToken, original.apiOrigin))
 }
 
-
-@Serializable
-data class CredentialsRequest(val email: String, val password: String)
-
-@Serializable
-data class WorkspaceNameRequest(val name: String)
-
-@Serializable
-data class InviteRequest(val role: Role)
-
-@Serializable
-data class UpdateMemberRequest(val role: Role)
 
 @Serializable
 data class InviteResultDto(val token: String)

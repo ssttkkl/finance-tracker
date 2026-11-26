@@ -58,6 +58,7 @@ interface SessionRepository {
     suspend fun createWorkspace(name: String): Session
     suspend fun invitationPreview(token: String): InvitationPreview
     suspend fun acceptInvitation(token: String): Session
+    fun forWorkspace(id: String, principalEmail: String): SessionRepository = this
     suspend fun workspaceDetails(): WorkspaceMembers
     suspend fun updateWorkspace(name: String): Session
     suspend fun deleteWorkspace(name: String): Session

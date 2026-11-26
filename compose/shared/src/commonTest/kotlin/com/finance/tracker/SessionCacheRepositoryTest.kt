@@ -80,6 +80,7 @@ class SessionCacheRepositoryTest {
     @Test fun memberWritesBindTheOriginalCredentialsInsteadOfReadingALaterToken() = runTest {
         val f = Fixture(); var tokenReads = 0
         val paths = mutableListOf<String>()
+        val expectedWorkspaces = mutableListOf<String?>()
         val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
             override suspend fun get(): String { tokenReads++; return "later-token" }
             override suspend fun set(token: String) = Unit
@@ -87,7 +88,13 @@ class SessionCacheRepositoryTest {
         }, io.ktor.client.engine.mock.MockEngine { request ->
             assertEquals("Bearer first-token", request.headers[io.ktor.http.HttpHeaders.Authorization])
             paths += request.url.encodedPath
-            respond(if (request.url.encodedPath.endsWith("invitations")) """{"token":"created-invite"}""" else """{"ok":true}""",
+            expectedWorkspaces += request.url.parameters["workspace_id"]
+            val body = when (request.method) {
+                io.ktor.http.HttpMethod.Post -> """{"token":"created-invite","role":"viewer","expires_in_days":7}"""
+                io.ktor.http.HttpMethod.Put -> """{"workspace":{"id":"first","name":"First"},"members":[]}"""
+                else -> """{"ok":true}"""
+            }
+            respond(body,
                 io.ktor.http.HttpStatusCode.OK,
                 io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
         })
@@ -99,6 +106,7 @@ class SessionCacheRepositoryTest {
             repository.updateMember("member", WorkspaceRole.EDITOR)
             repository.removeMember("member")
             assertEquals(listOf("/api/v1/auth/invitations", "/api/v1/auth/members/member", "/api/v1/auth/members/member"), paths)
+            assertEquals(listOf<String?>("first", "first", "first"), expectedWorkspaces)
             assertEquals(0, tokenReads)
         } finally { api.close() }
     }
@@ -121,6 +129,46 @@ class SessionCacheRepositoryTest {
             assertEquals(0, f.local.closes)
             assertNotNull(repository.localReader())
         } finally { api.close() }
+    }
+
+    @Test fun aManagementPageCannotReceiveOrWriteToAWorkspaceSwitchedAfterItsReadStarted() = runTest {
+        val f = Fixture()
+        val entered = CompletableDeferred<Unit>()
+        val reply = CompletableDeferred<Unit>()
+        val calls = mutableListOf<io.ktor.http.HttpMethod>()
+        val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
+            override suspend fun get() = "first-token"
+            override suspend fun set(value: String) = Unit
+            override suspend fun clear() = Unit
+        }, io.ktor.client.engine.mock.MockEngine { request ->
+            calls += request.method
+            assertEquals(io.ktor.http.HttpMethod.Get, request.method)
+            entered.complete(Unit)
+            reply.await()
+            respond("""{"workspace":{"id":"first","name":"First"},"members":[]}""",
+                headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"))
+        })
+        try {
+            val actual = KtorSessionRepository(api)
+            val repository = f.repository { actual.boundTo(it) }
+            repository.restoreSession()
+            val oldPage = repository.forWorkspace("first", f.local.session.user.email)
+            val read = async { assertFailsWith<CancellationException> { oldPage.workspaceDetails() } }
+            entered.await()
+            f.local.session = f.local.session.copy(activeWorkspaceId = "second", workspaces = listOf(WorkspaceDto("second", "Second", Role.ADMIN)))
+            repository.restoreSession()
+            reply.complete(Unit)
+            read.await()
+            assertEquals("workspace_conflict", assertFailsWith<DomainFailure> { oldPage.invite(WorkspaceRole.VIEWER) }.code)
+            f.local.session = f.local.session.copy(user = UserDto("later@example.test"), activeWorkspaceId = "first",
+                workspaces = listOf(WorkspaceDto("first", "First", Role.ADMIN)))
+            repository.restoreSession()
+            assertEquals("workspace_conflict", assertFailsWith<DomainFailure> { oldPage.invite(WorkspaceRole.VIEWER) }.code)
+            assertEquals(listOf(io.ktor.http.HttpMethod.Get), calls)
+        } finally {
+            reply.complete(Unit)
+            api.close()
+        }
     }
 
     @Test fun aVerifiedReconnectWithFailedLocalRestorationCannotReopenWrites() = runTest {

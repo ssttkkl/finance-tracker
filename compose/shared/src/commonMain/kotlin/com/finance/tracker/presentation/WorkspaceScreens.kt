@@ -169,8 +169,8 @@ internal fun WorkspaceManagementScreen(
 ) {
     val scope = rememberCoroutineScope()
     val viewModel: WorkspaceManagementViewModel = viewModel(
-        key = "workspace-management:$workspaceId",
-        factory = viewModelFactory { initializer { WorkspaceManagementViewModel(repository, diagnostics) } },
+        key = "workspace-management:$workspaceId:${session.user.email}",
+        factory = viewModelFactory { initializer { WorkspaceManagementViewModel(repository.forWorkspace(workspaceId, session.user.email), diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember(workspaceId) { SnackbarHostState() }

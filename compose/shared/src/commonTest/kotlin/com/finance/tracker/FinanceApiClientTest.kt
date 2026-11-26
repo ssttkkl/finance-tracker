@@ -82,7 +82,7 @@ class FinanceApiClientTest {
             bodies += (call.body as? io.ktor.http.content.TextContent)?.text.orEmpty()
             authorizations += call.headers[HttpHeaders.Authorization]
             when {
-                call.url.encodedPath.endsWith("/select") -> respondJson("""{"user":{"email":"owner@example.com"},"active_workspace_id":"team one","workspaces":[]}""")
+                call.url.encodedPath.endsWith("/select") -> respondJson("""{"user":{"email":"owner@example.com"},"active_workspace_id":"team one","workspaces":[{"id":"team one","name":"Test","role":"admin"}]}""")
                 call.url.encodedPath.endsWith("/invitations/token%2Fone") -> respondJson("""{"workspace":{"name":"共享账本"},"role":"editor","valid":true}""")
                 else -> error("Unexpected API request")
             }
