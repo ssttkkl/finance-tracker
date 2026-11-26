@@ -48,48 +48,55 @@ class ClientImportAccountOperations(
         val commands = writes.importCommands(batch)
         if (commands.any { it.receipt == null && it.rejection == null })
             throw ClientOperationFailure("account_result_unknown", commitState = "unknown")
-        val receipts = commands.filter { it.receipt?.account != null }
-        val latest = receipts.groupBy { checkNotNull(it.receipt?.account).accountId }
-            .mapValues { (_, values) -> values.maxOf { checkNotNull(it.receipt?.account).accountRevision } }.toMutableMap()
-        val reversed = receipts.filter { it.completesReversal }.mapNotNull { it.reverses }.toSet()
-        val original = receipts.filter { it.reverses == null }
-        val broken = original.groupBy { checkNotNull(it.receipt?.account).accountId }.filterValues { changes ->
-            changes.sortedBy { checkNotNull(it.receipt?.account).accountRevision }.zipWithNext().any { (earlier, later) ->
-                earlier.receipt?.account?.accountRevision != later.beforeAccount?.accountRevision
-            }
-        }.keys
-        val candidates = original.filter { it.id !in reversed }
-            .sortedByDescending { checkNotNull(it.receipt?.account).accountRevision }
-        val outcomes = mutableListOf<ImportAccountChangeResult>()
-        val blocked = mutableSetOf<String>()
-        for (change in candidates) {
-            val saved = checkNotNull(change.receipt?.account)
-            val accountId = saved.accountId
-            if (accountId in blocked) {
-                outcomes += ImportAccountChangeResult(change.id, accountId, "kept", "account_changed")
-                continue
-            }
-            try {
-                if (accountId in broken) throw ClientOperationFailure("account_changed", 409)
-                var current = session.account(batch.ledger, accountId)
-                if (current.deleted || current.accountRevision != latest[accountId])
-                    throw ClientOperationFailure("account_changed", 409)
-                if (change.beforeAccount == null || change.beforeAccount.currencies != saved.currencies) {
-                    val methodResult = writes.reverseAccountChange(batch, change, current)
-                    val applied = checkNotNull(methodResult.receipt.account)
-                    latest[accountId] = applied.accountRevision
-                    if (change.beforeAccount == null && current.active && !applied.deleted) {
-                        current = session.account(batch.ledger, accountId)
-                        if (current.accountRevision != applied.accountRevision) throw ClientOperationFailure("account_changed", 409)
-                        latest[accountId] = checkNotNull(writes.reverseAccountChange(batch, change, current).receipt.account).accountRevision
-                    }
+        val edits = commands.filter { it.receipt?.account != null }
+        val all = edits.associateBy { it.id }
+        val chains = edits.groupBy { checkNotNull(it.receipt?.account).accountId }.mapValues { (_, accounts) ->
+            val effects = mutableListOf<ImportAccountEffect>()
+            var revision = 0L
+            var blocked = false
+            for (operation in accounts.sortedBy { checkNotNull(it.receipt?.account).accountRevision }) {
+                val after = checkNotNull(operation.receipt?.account)
+                if (effects.isEmpty()) blocked = false
+                else if (after.accountRevision != revision + 1) blocked = true
+                revision = after.accountRevision
+                if (operation.reverses == null) {
+                    effects += ImportAccountEffect(operation.id, revision, operation.beforeAccount, after)
+                } else if (operation.completesReversal) {
+                    effects.removeAll { it.key == operation.reverses }
                 }
-                outcomes += ImportAccountChangeResult(change.id, accountId, "restored")
-            } catch (failure: ClientOperationFailure) {
-                outcomes += ImportAccountChangeResult(change.id, accountId, "pending", failure.code)
-                blocked += accountId
             }
-        }
+            ImportAccountEffectChain(effects, revision, blocked)
+        }.toMutableMap()
+        val outcomes = mutableListOf<ImportAccountChangeResult>()
+        compensateImportAccounts(object : ImportAccountCompensationHost {
+            override fun chains() = chains
+            override fun hasUnresolvedWrite(accountId: String) = false
+            override suspend fun requireActive() = session.requireCurrent(batch.ledger.binding)
+            override fun canSubmit() = !batch.ledger.offline
+            override suspend fun read(accountId: String) = session.account(batch.ledger, accountId)
+
+            override suspend fun apply(effect: ImportAccountEffect, action: AccountCompensationAction): Boolean {
+                val id = action.current.accountId
+                val chain = chains.getValue(id)
+                val restored = action.kind != AccountCompensationKind.DEACTIVATE
+                val revision = if (restored && action.patch?.isEmpty() == true) {
+                    action.current.accountRevision
+                } else {
+                    val result = writes.reverseAccountChange(batch, all.getValue(effect.key), action)
+                    checkNotNull(result.receipt.account).accountRevision
+                }
+                chains[id] = chain.copy(effects = if (restored) chain.effects.dropLast(1) else chain.effects, revision = revision)
+                return true
+            }
+
+            override fun fail(effect: ImportAccountEffect, code: String, skipped: Boolean) {
+                outcomes += ImportAccountChangeResult(effect.key, effect.after.accountId, if (skipped) "kept" else "pending", code)
+            }
+
+            override fun succeeded(effect: ImportAccountEffect, complete: Boolean) {
+                if (complete) outcomes += ImportAccountChangeResult(effect.key, effect.after.accountId, "restored")
+            }
+        })
         return outcomes
     }
 }

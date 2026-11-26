@@ -21,8 +21,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 | 改名、删除、列成员、成员变更、创建邀请 | 管理页 → `WorkspaceManagementViewModel` → `SessionCacheRepository` 与 `KtorSessionRepository.boundTo` | `workspace` → `ClientSessionOperations.renameWorkspace/deleteWorkspace/members/setRole/removeMember/createInvitation` | 已接 `ClientAccessOperations` 的管理操作。页面范围固定原工作区与使用者，服务端事务继续授权 |
 | 邀请预览、接受 | 邀请入口 → `KtorSessionRepository.invitationPreview`／会话切换 | `workspace` → `previewWorkspaceInvitation`／`ClientSessionOperations.acceptInvitation` | 已接 `ClientAccessOperations.previewInvitation/acceptInvitation`。预览匿名，接受固定原令牌 |
 | 选择账户、查看编辑资格 | 记账账户选择／导入账户选择 → `LocalFirstFinanceRepository`／`LocalCashImportLifecycleRepository.selectionAccount` | `account`、`cashWrite`、`cashImport` → `ClientSessionOperations`／`ClientCashImportOperations` | 待迁。停用、币种、快照版本 |
-| 新建账户 | 记账账户表单／`CashImportAccountForm` → `LocalCashImportLifecycleRepository.createAccount` | `account`、`prepareImportAccounts` → `ClientCashWriteOperations.createAccount`／`ClientImportAccountOperations.create` | 待迁。无重复创建、账本刷新 |
-| 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 待迁。原修订、独立效果、并发后保留外部改动 |
+| 新建账户 | 记账账户表单／`CashImportAccountForm` → `ImportAccountViewModel` 与 `LocalCashImportLifecycleRepository` | `account`、`prepareImportAccounts` → `ClientCashWriteOperations.createAccount`／`ClientImportAccountOperations.create` | 已接 `ClientAccountOperations` 与 `executeAccountWrite`。原键查据、身份校验及已知失败共用 |
+| 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 共用请求、证明和 `compensateImportAccounts`。原键查无才重放，恢复修订链拒绝覆盖外部变化。缺币种预检与账户目录另验 |
 | 收支列表、月度汇总、定位 | `CashLedgerScreen` → `LocalFirstFinanceRepository` → `LocalCashLedgerReader.page`（Web 经 `CashLedgerWorker`）→ `CashLedgerOperations.page` | `cash` → `CashLedgerOperations.page`（`summary` 委托同一查询） | Web 与原生均进入共享查询。实际页面、安装包覆盖分币种精确金额、来源和游标 |
 | 详情与来源 | 收支详情 → `LocalCashMaintenanceRepository` → `LocalCashLedgerReader.record/sourceRecords`（Web 经 `CashLedgerWorker`）→ `CashLedgerOperations.record/evidence` | `cash` → `CashLedgerOperations.record/evidence` | 详细事实与原始来源联验 |
 | 手工记账、转账及原操作恢复 | `CashCreationPanel` → `CashCreationViewModel.save` → `KtorCashCreationRepository.save` | `cashWrite` → `ClientCashWriteOperations.add/transfer/resume` | 执行及收据核实已共用 `executeCashCommand`。输入组装和 Compose 原命令的加密持久化待迁。验证精确金额、双端事务、同键重试和提交中退出 |
@@ -56,6 +56,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 
 导入执行切片以 `f2501787` 为基线。独立复核发现紧凑请求降级时查询错误可能被误当作写入拒绝，另发现取得权威收据后有一次会覆盖成功结果的额外本机读取。两项均修复并重审。重算先验证原会话和原收据，保留服务拒绝与本机存储诊断。
 
+账户写入切片以 `988ee63a` 为基线。独立复核确认两端使用同一账户证明和撤回循环。畸形收据误判成功、已撤回前序阻止同批再次扩币、查据故障后补币种重发及未知诊断丢失均已修复并重审。
+
 ## 6. 测试与 QA
 
 - [ ] 6.1 运行 Kotlin、后端、跨端编译和受影响回归，记录当前提交、基线、精确命令与结果。
@@ -71,6 +73,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 维护与 Worker 切片于 2026-11-26 通过受影响 Android 测试、`:shared:iosSimulatorArm64Test`、`:client-operations:jvmTest` 和 npm 安装后的 `node --test cli/test/{entry,offline,server}.test.cjs` 双库矩阵（4 项）。安装包的旧格式加密命令回归先失败于未请求原计划核实。修复后 SQLite 和 PostgreSQL 以原计划及原键取回同一收据。Chrome 158 在 390、768、1440 宽度验证月度视图，在 390 验证账本 Worker 和真实收支编辑。编辑回包丢失后，页面调用原计划核实，确认服务端只有一次写入并展示新的备注。用于真实编辑的脚本经同一已构建预览单独复跑通过。
 
 导入执行切片于 2026-11-26 先在 Android 复现两种 GET 拒绝导致错误结果状态，包括紧凑降级期间的一次 POST、两次查询、禁止重算的回归。修复后 `./gradlew :shared:testAndroidHostTest --tests '*LocalCashImportRecoveryTest' :client-operations:jvmTest --offline` 和 `:shared:iosSimulatorArm64Test` 通过。真实 npm 安装包在 SQLite、专用 PostgreSQL 共 4 项通过。Chrome 158 使用 `http://127.0.0.1:5201` 执行首笔记账与收支编辑，以及导入的读取取消、离线确认、冲突重核、已提交后冷启动，共 5 项通过。运行采用 390 和 1440 宽度，写入带同一原始键，断网冷启动仍可展示结果。
+
+账户写入切片于 2026-11-26 通过 `:shared:testAndroidHostTest` 的账户与会话回归、`:shared:iosSimulatorArm64Test`、共享 JVM 及安装包 SQLite／PostgreSQL 4 项。旧包会接纳缺少账户的收据，修复后保留原待核实命令并取回正确收据。两库验证同一批次两轮扩币与撤回、外部改动阻止补偿。Compose 查据 503 先失败后转绿。Chrome 在 `http://127.0.0.1:5205` 验证创建账户后继续记账、账户保存遇到中断时以同键重试。补币种与撤回的实际页面验证见后续覆盖。
 
 ## 7. 发布
 

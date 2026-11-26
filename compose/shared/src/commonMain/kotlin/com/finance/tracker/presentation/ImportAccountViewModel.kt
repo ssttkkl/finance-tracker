@@ -1,5 +1,23 @@
 package com.finance.tracker.presentation
 
+import com.finance.tracker.business.contracts.AccountCommandViewDto
+import com.finance.tracker.client.AccountCompensationAction
+import com.finance.tracker.client.AccountCompensationKind
+import com.finance.tracker.client.AccountWriteAction
+import com.finance.tracker.client.AccountWriteEvidence
+import com.finance.tracker.client.AccountWriteExpectation
+import com.finance.tracker.client.accountResponseEvidence
+import com.finance.tracker.client.executeAccountWrite
+import com.finance.tracker.client.isAccountWriteRefusal
+import com.finance.tracker.client.validateAccountWrite
+import com.finance.tracker.data.toDomain
+import com.finance.tracker.client.ClientOperationFailure
+import com.finance.tracker.client.ImportAccountCompensationHost
+import com.finance.tracker.client.ImportAccountEffect
+import com.finance.tracker.client.ImportAccountEffectChain
+import com.finance.tracker.client.compensateImportAccounts
+import com.finance.tracker.data.toStructuredObject as structureAccountPatch
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finance.tracker.core.ImportAccountRecovery
@@ -95,15 +113,18 @@ class ImportAccountViewModel(
         refreshAccountDirectory(token)
     }
 
-    private suspend fun resolveKnownPending(token: Long) {
+    private suspend fun resolveKnownPending(token: Long): Set<String> {
+        val absent = mutableSetOf<String>()
         for (key in pending.keys.toList()) {
             try { resolveOne(token, key) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (cause: DomainFailure) {
                 if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause
+                if (cause.status == 404 && cause.code == "receipt_not_found" && cause.commitState != "unknown") absent += key
             }
-            if (!current(token)) return
+            if (!current(token)) return emptySet()
         }
+        return absent
     }
 
     fun refreshAccounts() = execute { refreshAccountDirectory(it) }
@@ -176,9 +197,9 @@ class ImportAccountViewModel(
         onComplete: (Map<String, ImportAccount>) -> Unit) {
         if (!available()) return
         execute { token ->
-            resolveKnownPending(token)
+            val absent = resolveKnownPending(token)
             if (!current(token)) return@execute
-            val retries = pending.values.mapNotNull { it.command?.currencyRequirement }.associateBy { it.accountId }
+            val retries = pending.filterKeys { it in absent }.values.mapNotNull { it.command?.currencyRequirement }.associateBy { it.accountId }
             if (retries.size != pending.size || retries.values.any { retry ->
                     !requiredByAccount[retry.accountId].orEmpty().containsAll(retry.currencies)
                 }) {
@@ -296,8 +317,9 @@ class ImportAccountViewModel(
                 val operation = pending[key] ?: invalidAccount()
                 val failure = (byAccount[command.accountId] ?: invalidAccount()).failure
                 if (failure != null) {
-                    if (key !in previouslyUncertain && failure.category != FailureCategory.UNKNOWN && failure.code != "internal_error" &&
-                        failure.status in 400..499 && failure.code in definiteRefusals) {
+                    if (failure.category != FailureCategory.UNKNOWN && failure.code != "internal_error" &&
+                        isAccountWriteRefusal(ClientOperationFailure(failure.code, failure.status, failure, failure.commitState),
+                            firstAttempt = key !in previouslyUncertain)) {
                         operation.refused = true
                         if (command.undo != Undo.NONE) failUndo(command.accountId!!, failure.code)
                         if (failure.code == "account_changed") chains[command.accountId]?.blocked = true
@@ -369,27 +391,32 @@ class ImportAccountViewModel(
         val previouslyUncertain = operation.uncertain
         operation.uncertain = true
         val result = try {
-            when (command.kind) {
-                "account_create" -> repository.createAccount(command.name!!, command.type!!, command.currencies!!, key)
-                "account_update" -> repository.updateAccount(command.accountId!!, command.revision!!, command.patch!!, key)
-                else -> repository.deleteAccount(command.accountId!!, command.revision!!, key)
-            }
+            val action = if (previouslyUncertain) AccountWriteAction.RESUME else AccountWriteAction.SUBMIT
+            executeAccountWrite(command.expectation(), action, read = { lookupAccountWrite(key) }, submit = {
+                val response = clientAccountCall {
+                    when (command.kind) {
+                        "account_create" -> repository.createAccount(command.name!!, command.type!!, command.currencies!!, key)
+                        "account_update" -> repository.updateAccount(command.accountId!!, command.revision!!, command.patch!!, key)
+                        else -> repository.deleteAccount(command.accountId!!, command.revision!!, key)
+                    }
+                }
+                accountResponseEvidence(response.compensationAccount(), command.kind, Unit)
+            }).account.toDomain()
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (cause: Exception) {
+        catch (cause: ClientOperationFailure) {
             if (!current(token)) return false
-            if (cause !is DomainFailure || cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause
-            val failure = cause as? DomainFailure
-            if (!previouslyUncertain && failure != null && failure.status in 400..499 && failure.code in definiteRefusals) {
+            val failure = accountDomainFailure(cause)
+            if (failure.category == FailureCategory.UNKNOWN || failure.code == "internal_error") throw failure
+            if (cause.commitState == "not_committed") {
                 operation.refused = true
                 if (command.undo != Undo.NONE) failUndo(command.accountId!!, failure.code)
                 if (failure.code == "account_changed") chains[command.accountId]?.blocked = true
                 finish(token, key)
             }
-            if (current(token)) mutableState.value = state.value.copy(errorCode = safeCode(cause))
+            if (current(token)) mutableState.value = state.value.copy(errorCode = failure.code)
             return false
         }
         if (!current(token)) return false
-        validateResult(result, command)
         operation.result = result
         return finish(token, key)
     }
@@ -397,17 +424,45 @@ class ImportAccountViewModel(
     private suspend fun resolveOne(token: Long, key: String): Boolean {
         val operation = pending[key] ?: return false
         if (operation.result == null && !operation.refused) {
-            val receipt = repository.receiptByKey(key)
+            val confirmed = try {
+                executeAccountWrite(operation.command.expectation(), AccountWriteAction.VERIFY,
+                    read = { lookupAccountWrite(key) }, submit = { error("verify_has_no_write") })
+            } catch (failure: ClientOperationFailure) {
+                throw accountDomainFailure(failure)
+            }
             if (!current(token)) return false
-            val account = receipt.account
-            if (!receipt.committed || receipt.operationKind !in accountOperations || account == null ||
-                receipt.accountId != account.accountId || receipt.accountRevision != account.revision || receipt.receiptId != account.receiptId && account.receiptId != null)
-                invalidAccount()
-            validateResult(account.copy(committed = true, receiptId = receipt.receiptId), operation.command, receipt.operationKind)
-            operation.result = account.copy(committed = true, receiptId = receipt.receiptId)
-            operation.recoveredCreation = trackRecoveredCreation && receipt.operationKind == "account_create"
+            operation.result = confirmed.account.toDomain()
+            operation.recoveredCreation = trackRecoveredCreation && confirmed.kind == "account_create"
         }
         return finish(token, key)
+    }
+
+    private fun Command?.expectation() = AccountWriteExpectation(this?.kind, this?.accountId, this?.revision)
+
+    private suspend fun lookupAccountWrite(key: String): AccountWriteEvidence<Unit>? {
+        val receipt = try { clientAccountCall { repository.receiptByKey(key) } }
+        catch (failure: ClientOperationFailure) {
+            if (failure.status == 404 && failure.code == "receipt_not_found") return null
+            throw failure
+        }
+        return AccountWriteEvidence(Unit, receipt.account?.compensationAccount(), receipt.operationKind, receipt.receiptId,
+            receipt.accountId, receipt.accountRevision, receipt.committed)
+    }
+
+    private suspend fun <T> clientAccountCall(read: suspend () -> T): T = try { read() }
+    catch (failure: DomainFailure) {
+        throw ClientOperationFailure(failure.code, failure.status, failure, failure.commitState)
+    }
+
+    private fun accountDomainFailure(failure: ClientOperationFailure): DomainFailure {
+        val original = generateSequence<Throwable>(failure.cause) { it.cause }.filterIsInstance<DomainFailure>().firstOrNull()
+        if (original != null) {
+            val classified = failure.commitState ?: original.commitState
+            return if (classified == original.commitState) original else DomainFailure(original.code, original.status,
+                original.category, original.receiptId, classified, original.diagnostic, cause = failure)
+        }
+        if (generateSequence<Throwable>(failure) { it.cause }.any { it is ClientOperationFailure && it.code == "protocol_error" }) invalidAccount()
+        return DomainFailure(failure.code, failure.status ?: 0, FailureCategory.RECOVERABLE, commitState = failure.commitState, cause = failure)
     }
 
     private suspend fun finish(token: Long, key: String, verify: Boolean = true): Boolean {
@@ -464,62 +519,75 @@ class ImportAccountViewModel(
     fun undo(canSubmit: () -> Boolean = { true }) {
         if (!available()) return
         if (!canSubmit()) { mutableState.value = state.value.copy(errorCode = "network_unavailable"); return }
+        val allowed = canSubmit
         execute { token ->
-            val paused = mutableSetOf<String>()
-            while (true) {
-                if (!current(token)) return@execute
-                val id = chains.entries.filter { it.key !in paused && it.value.steps.isNotEmpty() }
-                    .maxByOrNull { it.value.steps.last().order }?.key ?: break
-                val chain = chains[id] ?: continue
-                if (pending.values.any { it.command == null || it.command.accountId == id }) {
-                    failUndo(id, "account_result_unknown"); paused += id; continue
+            compensateImportAccounts(object : ImportAccountCompensationHost {
+                override fun chains() = this@ImportAccountViewModel.chains.mapValues { (_, chain) ->
+                    ImportAccountEffectChain(chain.steps.map { ImportAccountEffect(it.order.toString(), it.order,
+                        it.before?.compensationAccount(), it.after.compensationAccount()) }, chain.revision, chain.blocked)
                 }
-                try {
-                    if (chain.blocked) { failUndo(id, "account_changed"); paused += id; continue }
-                    val now = repository.account(id)
-                    if (!current(token)) return@execute
-                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
-                    adoptCurrent(token, now, id)
-                    if (now.revision != chain.revision || now.deleted) {
-                        chain.blocked = true; failUndo(id, "account_changed"); paused += id; continue
+
+                override fun hasUnresolvedWrite(accountId: String) =
+                    pending.values.any { it.command == null || it.command.accountId == accountId }
+
+                override suspend fun requireActive() {
+                    if (!current(token)) throw CancellationException("account_task_superseded")
+                }
+
+                override fun canSubmit() = allowed()
+
+                override suspend fun read(accountId: String): AccountCommandViewDto = try {
+                    val account = repository.account(accountId)
+                    requireActive()
+                    if (canSubmit()) adoptCurrent(token, account, accountId)
+                    account.compensationAccount()
+                } catch (cause: DomainFailure) {
+                    if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause
+                    throw ClientOperationFailure(safeCode(cause), cause.status, cause)
+                }
+
+                override suspend fun apply(effect: ImportAccountEffect, action: AccountCompensationAction): Boolean {
+                    val id = action.current.accountId
+                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return false }
+                    val undo = when (action.kind) {
+                        AccountCompensationKind.DEACTIVATE -> Undo.DEACTIVATE
+                        AccountCompensationKind.DELETE -> Undo.DELETE
+                        AccountCompensationKind.RESTORE -> Undo.RESTORE
                     }
-                    val step = chain.steps.last()
-                    val command = if (step.before == null) {
-                        if (now.active) Command(newKey(), "account_update", id, now.revision,
-                            patch = StructuredObject(mapOf("active" to StructuredBoolean(false))), undo = Undo.DEACTIVATE)
-                        else if (now.capabilities["can_delete"] == true) Command(newKey(), "account_delete", id, now.revision, undo = Undo.DELETE)
-                        else { failUndo(id, "account_in_use"); paused += id; continue }
-                    } else {
-                        if (now.capabilities["can_update"] != true) { failUndo(id, "workspace_forbidden"); paused += id; continue }
-                        Command(newKey(), "account_update", id, now.revision, patch = inversePatch(step), undo = Undo.RESTORE)
-                    }
-                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
+                    val kind = if (undo == Undo.DELETE) "account_delete" else "account_update"
+                    val command = Command(newKey(), kind, id, action.current.accountRevision,
+                        patch = action.patch?.structureAccountPatch(), undo = undo)
                     recovery.add(command.key)
-                    if (!current(token)) return@execute
-                    pending[command.key] = Pending(command); publish()
-                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return@execute }
-                    if (!send(token, command.key, canSubmit)) paused += id
-                    else if (current(token)) mutableState.value = state.value.copy(undoFailures = state.value.undoFailures - id)
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (cause: DomainFailure) { if (cause.category == FailureCategory.UNKNOWN || cause.code == "internal_error") throw cause; if (current(token)) { failUndo(id, safeCode(cause)); paused += id } }
-            }
+                    requireActive()
+                    pending[command.key] = Pending(command)
+                    publish()
+                    if (!canSubmit()) { failUndo(id, "network_unavailable"); return false }
+                    return send(token, command.key, allowed)
+                }
+
+                override fun fail(effect: ImportAccountEffect, code: String, skipped: Boolean) {
+                    if (skipped || !current(token)) return
+                    val id = effect.after.accountId
+                    if (code == "account_changed") this@ImportAccountViewModel.chains[id]?.blocked = true
+                    failUndo(id, code)
+                }
+
+                override fun succeeded(effect: ImportAccountEffect, complete: Boolean) {
+                    if (current(token)) mutableState.value = state.value.copy(undoFailures = state.value.undoFailures - effect.after.accountId)
+                }
+            })
             publish()
         }
     }
+
+    private fun ImportAccount.compensationAccount() = AccountCommandViewDto(
+        accountId, name, type, active, currencies, revision, deleted, capabilities, receiptId, committed,
+    )
 
     private fun freeze(value: StructuredValue): StructuredValue = when (value) {
         is StructuredObject -> StructuredObject(value.fields.mapValues { freeze(it.value) })
         is StructuredArray -> StructuredArray(value.values.map(::freeze))
         else -> value
-    }
-
-    private fun inversePatch(step: Step): StructuredObject {
-        val before = step.before ?: invalidAccount()
-        val fields = mutableMapOf<String, StructuredValue>()
-        if (before.name != step.after.name) fields["name"] = StructuredText(before.name)
-        if (before.active != step.after.active) fields["active"] = StructuredBoolean(before.active)
-        if (before.currencies != step.after.currencies) fields["currencies"] = StructuredArray(before.currencies.map(::StructuredText))
-        return StructuredObject(fields)
     }
 
     private fun absorbKeys(keys: List<String>) {
@@ -542,11 +610,11 @@ class ImportAccountViewModel(
         else state.value.copy(currentAccounts = state.value.currentAccounts + (expectedId to account),
             accounts = state.value.accounts.filterNot { it.id == expectedId } + ImportAccountListItem(account.accountId, account.name, account.type, account.active, account.currencies))
     }
-    private fun validateResult(account: ImportAccount, command: Command?, operation: String? = command?.kind) {
-        if (account.accountId.toLongOrNull()?.let { it > 0 } != true || account.revision <= 0 || account.committed != true || account.receiptId.isNullOrBlank() ||
-            (operation == "account_delete") != account.deleted || command != null && (operation != command.kind ||
-                command.accountId != null && command.accountId != account.accountId || command.revision != null && account.revision != command.revision + 1)) invalidAccount()
+    private fun validateResult(account: ImportAccount, command: Command) {
+        try { validateAccountWrite(command.expectation(), accountResponseEvidence(account.compensationAccount(), command.kind, Unit)) }
+        catch (_: ClientOperationFailure) { invalidAccount() }
     }
+
     private fun publish() {
         mutableState.value = state.value.copy(
             pendingKeys = pending.keys.toList(),
@@ -578,8 +646,6 @@ class ImportAccountViewModel(
     private fun safeCode(cause: Exception) = (cause as? DomainFailure)?.code ?: "unknown_error"
     private fun invalidAccount(): Nothing = throw IllegalStateException("account_result_invalid")
     private companion object {
-        val accountOperations = setOf("account_create", "account_update", "account_delete")
-        val definiteRefusals = setOf("account_payload_invalid", "account_name_unavailable", "account_changed", "account_in_use", "account_active", "workspace_forbidden", "account_not_found")
         val batchRefusals = setOf("account_payload_invalid", "workspace_forbidden", "idempotency_key_required")
     }
 }

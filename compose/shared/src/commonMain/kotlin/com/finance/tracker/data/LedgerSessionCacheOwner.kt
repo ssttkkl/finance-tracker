@@ -4,6 +4,7 @@ import com.finance.tracker.client.ClientImportSubmissionHost
 import com.finance.tracker.client.ClientImportSubmissionState
 import com.finance.tracker.client.ClientNetworkUnavailable
 import com.finance.tracker.client.ClientOperationFailure
+import com.finance.tracker.client.cashAccountSelection
 import com.finance.tracker.client.freezeCashImportChoices
 import com.finance.tracker.client.lookupImportReceipt
 import com.finance.tracker.client.rebaseRejectedCashImport
@@ -143,11 +144,9 @@ internal class LedgerSessionCacheOwner(
         val resource = checkNotNull(owned)
         val account = resource.browsing.importSelectionAccount(accountId)
             ?: throw ApiFailure("account_not_found", 404)
-        val reference = com.finance.tracker.business.domain.buildLocalCashAccountReferences(listOf(account)).single()
         val session = checkNotNull(resource.storage.readOfflineSession(scope, token)) { "ledger_cache_identity_missing" }
         val role = checkNotNull(session.workspaces.singleOrNull { it.id == scope.workspaceId }) { "ledger_cache_identity_missing" }.role
-        ImportAccountDto(account.id, account.name, account.type, account.active, reference.currencies.orEmpty(),
-            account.revision.toLong(), false, mapOf("can_update" to role.canWrite, "can_delete" to false))
+        cashAccountSelection(account, role.canWrite)
     }
     suspend fun createImportAccount(name: String, type: String, currencies: List<String>, key: String): ImportAccountDto {
         val frozen = currencies.toList()

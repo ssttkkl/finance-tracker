@@ -2,12 +2,11 @@ package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.AccountCommandViewDto
+import com.finance.tracker.business.contracts.ImportCurrencyRequirementDto
 import com.finance.tracker.business.domain.CashAmount
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
 
 enum class CashAccountType { CASH, LOAN, LEND }
@@ -83,49 +82,43 @@ class ClientCashWriteOperations(
     internal suspend fun createAccount(
         workspace: String?, name: String, type: CashAccountType, currencies: List<String>, batch: EditableImportBatch?,
     ): ClientCashWriteResult =
-        execute(workspace, "account_create", "/api/v1/accounts", emptyList(), batch = batch) { _, _ ->
-            buildJsonObject {
-                put("name", name)
-                put("type", type.name.lowercase())
-                put("currencies", buildJsonArray { currencies.forEach { add(it) } })
-            }
+        executeAccount(workspace, "account_create", batch = batch) { key ->
+            ClientAccountOperations.create(name, type.name.lowercase(), currencies, key)
         }
 
     internal suspend fun ensureImportAccountCurrencies(
         batch: EditableImportBatch, before: AccountCommandViewDto, currencies: List<String>,
     ): ClientCashWriteResult =
-        execute(batch.workspaceId, "account_update", "/api/v1/cash-import/accounts/currency-requirements",
-            emptyList(), batch = batch, beforeAccount = before) { _, key ->
-            buildJsonObject {
-                put("items", buildJsonArray { add(buildJsonObject {
-                    put("idempotency_key", key)
-                    put("account_id", before.accountId)
-                    put("expected_revision", before.accountRevision)
-                    put("currencies", buildJsonArray { currencies.forEach { add(it) } })
-                }) })
-            }
+        executeAccount(batch.workspaceId, "account_update", batch, before) { key ->
+            ClientAccountOperations.currencyRequirements(listOf(ImportCurrencyRequirementDto(key, before.accountId,
+                before.accountRevision, currencies)))
         }
 
     internal suspend fun reverseAccountChange(
-        batch: EditableImportBatch, original: ClientPendingCommand, current: AccountCommandViewDto,
+        batch: EditableImportBatch, original: ClientPendingCommand, action: AccountCompensationAction,
     ): ClientCashWriteResult {
-        val created = original.beforeAccount == null
-        val method = if (created && !current.active) "DELETE" else "PATCH"
-        if (method == "DELETE" && current.capabilities["can_delete"] != true)
-            throw ClientOperationFailure("account_in_use")
-        if (method == "PATCH" && current.capabilities["can_update"] != true)
-            throw ClientOperationFailure("workspace_forbidden", 403)
-        val kind = if (method == "DELETE") "account_delete" else "account_update"
-        return execute(batch.workspaceId, kind, "/api/v1/accounts/by-id/${session.component(current.accountId)}", emptyList(),
-            method, batch, reverses = original.id, completesReversal = method == "DELETE" || !created) { _, _ ->
-            buildJsonObject {
-                put("expected_revision", current.accountRevision)
-                if (method == "PATCH") put("patch", buildJsonObject {
-                    if (created) put("active", false)
-                    else put("currencies", buildJsonArray { original.beforeAccount.currencies.forEach { add(it) } })
-                })
-            }
+        val current = action.current
+        val deletes = action.kind == AccountCompensationKind.DELETE
+        val kind = if (deletes) "account_delete" else "account_update"
+        return executeAccount(batch.workspaceId, kind, batch, reverses = original.id,
+            completesReversal = action.kind != AccountCompensationKind.DEACTIVATE) { key ->
+            if (deletes) ClientAccountOperations.delete(current.accountId, current.accountRevision, key, session::component)
+            else ClientAccountOperations.update(current.accountId, current.accountRevision, checkNotNull(action.patch), key, session::component)
         }
+    }
+
+    private suspend fun executeAccount(
+        workspace: String?, kind: String, batch: EditableImportBatch?, before: AccountCommandViewDto? = null,
+        reverses: String? = null, completesReversal: Boolean = false,
+        request: (String) -> ClientAccountRequest,
+    ): ClientCashWriteResult {
+        val ledger = batch?.ledger ?: session.ledger(workspace)
+        session.requireOnlineWriter(ledger)
+        val id = nextId()
+        val command = request(id)
+        return freezeAndExecute(ledger, ClientPendingCommand(id, kind, command.path, checkNotNull(command.body), emptyList(),
+            method = command.method, batchId = batch?.batch?.id, beforeAccount = before, reverses = reverses,
+            completesReversal = completesReversal), batch?.batch)
     }
 
     internal suspend fun importCommands(batch: EditableImportBatch): List<ClientPendingCommand> {
@@ -195,16 +188,12 @@ class ClientCashWriteOperations(
 
     private suspend fun execute(
         workspace: String?, kind: String, path: String, accountIds: List<String>,
-        method: String = "POST", batch: EditableImportBatch? = null, beforeAccount: AccountCommandViewDto? = null,
-        reverses: String? = null, completesReversal: Boolean = false,
         payload: (ClientLedgerRead, String) -> JsonObject,
     ): ClientCashWriteResult {
-        val ledger = batch?.ledger ?: session.ledger(workspace)
+        val ledger = session.ledger(workspace)
         session.requireOnlineWriter(ledger)
         val id = nextId()
-        val command = ClientPendingCommand(id, kind, path, payload(ledger, id).toString(), accountIds,
-            method = method, batchId = batch?.batch?.id, beforeAccount = beforeAccount, reverses = reverses, completesReversal = completesReversal)
-        return freezeAndExecute(ledger, command, batch?.batch)
+        return freezeAndExecute(ledger, ClientPendingCommand(id, kind, path, payload(ledger, id).toString(), accountIds))
     }
 
     private suspend fun freezeAndExecute(
@@ -228,7 +217,8 @@ class ClientCashWriteOperations(
             val original = if (lookupFirst && verified.planId != null && command.receipt == null && command.rejection == null) {
                 resolveMaintenanceCommand(ledger, verified)
             } else verified
-            executeCashCommand(original, lookupFirst && verified.planId == null,
+            if (original.kind.startsWith("account_")) completeAccount(ledger, original, lookupFirst)
+            else executeCashCommand(original, lookupFirst && verified.planId == null,
                 findReceipt = { key ->
                     if (ledger.offline) throw ClientNetworkUnavailable()
                     session.cashImportReceipt(ledger, key)
@@ -240,11 +230,34 @@ class ClientCashWriteOperations(
         } catch (failure: ClientOperationFailure) {
             if (failure.commitState == "not_committed" && command.rejection == null)
                 save(ledger, command, verified.copy(rejection = failure.code, receipt = null, body = "", accountIds = emptyList()))
+            if (failure.operationId == null && failure.commitState != null)
+                throw ClientOperationFailure(failure.code, failure.status, failure, failure.commitState, command.id)
             throw failure
         }
         if (command.receipt == null)
             save(ledger, command, verified.copy(receipt = result.receipt, body = "", accountIds = emptyList()))
         return result
+    }
+
+    private suspend fun completeAccount(ledger: ClientLedgerRead, original: ClientPendingCommand, lookupFirst: Boolean): ClientCashWriteResult {
+        original.rejection?.let { throw ClientOperationFailure(it, commitState = "not_committed") }
+        val action = when {
+            original.receipt != null -> AccountWriteAction.VERIFY
+            lookupFirst -> AccountWriteAction.RESUME
+            else -> AccountWriteAction.SUBMIT
+        }
+        val confirmed = executeAccountWrite(accountWriteExpectation(original), action, read = {
+            val receipt = original.receipt ?: run {
+                if (ledger.offline) throw ClientNetworkUnavailable()
+                session.accountReceipt(ledger, original.id)
+            }
+            receipt?.let { accountReceiptEvidence(it, it) }
+        }, submit = {
+            if (ledger.offline) throw ClientNetworkUnavailable()
+            val receipt = session.submitCommand(ledger, original)
+            accountReceiptEvidence(receipt, receipt)
+        })
+        return ClientCashWriteResult(original.id, confirmed.result)
     }
 
     private suspend fun resolveMaintenanceCommand(ledger: ClientLedgerRead, command: ClientPendingCommand): ClientPendingCommand {
@@ -275,7 +288,8 @@ class ClientCashWriteOperations(
     private fun accountNames(ledger: ClientLedgerRead, ids: List<String>): List<String> {
         val accounts = ledger.ledger.snapshot.facts.accounts.associateBy { it.id }
         return ids.map { id ->
-            accounts[id]?.takeIf { it.active && it.type in setOf("cash", "loan", "lend") }?.name
+            accounts[id]?.let { cashAccountSelection(it, canWrite = true) }
+                ?.takeIf { it.active && it.type in setOf("cash", "loan", "lend") }?.name
                 ?: throw ClientOperationFailure("account_not_available")
         }
     }

@@ -48,6 +48,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let lostManualRejection;
     let authorization;
     let dropAccountRequest = false;
+    let damageAccountReceipt = false;
     let rejectReceiptLookup = false;
     const proxy = createServer(async (req, res) => {
         try {
@@ -74,6 +75,14 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 body: body.length ? body : undefined,
             });
             const text = await response.text();
+            if (damageAccountReceipt && req.method === 'GET' && req.url.startsWith('/api/v1/cash-mutations/receipts/by-key?') && response.ok) {
+                const receipt = JSON.parse(text);
+                if (receipt.operation_kind === 'account_create') {
+                    damageAccountReceipt = false;
+                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...receipt, account: null }));
+                    return;
+                }
+            }
             if (req.method === 'POST' && req.url === '/api/v1/cash-mutations/plans') maintenancePreviews++;
             if (req.method === 'POST' && req.url === '/api/v1/cash-mutations/resolve') maintenanceResolutions.push(JSON.parse(body));
             if (loseMaintenanceResult && req.method === 'POST' && req.url.endsWith('/commit') && response.ok) {
@@ -148,6 +157,11 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         await ok(['auth', 'register', '--email', `synthetic-${randomUUID()}@example.test`, '--password-stdin'], 'synthetic password both sides');
         const workspace = (await ok(['workspace', 'create', '--name', 'Receipt integration'])).active_workspace_id;
         const account = (await ok(['account', 'create', '--name', 'Synthetic wallet', '--type', 'cash', '--currency', 'CNY'])).account;
+        damageAccountReceipt = true;
+        const unproved = await run(['account', 'create', '--name', 'Receipt identity check', '--type', 'cash', '--currency', 'CNY']);
+        assert.equal(unproved.value.error?.code, 'result_unknown');
+        const proved = await ok(['cash', 'resume', unproved.value.error.operation_id]);
+        assert.equal(proved.account.name, 'Receipt identity check');
         const lines = new TextDecoder('gb18030').decode(readFileSync(fixture)).split(/\r?\n/);
         const statement = join(dir, 'synthetic.csv');
         writeFileSync(statement, [...lines.slice(0, 7), lines[9], ''].join('\r\n'));
@@ -331,7 +345,15 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const accountData = (await ok(['account', 'show', account.account_id])).account;
         const ensure = (current, currency) => ok(['import', 'account', 'currencies', formats.batch_id, '--revision', formats.revision,
             '--account', current.account_id, '--account-revision', String(current.account_revision), '--currency', currency]);
-        const withUsd = await ensure(accountData, 'USD');
+        await ensure(accountData, 'USD');
+        assert.deepEqual((await ok(['import', 'account', 'undo', formats.batch_id, '--revision', formats.revision]))
+            .account_changes.map(item => item.status), ['restored']);
+        const restored = (await ok(['account', 'show', account.account_id])).account;
+        await ensure(restored, 'USD');
+        assert.deepEqual((await ok(['import', 'account', 'undo', formats.batch_id, '--revision', formats.revision]))
+            .account_changes.map(item => item.status), ['restored']);
+        const settled = (await ok(['account', 'show', account.account_id])).account;
+        const withUsd = await ensure(settled, 'USD');
         const external = await fetch(origin + `/api/v1/accounts/by-id/${account.account_id}?workspace_id=${workspace}`, {
             method: 'PATCH',
             headers: { Authorization: authorization, 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },

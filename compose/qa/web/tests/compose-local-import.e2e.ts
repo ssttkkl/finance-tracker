@@ -172,6 +172,8 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
   const waiting = new Promise<void>(resolve => { finishSave = resolve; });
   let directoryReads = 0;
   const writes: Array<{ key: string | undefined; body: string | null }> = [];
+  await page.route(url => url.pathname === "/api/v1/cash-mutations/receipts/by-key", route =>
+    route.fulfill({ status: 404, json: { error: { code: "receipt_not_found" } } }));
   await page.route(url => url.pathname === "/api/v1/ledger/version", route => {
     directoryReads++;
     return route.fallback();

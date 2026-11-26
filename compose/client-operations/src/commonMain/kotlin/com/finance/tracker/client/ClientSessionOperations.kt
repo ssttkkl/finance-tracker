@@ -266,25 +266,23 @@ class ClientSessionOperations(
 
     suspend fun account(expectedWorkspace: String?, id: String): AccountCommandViewDto {
         val binding = activeSession(expectedWorkspace)
-        return scopedRequest("GET", "/api/v1/accounts/by-id/${encodeComponent(id)}", binding, expectedWorkspace)
+        return accountOperations(binding, workspace(binding, expectedWorkspace)).read(id)
     }
 
     internal suspend fun account(ledger: ClientLedgerRead, id: String): AccountCommandViewDto {
-        val details: AccountCommandViewDto = scopedRequest("GET", "/api/v1/accounts/by-id/${encodeComponent(id)}",
-            ledger.binding, ledger.ledger.snapshot.workspaceId)
-        requireCurrent(ledger.binding)
-        return details
+        return accountOperations(ledger.binding, ledger.ledger.snapshot.workspaceId).read(id)
     }
 
     suspend fun accountDetails(expectedWorkspace: String?, id: String): CashAccountDetails {
         val binding = activeSession(expectedWorkspace)
-        val values: AccountCommandViewDto = scopedRequest("GET", "/api/v1/accounts/by-id/${encodeComponent(id)}", binding, expectedWorkspace)
+        val operations = accountOperations(binding, workspace(binding, expectedWorkspace))
+        val values = operations.read(id)
         if (values.type !in setOf("cash", "loan", "lend")) throw ClientOperationFailure("account_not_available")
         val workspace = workspace(binding, expectedWorkspace)
         val balances: BalanceList = authenticated(binding) {
             request("GET", "/api/v1/queries/accounts", binding.token, headers = mapOf("X-FT-Workspace-ID" to workspace))
         }
-        val verified: AccountCommandViewDto = scopedRequest("GET", "/api/v1/accounts/by-id/${encodeComponent(id)}", binding, workspace)
+        val verified = operations.read(id)
         requireCurrent(binding)
         if (verified.accountId != values.accountId || verified.accountRevision != values.accountRevision)
             throw ClientOperationFailure("account_changed", 409)
@@ -296,9 +294,9 @@ class ClientSessionOperations(
         val workspace = ledger.ledger.snapshot.workspaceId
         val headers = mapOf("Idempotency-Key" to command.id)
         if (command.kind.startsWith("account_")) {
-            submitAccountCommand(ledger, command, workspace, headers)
+            submitAccountCommand(ledger, command, workspace)
             return try {
-                cashImportReceipt(ledger, command.id) ?: throw ClientOperationFailure("protocol_error")
+                accountReceipt(ledger, command.id) ?: throw ClientOperationFailure("protocol_error")
             } catch (failure: ClientOperationFailure) {
                 if (failure.status in setOf(401, 403)) throw failure
                 throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
@@ -311,19 +309,42 @@ class ClientSessionOperations(
         }
     }
 
-    private suspend fun submitAccountCommand(
-        ledger: ClientLedgerRead, command: ClientPendingCommand, workspace: String, headers: Map<String, String>,
-    ) {
+    private fun accountOperations(binding: ClientStoredSession, workspaceId: String): ClientAccountOperations {
+        val transport = object : ClientAccountTransport {
+            override suspend fun <Response> send(account: ClientAccountRequest, response: DeserializationStrategy<Response>): Response =
+                authenticated(binding) {
+                    requireCurrent(binding)
+                    val suffix = if ('?' in account.path) "&" else "?"
+                    val request = ClientHttpRequest(account.method, "${account.path}${suffix}workspace_id=${encodeComponent(workspaceId)}",
+                        binding.token, account.body?.let { ClientHttpBody.Json(it) },
+                        account.key?.let { mapOf("Idempotency-Key" to it) }.orEmpty())
+                    readClientResponse(response, http.request(request)).also { requireCurrent(binding) }
+                }
+        }
+        return ClientAccountOperations(transport, ::component)
+    }
+
+    internal suspend fun accountReceipt(ledger: ClientLedgerRead, key: String): CashMutationReceiptDto? =
         try {
-            if (command.path == "/api/v1/cash-import/accounts/currency-requirements") {
-                val response: AccountCurrencyResult = scopedRequest(command.method, command.path, ledger.binding, workspace, command.body, headers)
-                val outcome = response.results.singleOrNull() ?: throw ClientOperationFailure("protocol_error")
+            accountOperations(ledger.binding, ledger.ledger.snapshot.workspaceId).receiptByKey(key)
+        } catch (failure: ClientOperationFailure) {
+            if (failure.status == 404 && failure.code == "receipt_not_found") null else throw failure
+        }
+
+    private suspend fun submitAccountCommand(ledger: ClientLedgerRead, command: ClientPendingCommand, workspace: String) {
+        val operations = accountOperations(ledger.binding, workspace)
+        val original = ClientAccountRequest(command.method, command.path, command.body, command.id)
+        try {
+            val account = if (command.path == "/api/v1/cash-import/accounts/currency-requirements") {
+                val outcome = operations.ensureCurrencies(original).singleOrNull() ?: throw ClientOperationFailure("protocol_error")
                 if (outcome.status != "updated") {
                     val error = outcome.error ?: throw ClientOperationFailure("protocol_error")
                     val code = error.code.takeIf { safeServerCode.matches(it) } ?: throw ClientOperationFailure("protocol_error")
                     throw ClientOperationFailure(code, error.status, commitState = error.commitState)
                 }
-            } else scopedRequest<AccountCommandViewDto>(command.method, command.path, ledger.binding, workspace, command.body, headers)
+                outcome.account ?: throw ClientOperationFailure("protocol_error")
+            } else operations.edit(original)
+            validateAccountWrite(accountWriteExpectation(command), accountResponseEvidence(account, command.kind, Unit))
         } catch (failure: ClientOperationFailure) {
             if (failure.status in setOf(400, 404, 409) && failure.code in definitiveAccountRejections)
                 throw ClientOperationFailure(failure.code, failure.status, failure, "not_committed", command.id)
@@ -524,17 +545,6 @@ class ClientSessionOperations(
 
     private suspend inline fun <reified T> send(request: ClientHttpRequest): T =
         readClientResponse(serializer<T>(), http.request(request))
-
-    @Serializable
-    private data class AccountCurrencyResult(val results: List<AccountCurrencyOutcome>)
-
-    @Serializable
-    private data class AccountCurrencyOutcome(val status: String, val error: AccountCurrencyError? = null)
-
-    @Serializable
-    private data class AccountCurrencyError(
-        val code: String, val status: Int, @SerialName("commit_state") val commitState: String? = null,
-    )
 
     @Serializable
     private data class AccountList(val items: List<AccountReferenceDto>)

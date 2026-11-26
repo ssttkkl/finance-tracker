@@ -1,7 +1,6 @@
 package com.finance.tracker.data
 
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -35,28 +34,7 @@ internal object ImportAccountIdSerializer : KSerializer<String> {
 
 typealias ImportAccountDto = com.finance.tracker.business.contracts.AccountCommandViewDto
 
-@Serializable
-data class ImportCurrencyRequirementDto(
-    @SerialName("idempotency_key") val idempotencyKey: String,
-    @SerialName("account_id") val accountId: String,
-    @SerialName("expected_revision") val expectedRevision: Long,
-    val currencies: List<String>,
-)
-
-@Serializable
-data class ImportCurrencyRequirementErrorDto(
-    val code: String, val message: String, val status: Int, val retryable: Boolean = false,
-    @SerialName("commit_state") val commitState: String? = null,
-    @SerialName("receipt_id") val receiptId: String? = null,
-)
-
-@Serializable
-data class ImportCurrencyRequirementResultDto(
-    @SerialName("account_id") val accountId: String,
-    val status: String,
-    val account: ImportAccountDto? = null,
-    val error: ImportCurrencyRequirementErrorDto? = null,
-)
-
-@Serializable
-data class ImportCurrencyRequirementsViewDto(val results: List<ImportCurrencyRequirementResultDto>)
+typealias ImportCurrencyRequirementDto = com.finance.tracker.business.contracts.ImportCurrencyRequirementDto
+typealias ImportCurrencyRequirementErrorDto = com.finance.tracker.business.contracts.ImportCurrencyRequirementErrorDto
+typealias ImportCurrencyRequirementResultDto = com.finance.tracker.business.contracts.ImportCurrencyRequirementResultDto
+typealias ImportCurrencyRequirementsViewDto = com.finance.tracker.business.contracts.ImportCurrencyRequirementsViewDto
