@@ -56,13 +56,16 @@ class FinanceApiClient private constructor(
     internal val boundCredentials: ApiCredentialSnapshot?,
     internal val expectedWorkspace: String?,
     internal val expectedPrincipalEmail: String?,
+    internal val requireCurrentRequest: suspend () -> Unit,
 ) {
     constructor(baseUrl: () -> String, tokenStore: TokenStore, engine: HttpClientEngine? = null, allowInsecureHttp: Boolean = false) :
-        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null, null)
+        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null, null, {})
 
-    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String, principalEmail: String? = null): FinanceApiClient {
+    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String, principalEmail: String? = null,
+        requireCurrentRequest: suspend () -> Unit = {}): FinanceApiClient {
         require(workspaceId.isNotEmpty())
-        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail)
+        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail,
+            requireCurrentRequest)
     }
 
     internal val allowsBrowserJsonTransport: Boolean = shared?.allowsBrowserJsonTransport ?: (engine == null)
@@ -169,6 +172,7 @@ internal suspend fun <T> FinanceApiClient.exchange(
     readPayload: suspend (Int, String) -> T,
 ): T {
     check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
+    val checkBeforeSend: suspend () -> Unit = { beforeSend(); requireCurrentRequest() }
     var rejectedStatus: Int? = null
     return try {
         if (browserJson && allowsBrowserJsonTransport) {
@@ -181,7 +185,7 @@ internal suspend fun <T> FinanceApiClient.exchange(
             val jsonBody = if (body === NoRequestBody) null else (body as FrozenJsonBody).text
             val browserBody = body as? FrozenJsonBody
             val response = fetchLargeBrowserJson(origin + path, method.value, headers, jsonBody,
-                browserBody?.compressInBrowser == true, beforeSend) { status ->
+                browserBody?.compressInBrowser == true, checkBeforeSend) { status ->
                 if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
             }
             if (response != null) return readPayload(response.status, response.text)
@@ -211,7 +215,7 @@ internal suspend fun <T> FinanceApiClient.exchange(
             if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
             readPayload(status, response.bodyAsText())
         }
-        beforeSend()
+        checkBeforeSend()
         if (preserveHttpRejectionOnBodyFailure) statement.execute(readResponse)
         else readResponse(statement.execute())
     } catch (cancelled: CancellationException) {

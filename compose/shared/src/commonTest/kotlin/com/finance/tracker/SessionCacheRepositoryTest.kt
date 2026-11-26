@@ -986,8 +986,9 @@ class SessionCacheRepositoryTest {
             val f = Fixture(); f.seedScopes()
             val repository = f.repository(); repository.restoreSession()
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+            var storedToken = "first-token"
             val api = FinanceApiClient({ origin }, object : com.finance.tracker.core.TokenStore {
-                override suspend fun get() = "later-token"
+                override suspend fun get() = storedToken
                 override suspend fun set(value: String) = Unit
                 override suspend fun clear() = Unit
             }, io.ktor.client.engine.mock.MockEngine { request ->
@@ -998,7 +999,7 @@ class SessionCacheRepositoryTest {
             })
             try {
                 val reading = async { assertFailsWith<CancellationException> {
-                    repository.businessOperations(api).run { fixed, refresh ->
+                    repository.businessOperations(api).run(write = write) { fixed, refresh ->
                         val result = fixed.request<kotlinx.serialization.json.JsonObject>(
                             if (write) io.ktor.http.HttpMethod.Post else io.ktor.http.HttpMethod.Get, "/original")
                         if (write) refresh("45")
@@ -1006,6 +1007,7 @@ class SessionCacheRepositoryTest {
                     }
                 } }
                 entered.await()
+                storedToken = "later-token"
                 f.local.session = f.local.session.copy(activeWorkspaceId = "second", workspaces = listOf(WorkspaceDto("second", "Second", Role.ADMIN)))
                 repository.restoreSession(); release.complete(Unit); reading.await()
                 assertTrue(f.local.refreshes.isEmpty())

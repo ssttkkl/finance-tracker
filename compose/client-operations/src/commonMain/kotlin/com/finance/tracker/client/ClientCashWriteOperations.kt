@@ -216,34 +216,24 @@ class ClientCashWriteOperations(
     }
 
     private suspend fun complete(ledger: ClientLedgerRead, command: ClientPendingCommand, lookupFirst: Boolean): ClientCashWriteResult {
-        command.receipt?.let { return ClientCashWriteResult(command.id, it) }
-        command.rejection?.let { throw ClientOperationFailure(it, commitState = "not_committed", operationId = command.id) }
-        val receipt = try {
-            if (ledger.offline) throw ClientNetworkUnavailable()
-            val known = if (lookupFirst) {
-                try {
-                    session.cashImportReceipt(ledger, command.id)
-                } catch (failure: ClientOperationFailure) {
-                    if (failure.status in setOf(401, 403)) throw failure
-                    throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
-                }
-            } else null
-            known ?: session.submitCommand(ledger, command)
-        } catch (failure: ClientNetworkUnavailable) {
-            throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
+        val result = try {
+            executeCashCommand(command, lookupFirst,
+                findReceipt = { key ->
+                    if (ledger.offline) throw ClientNetworkUnavailable()
+                    session.cashImportReceipt(ledger, key)
+                },
+                submit = { original ->
+                    if (ledger.offline) throw ClientNetworkUnavailable()
+                    session.submitCommand(ledger, original)
+                })
         } catch (failure: ClientOperationFailure) {
-            if (failure.commitState == "unknown" || failure.status?.let { it >= 500 } == true ||
-                failure.code in setOf("transport_error", "protocol_error"))
-                throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
-            if (failure.commitState == "not_committed") {
-                save(ledger, command, command.copy(rejection = failure.code, body = "", accountIds = emptyList()))
-            }
+            if (failure.commitState == "not_committed" && command.rejection == null)
+                save(ledger, command, command.copy(rejection = failure.code, receipt = null, body = "", accountIds = emptyList()))
             throw failure
         }
-        if (receipt.operationKind != command.kind || !receipt.committed || receipt.receiptId.isBlank())
-            throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
-        save(ledger, command, command.copy(receipt = receipt, body = "", accountIds = emptyList()))
-        return ClientCashWriteResult(command.id, receipt)
+        if (command.receipt == null)
+            save(ledger, command, command.copy(receipt = result.receipt, body = "", accountIds = emptyList()))
+        return result
     }
 
     private suspend fun save(
@@ -261,4 +251,49 @@ class ClientCashWriteOperations(
                 ?: throw ClientOperationFailure("account_not_available")
         }
     }
+}
+
+
+/** The host supplies the original scope, frozen command, and access to its permanent receipt. */
+suspend fun executeCashCommand(
+    command: ClientPendingCommand,
+    lookupFirst: Boolean,
+    findReceipt: suspend (String) -> CashMutationReceiptDto?,
+    submit: suspend (ClientPendingCommand) -> CashMutationReceiptDto,
+): ClientCashWriteResult {
+    command.rejection?.let {
+        throw ClientOperationFailure(it, commitState = "not_committed", operationId = command.id)
+    }
+    val receipt = command.receipt ?: try {
+        val known = if (lookupFirst) {
+            try {
+                findReceipt(command.id)
+            } catch (failure: ClientOperationFailure) {
+                if (failure.status in setOf(401, 403)) throw failure
+                throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
+            }
+        } else null
+        known ?: submit(command)
+    } catch (failure: ClientNetworkUnavailable) {
+        throw ClientOperationFailure("result_unknown", cause = failure, commitState = "unknown", operationId = command.id)
+    } catch (failure: ClientOperationFailure) {
+        if (failure.commitState == "unknown" || failure.status == 408 || failure.status?.let { it >= 500 } == true ||
+            failure.code in setOf("transport_error", "protocol_error"))
+            throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
+        throw failure
+    }
+    val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
+    if (receipt.operationKind != command.kind || !receipt.committed || receipt.receiptId.isBlank() ||
+        creation && receipt.ledgerSeq == null)
+        throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
+    if (creation && receipt.status == "failed") {
+        val reason = receipt.commitOutcome?.takeIf { !it.hasBusinessWrites && it.hasNewFailures }?.reasonCodes?.singleOrNull()
+        val code = when (reason) {
+            "account_changed" -> "account_changed"
+            "row_save_failed" -> "invalid_record"
+            else -> throw ClientOperationFailure("result_unknown", commitState = "unknown", operationId = command.id)
+        }
+        throw ClientOperationFailure(code, 409, commitState = "not_committed", operationId = command.id)
+    }
+    return ClientCashWriteResult(command.id, receipt)
 }

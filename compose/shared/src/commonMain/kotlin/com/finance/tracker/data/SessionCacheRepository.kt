@@ -75,18 +75,27 @@ internal class SessionCacheRepository(
     internal fun businessOperations(api: FinanceApiClient): CashBusinessOperations = object : CashBusinessOperations {
         override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
             val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
-            val (bound, refresh, generation) = mutex.withLock {
+            val (workspace, refresh, generation) = mutex.withLock {
                 if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
                 if (write && original.local.offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 val workspace = checkNotNull(original.session.activeWorkspaceId)
-                val bound = api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace, original.session.user.email)
-                Triple(bound, refreshFor(original, original.generation), original.generation)
+                Triple(workspace, refreshFor(original, original.generation), original.generation)
             }
             suspend fun checkCurrent() {
                 currentCoroutineContext().ensureActive()
                 mutex.withLock {
                     if (local !== original || this@SessionCacheRepository.generation != generation)
                         throw CancellationException("ledger_session_operation_superseded")
+                }
+            }
+            val bound = api.boundTo(ApiCredentialSnapshot(original.local.token, origin), workspace, original.session.user.email) {
+                if (api.readToken() != original.local.token) throw CancellationException("ledger_session_operation_superseded")
+                currentCoroutineContext().ensureActive()
+                mutex.withLock {
+                    if (local !== original || this@SessionCacheRepository.generation != generation)
+                        throw CancellationException("ledger_session_operation_superseded")
+                    if (write && original.local.offline.value)
+                        throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
                 }
             }
             checkCurrent()
@@ -513,6 +522,9 @@ internal class SessionCacheRepository(
 
     private tailrec fun hasTransportSource(failure: Throwable?): Boolean = when (failure) {
         is FinanceTransportFailure -> true
+        is com.finance.tracker.client.ClientNetworkUnavailable -> hasTransportSource(failure.cause)
+        is com.finance.tracker.client.ClientOperationFailure ->
+            failure.code == "result_unknown" && hasTransportSource(failure.cause)
         is DomainFailure -> failure.code == "network_unavailable" && failure.status == 0 && hasTransportSource(failure.cause)
         is LocalCashImportParseTransportFailure -> hasTransportSource(failure.cause)
         else -> false

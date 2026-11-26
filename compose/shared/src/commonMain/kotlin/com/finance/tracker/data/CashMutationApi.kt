@@ -10,7 +10,8 @@ suspend fun FinanceApiClient.readCashMutationReceipt(receiptId: String): CashMut
 
 suspend fun FinanceApiClient.readCashMutationReceiptByKey(key: String): CashMutationReceiptDto {
     requireReceiptLookupKey(key)
-    return request(HttpMethod.Get, appendQuery("$RECEIPTS/by-key", listOf("key" to key)))
+    return request(HttpMethod.Get, appendQuery("$RECEIPTS/by-key", listOf("key" to key)),
+        preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true)
 }
 
 suspend fun FinanceApiClient.readCashMutationResults(

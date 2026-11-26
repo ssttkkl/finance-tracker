@@ -99,7 +99,9 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
         mutableState.value = state.value.copy(busy = true, errorCode = null, fieldErrors = emptyList())
         viewModelScope.launch {
             try {
-                if (keyed) repository.save(command.mode, command.input, command.key, command.accountIds,
+                if (keyed && continuing) repository.resume(command.mode, command.input, command.key, command.accountIds,
+                    requireNotNull(workspaceId), requireNotNull(principalEmail))
+                else if (keyed) repository.save(command.mode, command.input, command.key, command.accountIds,
                     requireNotNull(workspaceId), requireNotNull(principalEmail))
                 else if (command.mode == CashCreationMode.ORDINARY) repository.createRecord(command.input)
                 else repository.createTransfer(command.input)

@@ -15,4 +15,6 @@ interface CashCreationRepository {
         workspaceId: String, principalEmail: String) {
         if (mode == CashCreationMode.ORDINARY) createRecord(input) else createTransfer(input)
     }
+    suspend fun resume(mode: CashCreationMode, input: StructuredObject, key: String, accountIds: List<String>,
+        workspaceId: String, principalEmail: String) = save(mode, input, key, accountIds, workspaceId, principalEmail)
 }

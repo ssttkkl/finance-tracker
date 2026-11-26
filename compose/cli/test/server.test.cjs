@@ -41,6 +41,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let sentKey;
     let manualWrites = 0;
     let afterManualCommit;
+    let lostManualRejection;
     let authorization;
     let dropAccountRequest = false;
     let rejectReceiptLookup = false;
@@ -86,6 +87,11 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                     const done = afterManualCommit;
                     afterManualCommit = undefined;
                     done(JSON.parse(text));
+                    req.socket.destroy();
+                    return;
+                }
+                if (response.status === 409) {
+                    lostManualRejection = JSON.parse(text);
                     req.socket.destroy();
                     return;
                 }
@@ -207,6 +213,17 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const another = await ok(add);
         assert.notEqual(another.receipt.receipt_id, firstReceipt.receipt_id);
         assert.equal(manualWrites, 2);
+
+        const incompatible = add.map((argument) => argument === 'CNY' ? 'USD' : argument);
+        const rejectedOriginal = await run(incompatible);
+        assert.equal(rejectedOriginal.value.error?.code, 'result_unknown');
+        assert.equal(lostManualRejection?.error?.code, 'account_changed');
+        const failedOperation = (await ok(['cash', 'pending'])).operations[0].id;
+        const recoveredRejection = await run(['cash', 'resume', failedOperation]);
+        assert.equal(recoveredRejection.value.error?.code, 'account_changed');
+        assert.equal(recoveredRejection.value.error?.commit_state, 'not_committed');
+        assert.deepEqual((await ok(['cash', 'pending'])).operations, []);
+        assert.equal(manualWrites, 3);
 
         const invitation = await ok(['workspace', 'invite', 'create', '--role', 'viewer']);
         const anonymous = { FT_CLI_STATE_DIR: join(dir, 'anonymous'), FT_CLI_STORAGE_KEY: undefined };

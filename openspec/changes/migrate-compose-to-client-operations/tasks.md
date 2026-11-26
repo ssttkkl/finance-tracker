@@ -25,7 +25,7 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 | 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 待迁。原修订、独立效果、并发后保留外部改动 |
 | 收支列表、月度汇总、定位 | `CashLedgerScreen` → `LocalFirstFinanceRepository` → `LocalCashLedgerReader.page` → `CashLedgerOperations.page` | `cash` → `CashLedgerOperations.page`（`summary` 委托同一查询） | 已共用查询实现。实际页面、安装包同快照验证精确分币种汇总、来源和游标 |
 | 详情与来源 | 收支详情 → `LocalCashMaintenanceRepository` → `LocalCashLedgerReader.record/sourceRecords` → `CashLedgerOperations.record/evidence` | `cash` → `CashLedgerOperations.record/evidence` | 已共用读取实现。详细事实与原始来源联验 |
-| 手工记账、转账及原操作恢复 | `CashCreationPanel` → `CashCreationViewModel.save` → `KtorCashCreationRepository.save` | `cashWrite` → `ClientCashWriteOperations.add/transfer/resume` | 待迁。精确金额、双端事务、同键重试、提交中退出 |
+| 手工记账、转账及原操作恢复 | `CashCreationPanel` → `CashCreationViewModel.save` → `KtorCashCreationRepository.save` | `cashWrite` → `ClientCashWriteOperations.add/transfer/resume` | 执行及收据核实已共用 `executeCashCommand`。输入组装和 Compose 原命令的加密持久化待迁。验证精确金额、双端事务、同键重试和提交中退出 |
 | 编辑、草稿转正式、身份与关联 | 收支详情 → `LocalCashMaintenanceRepository` → `KtorCashMaintenanceRepository.preview/plan/associationTargets/commit/resolve` | `cashMaintenance`、`cashWrite` → `ClientCashMaintenanceOperations.preview/plan/associationTargets` 与 `ClientCashWriteOperations.commitMaintenance/resume` | 待迁。有类型的完整编辑、候选、预览版本和原收据 |
 | 分类与批量删除、分类目录 | 账本选择／管理页 → `LocalFirstFinanceRepository` → `KtorFinanceRepository` | `cashMaintenance`、`category` → `ClientCashMaintenanceOperations` | 待迁。关系闭包、精确影响、修订冲突与 viewer |
 | 导入文件、修改、选择 | `CashImportTaskScreen` → `LocalCashImportLifecycleRepository.upload/removeFile` → `LocalCashImportTask` | `cashImport`、`editImportFiles` → `ClientCashImportOperations.prepare/addFile/replaceFile/removeFile` | 待迁。逐文件失败、四种格式、断网、显式修改 |
@@ -50,7 +50,7 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 - [ ] 5.1 独立验收生产路径、产品范围、实现与最终 diff，核对权限、金额、幂等、恢复及取消。
 - [ ] 5.2 运行代码库防劣化与契约专项复核。图形页面的设计依实际变更触发。
 
-邀请预览经独立工程复核确认两端直达共同操作，Ktor 原请求的状态与诊断处理保持。后续签名写入迁移须先确认原工作区头和错误类型映射。
+邀请预览经独立工程复核确认两端直达共同操作，Ktor 原请求的状态与诊断处理保持。后续签名写入迁移须先确认原工作区头和错误类型映射。 记账执行器及发送前围栏经独立复核通过。区分持久化拒绝与账本成功，保留实际 401／403；旧测试改为请求已进入网络后再切换令牌，继续核对迟到结果。
 
 ## 6. 测试与 QA
 
@@ -59,6 +59,8 @@ Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入
 - [ ] 6.3 在专用 SQLite 和真实 PostgreSQL 核对同一写入合同；严格校验 OpenSpec、静态检查和差异。
 
 邀请预览切片于 2026-11-26 使用 Chrome 158 在 `http://127.0.0.1:5199` 点击邀请和换账号入口，`npm run test:e2e -- compose-core-ui-workflows.e2e.ts --grep '从邀请链接进入|接受邀请时'` 通过 2 项。实际 npm 安装包的 `node --test cli/test/entry.test.cjs cli/test/offline.test.cjs cli/test/server.test.cjs` 在 SQLite 通过 3 项，包含匿名预览。此切片没有存储合同变化；写入矩阵所需的双库验证见 6.3。
+
+记账切片的 Chrome 三个回归使用预览 `http://127.0.0.1:5199` 与页面故障注入。基线会直接重发，修复前仍可在查无收据期间换令牌后重发，修复后三项均通过，覆盖单次收据、404 原样重放和令牌换代停止。Android `CashCreation*`、`SessionCacheRepositoryTest`、`LedgerReceiptMappingTest` 共 83 项通过。安装包在 SQLite 和专用 PostgreSQL 17.12 的同一子进程矩阵四项通过，覆盖服务端已拒绝而回包丢失、恢复原操作、无重发和精确金额。
 
 ## 7. 发布
 
