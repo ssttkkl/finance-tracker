@@ -1,0 +1,66 @@
+## 1. 思考
+
+- [x] 1.1 对照 `d07d8a43`、共享客户端主规格、活跃变更、词表与产品编码规范，盘点 Compose、CLI 正式调用链。按会话范围与恢复影响定为 A 类。
+
+## 2. 计划
+
+- [x] 2.1 定义共同生产操作和宿主边界。保留现有的会话、离线、Worker、财务结果与 HTTP 合同。范围和验收经用户确认。
+
+## 3. 任务拆分
+
+- [x] 3.1 建立下表，按受影响操作映射基线、实施与验证。每个切片先运行能分辨旧路径的失败回归。
+
+### 生产操作矩阵
+
+Compose 正式装配统一由 `createFinanceTrackerGraph` 提供。CLI 正式入口为 npm `bin/ft.cjs` 到 Kotlin `dispatch`。表中状态是实际生产路径。
+
+| 业务操作 | Compose 页面、状态与仓储 | CLI handler 与公共操作 | 状态与验证 |
+|---|---|---|---|
+| 登录、注册、确认会话、退出 | 认证页面／`SessionCacheRepository` → `KtorSessionRepository` 与 `AuthApi` 凭据入口 | `auth` → `ClientSessionOperations.login/register/status/logout` | 待迁。真实登录／退出、失效会话继续缓存拒绝、旧令牌与换区围栏 |
+| 工作区列表、当前工作区、选择、创建 | 工作区入口／侧栏 → `SessionCacheRepository` → `KtorSessionRepository` | `workspace` → `ClientSessionOperations.status/currentWorkspace/selectWorkspace/createWorkspace` | 待迁。创建、切换及晚到旧请求 |
+| 改名、删除、列成员、成员变更、创建邀请 | 管理页 → `WorkspaceManagementViewModel` → `SessionCacheRepository` 与 `KtorSessionRepository.boundTo` | `workspace` → `ClientSessionOperations.renameWorkspace/deleteWorkspace/members/setRole/removeMember/createInvitation` | 待迁。双库权限、旧范围冲突、确认名称 |
+| 邀请预览、接受 | 邀请入口 → `KtorSessionRepository.invitationPreview`／会话切换 | `workspace` → `previewWorkspaceInvitation`／`ClientSessionOperations.acceptInvitation` | 预览已迁至 `previewWorkspaceInvitation`。接受待迁。验证无会话预览、加入 viewer 和原会话绑定 |
+| 选择账户、查看编辑资格 | 记账账户选择／导入账户选择 → `LocalFirstFinanceRepository`／`LocalCashImportLifecycleRepository.selectionAccount` | `account`、`cashWrite`、`cashImport` → `ClientSessionOperations`／`ClientCashImportOperations` | 待迁。停用、币种、快照版本 |
+| 新建账户 | 记账账户表单／`CashImportAccountForm` → `LocalCashImportLifecycleRepository.createAccount` | `account`、`prepareImportAccounts` → `ClientCashWriteOperations.createAccount`／`ClientImportAccountOperations.create` | 待迁。无重复创建、账本刷新 |
+| 补币种与撤回 | 导入账户状态 → `ImportAccountViewModel` → `LocalCashImportLifecycleRepository.ensureAccountCurrencies/updateAccount/deleteAccount` | `prepareImportAccounts` → `ClientImportAccountOperations.ensureCurrencies/undo/cancel` | 待迁。原修订、独立效果、并发后保留外部改动 |
+| 收支列表、月度汇总、定位 | `CashLedgerScreen` → `LocalFirstFinanceRepository` → `LocalCashLedgerReader.page` → `CashLedgerOperations.page` | `cash` → `CashLedgerOperations.page`（`summary` 委托同一查询） | 已共用查询实现。实际页面、安装包同快照验证精确分币种汇总、来源和游标 |
+| 详情与来源 | 收支详情 → `LocalCashMaintenanceRepository` → `LocalCashLedgerReader.record/sourceRecords` → `CashLedgerOperations.record/evidence` | `cash` → `CashLedgerOperations.record/evidence` | 已共用读取实现。详细事实与原始来源联验 |
+| 手工记账、转账及原操作恢复 | `CashCreationPanel` → `CashCreationViewModel.save` → `KtorCashCreationRepository.save` | `cashWrite` → `ClientCashWriteOperations.add/transfer/resume` | 待迁。精确金额、双端事务、同键重试、提交中退出 |
+| 编辑、草稿转正式、身份与关联 | 收支详情 → `LocalCashMaintenanceRepository` → `KtorCashMaintenanceRepository.preview/plan/associationTargets/commit/resolve` | `cashMaintenance`、`cashWrite` → `ClientCashMaintenanceOperations.preview/plan/associationTargets` 与 `ClientCashWriteOperations.commitMaintenance/resume` | 待迁。有类型的完整编辑、候选、预览版本和原收据 |
+| 分类与批量删除、分类目录 | 账本选择／管理页 → `LocalFirstFinanceRepository` → `KtorFinanceRepository` | `cashMaintenance`、`category` → `ClientCashMaintenanceOperations` | 待迁。关系闭包、精确影响、修订冲突与 viewer |
+| 导入文件、修改、选择 | `CashImportTaskScreen` → `LocalCashImportLifecycleRepository.upload/removeFile` → `LocalCashImportTask` | `cashImport`、`editImportFiles` → `ClientCashImportOperations.prepare/addFile/replaceFile/removeFile` | 待迁。逐文件失败、四种格式、断网、显式修改 |
+| 整批核对、明细、确认、收据、恢复 | `CashImportTaskViewModel` → `LocalCashImportLifecycleRepository.preview/items/confirm/resumeBatch/restoreReceipt` → `LocalCashImportTask` 与提交协调 | `cashImport` → `ClientCashImportOperations.review/items/confirm/resume/result` | 待迁。完整结论、并发确认、原键恢复、真实收据与失败后的整理 |
+| 账户详情独立余额查询 | 现金页面仅使用账户选择和能力；没有独立对应编辑或详情入口 | `account show` | CLI 独有展示。纳入共享账户操作的能力与修订，独立命令展现不新增页面 |
+| 待核实操作和本机批次独立列表 | 页面按当前任务恢复已持有的操作或批次 | `cash pending`、`import batches` | CLI 独有枚举入口。共同恢复业务仍在对应行验收 |
+| 维护上下文与详情换步、直接保存草稿 | Compose 使用既有上下文和草稿专用保存 | CLI 通过完整的草稿维护计划表达编辑 | 保留现行入口差异；直接草稿保存和上下文读取逐项核对是否需要 CLI 路径，草稿共同动作仍须调用同一实现 |
+| 投资、余额校准、内置 AI | 各自既有范围 | 一期命令缺少对应业务 | 本次范围外 |
+
+## 4. 构建
+
+- [ ] 4.1 先写失败回归，迁移会话、工作区与成员邀请并核对边界。
+- [ ] 4.2 迁移记账、转账、分类和收支维护，收敛确认、待核实与收据，登记真实页面调用。
+- [ ] 4.3 迁移账户选择、创建、补币种及有修订保护的补偿。
+- [ ] 4.4 迁移现金导入从文件准备到核对、冻结、确认、收据、恢复与取消。
+- [ ] 4.5 清理已被替代的生产路径。核对操作矩阵中的公共实现及单端入口。
+
+邀请预览的 Android 回归先失败，原 Compose 请求携带已有登录令牌；接通后 `FinanceApiClientTest`、`InvitationViewModelTest` 与共享 JVM 测试通过。Ktor 适配器保留状态、拒绝原因与诊断。
+
+## 5. 审查
+
+- [ ] 5.1 独立验收生产路径、产品范围、实现与最终 diff，核对权限、金额、幂等、恢复及取消。
+- [ ] 5.2 运行代码库防劣化与契约专项复核。图形页面的设计依实际变更触发。
+
+邀请预览经独立工程复核确认两端直达共同操作，Ktor 原请求的状态与诊断处理保持。后续签名写入迁移须先确认原工作区头和错误类型映射。
+
+## 6. 测试与 QA
+
+- [ ] 6.1 运行 Kotlin、后端、跨端编译和受影响回归，记录当前提交、基线、精确命令与结果。
+- [ ] 6.2 用真实浏览器走 Compose 页面，用已安装 npm 包走 `ft`；按矩阵记录共同生产符号及权限、换区、离线和写入失败证据。
+- [ ] 6.3 在专用 SQLite 和真实 PostgreSQL 核对同一写入合同；严格校验 OpenSpec、静态检查和差异。
+
+邀请预览切片于 2026-11-26 使用 Chrome 158 在 `http://127.0.0.1:5199` 点击邀请和换账号入口，`npm run test:e2e -- compose-core-ui-workflows.e2e.ts --grep '从邀请链接进入|接受邀请时'` 通过 2 项。实际 npm 安装包的 `node --test cli/test/entry.test.cjs cli/test/offline.test.cjs cli/test/server.test.cjs` 在 SQLite 通过 3 项，包含匿名预览。此切片没有存储合同变化；写入矩阵所需的双库验证见 6.3。
+
+## 7. 发布
+
+- [ ] 7.1 核对功能地图、文档、历史兼容、观察项和用户决策的适用边界。
+- [ ] 7.2 同步主规格并归档。推送到 `money-hedgehog`，更新目标为 `main` 的 PR #126 正文及证据。

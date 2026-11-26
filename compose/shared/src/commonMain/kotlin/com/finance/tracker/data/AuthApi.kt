@@ -1,5 +1,7 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.ClientOperationFailure
+import com.finance.tracker.client.previewWorkspaceInvitation
 import com.finance.tracker.domain.*
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CancellationException
@@ -109,10 +111,11 @@ internal suspend fun FinanceApiClient.createWorkspace(name: String, credentials:
     credentials = credentials,
 )
 
-suspend fun FinanceApiClient.invitationPreview(token: String): InvitationPreviewDto = request(
-    HttpMethod.Get,
-    "/api/v1/auth/invitations/${encodePathSegment(token)}",
-)
+suspend fun FinanceApiClient.invitationPreview(token: String): InvitationPreviewDto = try {
+    previewWorkspaceInvitation(clientHttp(), token, ::encodePathSegment)
+} catch (failure: ClientOperationFailure) {
+    throw ApiFailure("request_failed", 200, cause = failure)
+}
 
 suspend fun FinanceApiClient.acceptInvitation(token: String): SessionDto = acceptInvitation(token, captureCredentials())
 

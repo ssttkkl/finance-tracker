@@ -76,9 +76,11 @@ class FinanceApiClientTest {
     fun workspaceAndInvitationRequestsPreserveExistingJsonAndPathContracts() = runTest {
         val paths = mutableListOf<String>()
         val bodies = mutableListOf<String>()
+        val authorizations = mutableListOf<String?>()
         val engine = MockEngine { call ->
             paths += call.url.encodedPath
             bodies += (call.body as? io.ktor.http.content.TextContent)?.text.orEmpty()
+            authorizations += call.headers[HttpHeaders.Authorization]
             when {
                 call.url.encodedPath.endsWith("/select") -> respondJson("""{"user":{"email":"owner@example.com"},"active_workspace_id":"team one","workspaces":[]}""")
                 call.url.encodedPath.endsWith("/invitations/token%2Fone") -> respondJson("""{"workspace":{"name":"共享账本"},"role":"editor","valid":true}""")
@@ -93,6 +95,7 @@ class FinanceApiClientTest {
         assertTrue(paths[0].endsWith("/workspaces/team%20one/select"))
         assertTrue(paths[1].endsWith("/invitations/token%2Fone"))
         assertEquals("null", bodies[0])
+        assertEquals(listOf("Bearer token", null), authorizations)
         assertEquals("共享账本", preview.workspace.name)
         client.close()
     }

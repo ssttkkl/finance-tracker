@@ -1,5 +1,8 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.ClientHttp
+import com.finance.tracker.client.ClientHttpBody
+import com.finance.tracker.client.ClientHttpResponse
 import com.finance.tracker.core.TokenStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
@@ -99,23 +102,8 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     val fixedCredentials = credentials ?: boundCredentials
     val origin = normalizeApiOrigin(fixedCredentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (fixedCredentials == null) readToken() else fixedCredentials.token
-    check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
-    var rejectedStatus: Int? = null
     val readPayload: suspend (Int, String) -> T = readPayload@{ status, responseText ->
-        if (status !in 200..299) {
-            val code = apiErrorCode(status, responseText) ?: "request_failed"
-            val receiptId = runCatching {
-                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                    ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
-            }.getOrNull()
-            val commitState = runCatching {
-                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                    ?.takeIf { it in setOf("unknown", "not_committed") }
-            }.getOrNull()
-            val failure = ApiFailure(code, status, receiptId = receiptId, commitState = commitState,
-                diagnostic = apiErrorDiagnostic(responseText))
-            rejectHttpFailure(failure, token, clearUnauthorizedToken)
-        }
+        if (status !in 200..299) rejectApiPayload(status, responseText, token, clearUnauthorizedToken)
         if (status == HttpStatusCode.NoContent.value || responseText.isBlank()) {
             if (requireResponseBody) throw ApiFailure("request_failed", status,
                 cause = kotlinx.serialization.SerializationException("response_body_required"))
@@ -130,6 +118,58 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             throw ApiFailure("request_failed", status, cause = failure)
         }
     }
+    return exchange(method, path, origin, token, body, extraHeaders, bodyContentType, clearUnauthorizedToken,
+        preserveHttpRejectionOnBodyFailure, browserJson, beforeSend, readPayload)
+}
+
+internal fun FinanceApiClient.clientHttp(credentials: ApiCredentialSnapshot? = null): ClientHttp = ClientHttp { request ->
+    val body = when (val supplied = request.body) {
+        null -> NoRequestBody
+        is ClientHttpBody.Json -> FrozenJsonBody(supplied.text)
+        is ClientHttpBody.Statement -> error("Statement requests use the platform statement transport")
+    }
+    exchange(HttpMethod.parse(request.method), request.path,
+        normalizeApiOrigin(credentials?.apiOrigin ?: baseUrl(), allowInsecureHttp), request.token,
+        body, request.headers) { status, response ->
+        if (status !in 200..299) rejectApiPayload(status, response, request.token, clearUnauthorizedToken = true)
+        ClientHttpResponse(status, response)
+    }
+}
+
+internal suspend fun FinanceApiClient.rejectApiPayload(
+    status: Int, responseText: String, token: String?, clearUnauthorizedToken: Boolean,
+): Nothing {
+    val code = apiErrorCode(status, responseText) ?: "request_failed"
+    val receiptId = runCatching {
+        ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
+    }.getOrNull()
+    val commitState = runCatching {
+        ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { it in setOf("unknown", "not_committed") }
+    }.getOrNull()
+    val failure = ApiFailure(code, status, receiptId = receiptId, commitState = commitState,
+        diagnostic = apiErrorDiagnostic(responseText))
+    return rejectHttpFailure(failure, token, clearUnauthorizedToken)
+}
+
+@PublishedApi
+internal suspend fun <T> FinanceApiClient.exchange(
+    method: HttpMethod,
+    path: String,
+    origin: String,
+    token: String?,
+    body: Any?,
+    extraHeaders: Map<String, String>,
+    bodyContentType: ContentType? = null,
+    clearUnauthorizedToken: Boolean = true,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
+    browserJson: Boolean = false,
+    beforeSend: suspend () -> Unit = {},
+    readPayload: suspend (Int, String) -> T,
+): T {
+    check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
+    var rejectedStatus: Int? = null
     return try {
         if (browserJson && allowsBrowserJsonTransport) {
             val headers = buildMap {
