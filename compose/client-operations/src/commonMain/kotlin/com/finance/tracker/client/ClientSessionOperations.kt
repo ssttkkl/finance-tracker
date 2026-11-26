@@ -410,8 +410,14 @@ class ClientSessionOperations(
         return document
     }
 
-    suspend fun ledger(expectedWorkspaceId: String?): ClientLedgerRead {
-        val original = requireSession()
+    suspend fun ledger(expectedWorkspaceId: String?): ClientLedgerRead =
+        ledger(requireSession(), expectedWorkspaceId)
+
+    internal suspend fun refreshLedger(previous: ClientLedgerRead): ClientLedgerRead =
+        ledger(previous.binding, previous.ledger.snapshot.workspaceId)
+
+    private suspend fun ledger(original: ClientStoredSession, expectedWorkspaceId: String?): ClientLedgerRead {
+        requireCurrent(original)
         val initialWorkspace = expectedWorkspaceId ?: original.session.activeWorkspaceId
         val lastKnown = original.session.activeWorkspaceId
         if (expectedWorkspaceId != null && lastKnown != null && expectedWorkspaceId != lastKnown)

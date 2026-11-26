@@ -429,9 +429,47 @@ class LocalCashImportRecoveryTest {
         }
         try {
             f.owner.prepareImportSubmission("batch", plan.request)
-            assertFailsWith<ApiFailure> { f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("GET is not a POST rejection") } }
+            val failure = assertFailsWith<ApiFailure> {
+                f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("GET is not a POST rejection") }
+            }
+            assertEquals("unknown", failure.commitState)
             assertEquals(0, posts); assertEquals(0, calculations); assertEquals(0, f.source.reads)
             assertFalse(assertNotNull(f.readSubmission()).baseRejected)
+        } finally { f.close() }
+    }
+
+    @Test fun aCompactFallbackLookupCannotAuthorizeRecalculation() = runTest {
+        val plan = LocalCashImportRebaseFixture()
+        var posts = 0
+        var lookups = 0
+        var calculations = 0
+        val f = openFixture(plan.source, plan.files, plan.review) { http ->
+            if (http.method == HttpMethod.Post) {
+                posts++
+                val supplied = Json.parseToJsonElement((http.body as TextContent).text).jsonObject
+                assertEquals(2, supplied.getValue("command_version").jsonPrimitive.int)
+                respond("""{"error":{"code":"write_set_payload_invalid"},"commit_state":"not_committed"}""",
+                    HttpStatusCode.UnprocessableEntity, jsonHeaders)
+            } else if (++lookups == 1) missing() else rejected()
+        }
+        try {
+            val original = LocalCashImportSubmission.freeze("batch", plan.request)
+            val compact = JsonObject(Json.parseToJsonElement(original.requestBody).jsonObject + mapOf(
+                "command_version" to JsonPrimitive(2),
+                "request_digest" to JsonPrimitive(com.finance.tracker.business.domain.cashWriteSetRequestDigest(plan.request)),
+            )).toString()
+            f.owner.prepareImportSubmission("batch", original.withTransport(compact))
+            f.source.current = plan.source.copy(ledgerSeq = "9")
+            val failure = assertFailsWith<ApiFailure> {
+                f.owner.resumeImportSubmission("batch") { _, _, _, _, _ -> calculations++; error("A read cannot reject a write") }
+            }
+            assertEquals("unknown", failure.commitState)
+            assertEquals(1, posts)
+            assertEquals(2, lookups)
+            assertEquals(0, calculations)
+            val retained = assertNotNull(f.readSubmission())
+            assertFalse(retained.baseRejected)
+            assertEquals(compact, retained.transportBody)
         } finally { f.close() }
     }
 

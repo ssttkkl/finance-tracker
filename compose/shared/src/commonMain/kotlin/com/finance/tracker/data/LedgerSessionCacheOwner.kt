@@ -1,6 +1,14 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.ClientImportSubmissionHost
+import com.finance.tracker.client.ClientImportSubmissionState
+import com.finance.tracker.client.ClientNetworkUnavailable
+import com.finance.tracker.client.ClientOperationFailure
 import com.finance.tracker.client.freezeCashImportChoices
+import com.finance.tracker.client.lookupImportReceipt
+import com.finance.tracker.client.rebaseRejectedCashImport
+import com.finance.tracker.client.resumeCashImportSubmission
+import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashPageDto
@@ -340,57 +348,79 @@ internal class LedgerSessionCacheOwner(
 
     private suspend fun resumeImportSubmissionLocked(batchId: String, rebase: CashImportRebase?,
         beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {},
-        captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot? = ::captureCashImportRebaseSnapshot): LocalCashImportSubmissionResult {
-        var retries = 0
-        while (true) {
-            val original = checkNotNull(withImportFiles { it.readSubmission(batchId) }) { "cash_import_submission_missing" }
-            val receipt = try { resolveImportSubmission(batchId, original) }
-            catch (failed: BaseRejection) {
-                if (rebase == null) throw failed.rejection
-                if (retries >= 3) throw LocalCashImportRetryLimitReached(failed.rejection)
-                val confirmed = rebaseImportSubmission(batchId, original, failed.rejection, rebase, captureSnapshot)
-                if (confirmed == null) {
-                    delay(250L shl retries)
-                    retries++
-                    continue
+        captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot? = ::captureCashImportRebaseSnapshot): LocalCashImportSubmissionResult =
+        try {
+            resumeCashImportSubmission(object : ClientImportSubmissionHost<LocalCashImportSubmissionResult> {
+                private lateinit var selected: LocalCashImportSubmission
+
+                private fun original(expected: StoredCashImportSubmission): LocalCashImportSubmission {
+                    check(selected.idempotencyKey == expected.key && selected.requestBody == expected.request) {
+                        "cash_import_submission_changed"
+                    }
+                    return selected
                 }
-                confirmed
-            }
-            return finishImportSubmission(batchId, original, receipt, beforeCompletion)
+
+                override suspend fun current(): ClientImportSubmissionState<LocalCashImportSubmissionResult> {
+                    selected = checkNotNull(withImportFiles { it.readSubmission(batchId) }) { "cash_import_submission_missing" }
+                    return ClientImportSubmissionState.Pending(selected.storageValue())
+                }
+
+                override suspend fun receipt(key: String) = sharedImportRequest {
+                    requireImportSession()
+                    readReceiptOrNull(key)
+                }
+
+                override suspend fun submit(attempt: StoredCashImportSubmission) = sharedImportRequest {
+                    requireImportSession()
+                    selected = prepareImportTransport(batchId, original(attempt))
+                    submitImportCommand(batchId, selected)
+                }
+
+                override suspend fun recordBaseRejection(attempt: StoredCashImportSubmission, reason: ClientOperationFailure) {
+                    try { withImportFiles { it.recordBaseRejection(batchId, original(attempt)) } }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (storageFailure: Throwable) { throw LocalCashImportRejectionStorageFailure(reason.importApiFailure(), storageFailure) }
+                }
+
+                override suspend fun rebase(attempt: StoredCashImportSubmission, reason: ClientOperationFailure): CashMutationReceiptDto? {
+                    val calculate = rebase ?: throw reason.importApiFailure()
+                    return rebaseImportSubmission(batchId, original(attempt), reason, calculate, captureSnapshot)
+                }
+
+                override suspend fun discardReplayMismatch(attempt: StoredCashImportSubmission) {
+                    withImportFiles { it.discardUnprovableSubmission(batchId, original(attempt)) }
+                    throw CashImportPlanError("write_set_replay_mismatch", "not_committed")
+                }
+
+                override suspend fun complete(attempt: StoredCashImportSubmission, receipt: CashMutationReceiptDto) =
+                    finishImportSubmission(batchId, original(attempt), receipt, beforeCompletion)
+
+                override suspend fun awaitNextAttempt(attempt: Int) = delay(250L shl attempt)
+
+                override fun retriesExhausted(reason: ClientOperationFailure): Nothing =
+                    throw LocalCashImportRetryLimitReached(reason.importApiFailure())
+            })
+        } catch (failure: ClientOperationFailure) {
+            val network = generateSequence<Throwable>(failure.cause) { it.cause }.filterIsInstance<FinanceTransportFailure>().firstOrNull()
+            if (network != null) throw network
+            throw failure.importApiFailure()
         }
+
+    private fun ClientOperationFailure.importApiFailure(): ApiFailure {
+        val original = generateSequence<Throwable>(cause) { it.cause }.filterIsInstance<ApiFailure>().firstOrNull()
+        return if (original != null && original.commitState == commitState) original
+        else ApiFailure(original?.code ?: code, status ?: original?.status ?: 0, receiptId = original?.receiptId,
+            commitState = commitState, diagnostic = original?.diagnostic, cause = this)
     }
 
-    private class BaseRejection(val rejection: ApiFailure) : Exception(rejection)
-
-    private suspend fun resolveImportSubmission(batchId: String, original: LocalCashImportSubmission): CashMutationReceiptDto =
-        original.receipt() ?: run {
-            requireImportSession()
-            try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, original.idempotencyKey, credentials) }
-            catch (failure: ApiFailure) {
-                if (failure.status != 404 || failure.code != "receipt_not_found") throw failure
-                // Absence is not a non-commit proof. Only the exact original operation is retried.
-                requireImportSession()
-                if (original.baseRejected) throw BaseRejection(ApiFailure("ledger_base_changed", 409, commitState = "not_committed"))
-                val prepared = prepareImportTransport(batchId, original)
-                try { submitImportCommand(batchId, prepared) }
-                catch (rejection: ApiFailure) {
-                    if (rejection.status == 422 && rejection.code == "write_set_replay_mismatch" && rejection.commitState == "not_committed") {
-                        val receipt = try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, prepared.idempotencyKey, credentials) }
-                        catch (missing: ApiFailure) { if (missing.status == 404 && missing.code == "receipt_not_found") null else throw missing }
-                        if (receipt != null) return receipt
-                        withImportFiles { it.discardUnprovableSubmission(batchId, prepared) }
-                        throw CashImportPlanError("write_set_replay_mismatch", "not_committed")
-                    }
-                    if (rejection.status == 409 && rejection.code == "ledger_base_changed" && rejection.commitState == "not_committed") {
-                        try { withImportFiles { it.recordBaseRejection(batchId, prepared) } }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (storageFailure: Throwable) { throw LocalCashImportRejectionStorageFailure(rejection, storageFailure) }
-                        throw BaseRejection(rejection)
-                    }
-                    throw rejection
-                }
-            }
-        }
+    private suspend fun <T> sharedImportRequest(call: suspend () -> T): T = try {
+        call()
+    } catch (failure: ApiFailure) {
+        if (failure.status in setOf(401, 403)) throw failure
+        throw ClientOperationFailure(failure.code, failure.status, failure, failure.commitState)
+    } catch (failure: FinanceTransportFailure) {
+        throw ClientNetworkUnavailable(failure)
+    }
 
     private suspend fun readReceiptOrNull(key: String): CashMutationReceiptDto? = try {
         api.readCashImportWriteSetReceiptByKey(scope.workspaceId, key, credentials)
@@ -422,7 +452,12 @@ internal class LedgerSessionCacheOwner(
                     rejection.commitState == "not_committed" && current.transportBody != null
                 if (!commandRetried && commandRejected) {
                     commandRetried = true
-                    readReceiptOrNull(current.idempotencyKey)?.let { return it }
+                    lookupImportReceipt {
+                        sharedImportRequest {
+                            requireImportSession()
+                            readReceiptOrNull(current.idempotencyKey).also { requireImportSession() }
+                        }
+                    }?.let { return it }
                     withImportFiles { it.clearTransport(batchId, current) }
                     current = current.withoutTransport()
                     continue
@@ -458,30 +493,25 @@ internal class LedgerSessionCacheOwner(
         }
     }
 
-    private suspend fun rebaseImportSubmission(batchId: String, original: LocalCashImportSubmission, rejection: ApiFailure,
+    private suspend fun rebaseImportSubmission(batchId: String, original: LocalCashImportSubmission, rejection: ClientOperationFailure,
         rebase: CashImportRebase, captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot?): CashMutationReceiptDto? {
         refreshFacts()
         val snapshot = checkNotNull(read(captureSnapshot)) { "cash_import_snapshot_missing" }
-        val base = snapshot.base
-        if (base.toLong() <= original.baseLedgerSeq.toLong()) throw rejection
-        requireImportSession()
-        val receipt = try { api.readCashImportWriteSetReceiptByKey(scope.workspaceId, original.idempotencyKey, credentials) }
-        catch (failure: ApiFailure) { if (failure.status != 404 || failure.code != "receipt_not_found") throw failure else null }
-        requireImportSession()
-        if (receipt != null) return receipt
-        val replacement = try {
+        return rebaseRejectedCashImport(original.baseLedgerSeq, snapshot.base, rejection, {
+            sharedImportRequest {
+                requireImportSession()
+                readReceiptOrNull(original.idempotencyKey).also { requireImportSession() }
+            }
+        }, calculate = {
             val captured = withImportFiles { batches ->
                 val review = batches.readEncodedReview(batchId) ?: throw CashImportPlanError("plan_changed")
                 val files = checkNotNull(batches.readEncoded(batchId)) { "cash_import_files_missing" }
                 CashImportRebaseInput(snapshot, review, files)
             }
             rebase(captured, batchId, original.resultInput, ::requireOpen).also { requireImportSession() }
-        } catch (invalid: CashImportPlanError) {
-            withImportFiles { it.retireRejectedSubmission(batchId, original, base, null) }
-            throw invalid
-        }
-        withImportFiles { it.retireRejectedSubmission(batchId, original, base, replacement) }
-        return null
+        }, retire = { replacement ->
+            withImportFiles { it.retireRejectedSubmission(batchId, original, snapshot.base, replacement) }
+        })
     }
 
     private suspend fun finishImportSubmission(batchId: String, original: LocalCashImportSubmission, receipt: CashMutationReceiptDto,
