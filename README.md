@@ -66,7 +66,7 @@ Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-
 
 本地 Compose 调试通过 `FT_API_PROXY_ORIGIN` 配置 API 代理；生产目标只接受 HTTPS。具体 target 和运行参数见 [`compose/README.md`](compose/README.md)。
 
-终端操作可以用本地 npm 包安装 `ft`。安装命令、账本缓存、现金导入及原操作恢复方式见 [账本 CLI](compose/README.md#账本-cli)。
+终端操作可以用本地 npm 包安装 `ft`。安装命令、账本缓存、现金导入及原操作恢复方式见 [账本 CLI](compose/README.md#账本-cli)。 让 AI 通过命令行操作账本时，使用 [finance-tracker CLI 技能](skills/finance-tracker/SKILL.md)。
 
 ## API 能力
 
