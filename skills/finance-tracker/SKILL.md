@@ -1,6 +1,6 @@
 ---
 name: finance-tracker
-description: 使用 Finance Tracker 的 ft CLI 查询或操作个人账本。适用于查看账户余额、汇总收支、记账和转账、管理工作区与分类，以及准备、核对、确认或恢复现金账单导入。
+description: 使用 Finance Tracker 的 ft CLI 操作个人账本、运维后端业务和测试已接入的后端流程。适用于查看账户余额、汇总收支、记账和转账、管理工作区与分类，以及准备、核对、确认或恢复现金账单导入。
 ---
 
 # 使用 ft 操作账本
@@ -24,6 +24,19 @@ ft account list --workspace "$WORKSPACE_ID" --json
 ```
 
 从返回值选择工作区和账户的 ID。后续命令带上 `--workspace "$WORKSPACE_ID"`，防止同一会话在另一进程切换工作区后写错账本。macOS 默认使用登录钥匙串；无交互环境可由密钥管理器为各次调用注入同一 `FT_CLI_STORAGE_KEY`（32 字节密钥的 Base64）。跨进程恢复需沿用原服务、身份和状态目录（默认 `~/.finance-tracker-cli`）。
+
+## 后端运维与业务测试
+
+先用 `ft --help` 和对应命令组的帮助确定覆盖范围。排查在线业务时，在目标服务上用 `ft auth status --json` 核对会话，再用带工作区 ID 的命令复现。例如排查余额差异，用 `ft account show "$ACCOUNT_ID" --workspace "$WORKSPACE_ID" --json` 核对分币种余额，再用 `ft cash list --account "$ACCOUNT_ID" --workspace "$WORKSPACE_ID" --json` 查相关收支。若结果标记为 `offline: true`，只能说明本机缓存的内容；在线验证需在服务可达时重跑。
+
+在源码仓库测试后端业务时，优先从实际安装的 CLI 发起操作并核对结果。以下命令从仓库根目录执行，使用 JDK 21 和 CLI 所需的 Node.js：
+
+```sh
+(cd compose && ./gradlew :backend:installDist :cli:stageNpm)
+node --test compose/cli/test/server.test.cjs
+```
+
+该测试用合成数据、临时状态目录和独立 SQLite 库启动后端，打包安装 `ft` 后验证真实请求与收据恢复。要验证 PostgreSQL，先准备专用、库名以 `_test` 结尾的数据库，显式配置 `FT_TEST_POSTGRES_URL` 后运行同一命令。服务启动、部署、数据库迁移及 CLI 尚未覆盖的能力使用对应的运维入口；定位 HTTP 协议、存储或内部逻辑问题时运行相应专项测试。
 
 ## 查账与记账
 
