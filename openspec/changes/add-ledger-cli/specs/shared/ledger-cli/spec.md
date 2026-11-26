@@ -6,7 +6,7 @@
 
 ### Requirement: 人与自动化程序使用同一套命令
 
-CLI MUST 支持通过 npm 安装，并在安装后提供 `ft`、分层帮助和版本查询。每个业务动作 MUST 支持无交互调用、稳定 ID、明确退出状态和机器可读输出。财务金额 MUST 保留十进制精度和币种。
+账本命令 MUST 调用 `shared/client-ledger-operations` 定义的共享操作。CLI MUST 支持通过 npm 安装，并在安装后提供 `ft`、分层帮助和版本查询。每个业务动作 MUST 支持无交互调用、稳定 ID、明确退出状态和机器可读输出。财务金额 MUST 保留十进制精度和币种。
 
 #### Scenario: 自动化脚本查询和处理缺项
 
