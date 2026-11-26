@@ -39,7 +39,7 @@
 - [x] 6.2a 用相同夹具从独立 Kotlin 调用方与生产 CLI 入口分别读取月度汇总、核对现金导入并恢复提交，比较精确金额、范围、版本、待处理原因和实际收据语义；检查 Compose 目标可编译依赖该层。
 - [x] 6.3 从 npm 压缩包在空目录安装并执行帮助、登录、账本查询与现金导入；确认最终依赖清单、最低 Node 版本、经验证平台与限制。
 
-核对日期为 2026-11-26，比较基线为 `595aeeb5`。后端守卫 `175003ae` 的 `./gradlew :backend:test --tests '*WorkspaceExpectedScopeHttpTest' --tests '*OpenApiContractTest' --offline` 在临时 SQLite 与真实 PostgreSQL 17.12 专用 `ft_ledger_cli_scope_test` 通过。修复前 SQLite 在错范围改名返回 200，修复后五种旧范围管理请求返回 409，两个工作区名称、成员和邀请数量保持，匹配范围的 viewer 收到 403，兼容调用成功。
+核对日期为 2026-11-26，比较基线为 `595aeeb5`，实测实现提交为 `41b29f1b`。后端守卫 `175003ae` 的 `./gradlew :backend:test --tests '*WorkspaceExpectedScopeHttpTest' --tests '*OpenApiContractTest' --offline` 在临时 SQLite 与真实 PostgreSQL 17.12 专用 `ft_ledger_cli_scope_test` 通过。修复前 SQLite 在错范围改名返回 200，修复后五种旧范围管理请求返回 409，两个工作区名称、成员和邀请数量保持，匹配范围的 viewer 收到 403，兼容调用成功。
 
 - 在 `compose/` 执行 `./gradlew :cli:stageNpm :client-ledger:jvmTest --offline`，五项共享操作测试通过。Kotlin 调用以相同的快照和支付宝夹具验证 `-12.340000000000000001`、来源与核对项，并在冻结请求后模拟断线，恢复同一收据且无第二次 POST。
 - macOS ARM64 与 Node.js 26.2.0 执行 `node --test cli/test/entry.test.cjs cli/test/offline.test.cjs cli/test/server.test.cjs`，显式设置 `FT_TEST_POSTGRES_URL` 后四项通过、零跳过。覆盖安装、原进程退出后的离线收支与来源、同步时间、密钥与撤权、CSV／XLSX／PDF／旧 XLS、有界文件、部分失败、只读邀请、原收据恢复、手工保存进程被终止、同值独立写入、分类与维护、补币种和按修订撤回。批次冻结的双库回归修复前错误地发送了导入请求，修复后账户命令未核实期间零导入 POST。确认回包丢失后，查询接口返回错误时保留结果待核实，成功查询返回原收据，实际账本仅有一笔导入，余额为 `-13.00`。
@@ -49,11 +49,11 @@
 - 后端、业务契约和业务领域的 `ktlintCheck`，后端 `detektMain`、`detektTest` 与两个业务模块的 `detektMetadataCommonMain` 均通过。业务领域的 `runKtlintCheckOverCommonTestSourceSet` 初次耗尽 Java 堆，用仓库外 Gradle init script 将该任务的 `workerMaxHeapSize` 设为 `768m` 后重跑通过，仓库构建设置无变化。CLI 安装包与公共模块以编译、实际运行和差异检查验证。
 - 在 `compose/qa/web` 执行 `npm run test:node`，44 项通过。`npm run test:e2e -- compose-cash-month-summary.e2e.ts compose-local-first-cash.e2e.ts compose-local-import.e2e.ts` 通过 13 项。Chrome 158.0.8127.37，预览 `http://127.0.0.1:5198` 连本机 Kotlin 后端及隔离 SQLite，视口包括 390×844、768×844、1440×844 和 1440×1100。覆盖月度汇总、收支及离线 Worker、本地账户、登录后断网核对、冲突重核、已提交后 503、重开结果和冷启动。修正既有冒烟测试仍断言已退役的手动整理按钮，保留原故障注入，并核对刷新后没有重发写集。用例断言相关流程无非预期浏览器、资源或 API 错误，截图在 Playwright `test-results`。
 - 只依赖 `:client-ledger` 的临时 Kotlin/JVM 调用模块实际编译，直接读取月度版本和恢复结果的权威收据。业务领域类型随公开接口导出。重跑 `./gradlew :webApp:wasmJsBrowserDistribution :cli:stageNpm :client-ledger:jvmTest --offline --no-configuration-cache`，打包任务复用相同输入，167 个浏览器文件的 SHA-256 全部一致。
-- `openspec validate --all --strict` 在归档前通过 33 项，`git diff --check`、新增文档链接和锚点检查均通过。
+- `openspec validate --all --strict` 在归档前通过 33 项、同步归档后通过 34 项。`openspec doctor`、`git diff --check`、新增文档链接和锚点检查均通过。三份主规格逐项比对归档增量，原工作区要求保留。
 
 ## 7. 发布
 
 - [x] 7.1 核对 README、命令示例、功能地图、术语和现金导入 Agent 指引。用户选择将有类型的共享账本操作和 CLI 一并交付，内置 AI 单独设计。此边界及 Kotlin/JS 选型适用于本变更，无需新增通用规则。
-- [ ] 7.2 按实际实现同步并归档 change，记录未决操作的恢复、回滚与观察项。npm 发布、PR、合并、部署分别按授权执行。
+- [x] 7.2 同步共享账本操作、账本 CLI 和工作区管理三份增量，更新规格导航并归档 change。交付为当前分支和本地 npm 安装包。
 
 兼容顺序为先上线支持新守卫的服务端，再使用 CLI。出现故障时保留原服务地址、状态目录、密钥与待核实操作 ID，使用支持该存储格式的版本恢复原收据。可从终端卸载命令，保留加密恢复材料。后续使用中观察会话冲突、收据待核实及密钥库不可用，其中待核实操作需保留原身份与请求。
