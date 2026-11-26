@@ -164,7 +164,7 @@ ft import result "$BATCH_ID" --kind row --json
 
 记账、转账和维护确认由服务端保存。进程在结果返回前关闭时，用 `ft cash pending` 找原操作，再用 `ft cash resume "$OPERATION_ID"` 核实。分类和删除等需要确认实际影响的命令使用当前账本或目录修订；操作结果待核实时先重新读取目标。命令参数与子命令帮助见 `ft auth --help`、`ft workspace --help`、`ft cash --help`、`ft category --help`、`ft account --help`、`ft import --help`。
 
-Kotlin 调用方可依赖 `:client-ledger`。`CashLedgerOperations` 和 `CashImportReviewOperations` 读取已取得的账本与账单，`ClientSessionOperations`、`ClientCashWriteOperations` 和 `ClientCashImportOperations` 通过宿主提供的挂起式 HTTP 和存储接口运行。宿主实现存储接口时，需保留操作范围检查、条件更新和提交前检查点。CLI 的参数解析与打印位于 `:cli`。
+Kotlin 调用方可依赖共享客户端操作层 `:client-operations`。`CashLedgerOperations` 和 `CashImportReviewOperations` 读取已取得的账本与账单，`ClientSessionOperations`、`ClientCashWriteOperations` 和 `ClientCashImportOperations` 通过宿主提供的挂起式 HTTP 和存储接口运行。宿主实现存储接口时，需保留操作范围检查、条件更新和提交前检查点。CLI 的参数解析与打印位于 `:cli`。
 
 ---
 

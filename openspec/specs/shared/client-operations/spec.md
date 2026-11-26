@@ -1,12 +1,12 @@
-# shared/client-ledger-operations Specification
+# shared/client-operations Specification
 
 ## Purpose
 
-提供可由不同客户端入口直接调用的账本操作。用户经终端或客户端宿主执行同一任务时，使用相同的账户与工作区范围、账本查询、现金导入核对和提交恢复规则，得到一致的业务结果。
+共享客户端操作层提供可由不同客户端入口直接调用的业务操作。当前覆盖会话、工作区、财务账户、收支与分类及现金导入。终端与其他客户端宿主执行同一任务时，共用输入、结果、权限和恢复规则。
 
 ## Requirements
 
-### Requirement: 一期账本操作可通过有类型的 Kotlin 接口调用
+### Requirement: 客户端业务操作可通过有类型的 Kotlin 接口调用
 
 系统 MUST 为一期范围内的会话与工作区、财务账户、收支与分类、现金导入提供宿主可直接调用的 Kotlin 操作。操作 MUST 接受业务参数并返回有类型的结果或可识别错误；调用方无需构造命令行、启动 Node 进程或解析终端文本。CLI MUST 在生产路径上调用这些操作。
 

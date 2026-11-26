@@ -7,8 +7,8 @@ const { join, resolve } = require('node:path');
 const { once } = require('node:events');
 const { test } = require('node:test');
 
-const snapshot = require('../../client-ledger/src/jvmTest/resources/cash-operation-snapshot.json');
-const expectedSummary = require('../../client-ledger/src/jvmTest/resources/cash-operation-summary.json');
+const snapshot = require('../../client-operations/src/jvmTest/resources/cash-operation-snapshot.json');
+const expectedSummary = require('../../client-operations/src/jvmTest/resources/cash-operation-summary.json');
 const workspace = { id: 'workspace-a', name: 'Example', role: 'editor' };
 const session = { user: { email: 'person@example.test' }, active_workspace_id: workspace.id, workspaces: [workspace] };
 

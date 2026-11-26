@@ -7,7 +7,7 @@
 | 子能力 | 完整能力 ID |
 |--------|-------------|
 | [账本记录](ledger-records/spec.md) | `shared/ledger-records` |
-| [共享客户端账本操作](client-ledger-operations/spec.md) | `shared/client-ledger-operations` |
+| [共享客户端操作层](client-operations/spec.md) | `shared/client-operations` |
 | [账本 CLI](ledger-cli/spec.md) | `shared/ledger-cli` |
 | [时间语义](time-semantics/spec.md) | `shared/time-semantics` |
 | [运行时数据库](runtime-database/spec.md) | `shared/runtime-database` |

@@ -12,7 +12,7 @@ kotlin {
     }
     sourceSets {
         jsMain.dependencies {
-            implementation(project(":client-ledger"))
+            implementation(project(":client-operations"))
             implementation(project(":business-domain"))
             implementation(libs.kotlinx.serialization.json)
         }
