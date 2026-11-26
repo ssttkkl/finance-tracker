@@ -1,6 +1,6 @@
 ## Context
 
-首期使用短生命周期命令。四条路线都需要将业务规则、API 和导入编排与 Compose 分开，恢复原会话绑定的加密快照、批次和未决写入。用户关注开发和安装负担，技术选型待确认。
+首期使用短生命周期命令。四条路线都需要将业务规则、API 和导入编排与 Compose 分开，恢复原会话绑定的加密快照、批次和未决写入。首期选用 Kotlin/JS 的 Node.js 目标，经 npm 分发。
 
 ## Goals / Non-Goals
 
@@ -13,6 +13,23 @@
 按服务地址、登录身份与工作区定位安全存储。读取账本时先核版本，必要时替换同范围的完整快照；网络不可达或超时才按已核身份读取本地事实。可纯本地完成的解析和核对直接使用已取得的输入。明确拒绝、密钥损坏和响应解码错误各按原业务合同处理。服务端持有财务事实，CLI 通过 API 获取快照、提交命令与核实收据。
 
 将共享查询与本地导入任务从 UI 和平台绑定处分出，沿用现有领域模块与传输合同。宿主负责文件、时区、凭据、加密持久化与跨进程互斥。导入修改和确认绑定同一批次的核对版本；持久化冻结请求后再发送，退出后可按原请求恢复。实现应以相同夹具比对收支顺序、分币种汇总、来源、写集与实际结果。
+
+### Node 客户端与分发
+
+在 `compose/` 下增加 `:cli`，通过 `js { nodejs(); binaries.executable() }` 构建生产程序。CLI 和 Compose 依赖相同的 `:business-domain` 与 `:business-contracts`；从 `:shared` 分步提取实际共用的 HTTP 调用、账本查询与导入任务逻辑。输入参数从 Node 进程读取，HTTP、文件、凭据、缓存和进程退出集中在宿主边界。每条命令结束时关闭资源。
+
+发包目录包含 npm 清单、带 Node shebang 的 `bin/ft.cjs`、生产 JS 模块及运行依赖。以 `npm pack` 的实际压缩包做安装与启动测试，用通过测试的最低 Node 版本填写 `engines.node`。面向用户的命令名固定为 `ft`；包名及 registry 归属在正式发布前确定。
+
+### 首期命令
+
+| 命令组 | 操作 |
+|---|---|
+| `ft auth`、`ft workspace` | register、login、status、logout；list、current、create、use、rename、delete；member list/set-role/remove、invite create/preview/accept |
+| `ft account` | list、show、create；导入中选择对应账户、补币种和撤回准备阶段的变更沿独立账户操作执行 |
+| `ft cash`、`ft category` | list、show、summary、add、transfer、edit、categorize、delete；草稿分摊与转正式、关系候选搜索和取舍、来源差异与身份问题处理；分类目录的创建、调整、排序和删除影响核对 |
+| `ft import` | prepare、file add/replace/remove、map、review、confirm、result、resume、cancel |
+
+`--workspace` 表达预期目标；显式切换使用 `workspace use`。提供 `--json`、`--help` 和 `--version`。JSON 模式的结果和结构化失败写入 stdout，诊断写入 stderr；非交互调用缺少参数时返回非零退出码。金额以十进制字符串传递。导入示例为 `ft import prepare bank.xlsx --workspace ws_home --json`，随后用返回的批次 ID 执行 `ft import review BATCH --json` 和 `ft import confirm BATCH --review REV --json`。
 
 ### 四种编译目标与运行方式
 
@@ -37,6 +54,6 @@
 - 无图形会话的 CI 或 AI 环境可能无法解锁操作系统密钥库。应验证目标环境的凭据提供方式及损坏、不可用、撤权后的行为，避免静默退回明文。
 - 会话活动工作区可能被并发命令切换。CLI 绑定原范围，管理写入在服务端事务内核对预期工作区；以 SQLite 和真实 PostgreSQL 验证冲突与兼容。
 
-## Open Questions
+## Migration Plan
 
-首期应优先覆盖已有 Node、需要独立原生程序，还是已有统一 Wasm 宿主的用户环境？发行平台、最低运行环境与包清单随选型落实。开发派发等待用户决定。
+先交付与旧客户端兼容的工作区事务保护，再分发使用该保护的 CLI。使用专用测试库和本地 npm 压缩包验证升级、失败及恢复；正式发布需单独授权。撤回客户端版本时保留原操作身份、未决批次和收据，遇到较新本机存储格式时保留数据并报告所需版本。服务端继续保留原业务 API。
