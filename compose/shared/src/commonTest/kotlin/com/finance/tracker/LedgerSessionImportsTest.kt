@@ -172,7 +172,7 @@ class LedgerSessionImportsTest {
             val result = reopened.resumeLocalCashImport("batch")
             assertEquals(first.receipt, result.receipt); assertNull(result.recoveryFailure)
             assertEquals(before.count { it == "/api/v1/cash-import/write-set" }, f.paths.count { it == "/api/v1/cash-import/write-set" })
-            assertEquals(before.count { it == "/api/v1/cash-mutations/receipts/by-key" }, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
+            assertEquals(before.count { it == "/api/v1/cash-import/write-set/status" }, f.paths.count { it == "/api/v1/cash-import/write-set/status" })
             assertNull(reopened.importSubmission("batch")); assertNull(reopened.importFiles("batch"))
         } finally { f.close() }
     }
@@ -1191,8 +1191,8 @@ class LedgerSessionImportsTest {
             f.repository.session(); imports = assertNotNull(f.repository.captureImports())
             val result = imports.resumeLocalCashImport("batch")
             assertTrue(result.receipt.committed); assertNull(result.recoveryFailure)
-            assertEquals(1, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
-            assertFalse(f.paths.any { it.contains("write-set") })
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set/status" })
+            assertFalse(f.paths.any { it.endsWith("/write-set") })
             assertNull(f.storage.submission)
             // A successful recovery refresh restores calculation eligibility after actual session verification.
             imports.saveImportFiles("next", f.plan.files)
@@ -1216,8 +1216,8 @@ class LedgerSessionImportsTest {
             assertFailsWith<IllegalStateException> { imports.importFunding("batch") }
             f.versionFailure = null
             assertNull(imports.resumeLocalCashImport("batch").recoveryFailure)
-            assertEquals(1, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
-            assertFalse(f.paths.any { it.contains("write-set") })
+            assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set/status" })
+            assertFalse(f.paths.any { it.endsWith("/write-set") })
             assertNull(f.storage.submission)
         } finally { f.close() }
     }
@@ -1350,7 +1350,7 @@ class LedgerSessionImportsTest {
             assertEquals(original.encode(), assertNotNull(imports.importSubmission("batch")).encode())
             assertTrue(imports.resumeLocalCashImport("batch").receipt.committed)
             assertEquals(1, f.paths.count { it == "/api/v1/cash-import/write-set" })
-            assertEquals(2, f.paths.count { it == "/api/v1/cash-mutations/receipts/by-key" })
+            assertEquals(2, f.paths.count { it == "/api/v1/cash-import/write-set/status" })
             assertNull(f.storage.submission)
         } finally { f.close() }
     }
@@ -1737,7 +1737,7 @@ class LedgerSessionImportsTest {
             assertNull(second.recoveryFailure); assertEquals(1, deliveries)
             assertEquals(localCashImportServerResultItemsFixture(), imports.importResult("receipt")?.serverItems())
             assertNull(imports.importFiles("batch")); assertNull(f.storage.submission)
-            assertEquals(1, f.paths.count { it.endsWith("/by-key") }); assertEquals(0, f.paths.count { it.endsWith("/write-set") })
+            assertEquals(1, f.paths.count { it.endsWith("/write-set/receipt") }); assertEquals(0, f.paths.count { it.endsWith("/write-set") })
             assertEquals(2, f.paths.count { it.endsWith("/receipt/rows") })
         } finally { f.close() }
     }
@@ -2063,6 +2063,7 @@ class LedgerSessionImportsTest {
         var receiptMissing = false
         var receiptOverride: CashMutationReceiptDto? = null
         var postFailure: Throwable? = null
+        private var savedImportReceipt: CashMutationReceiptDto? = null
         var receiptUnauthorized = false
         var beforePdf: (suspend () -> Unit)? = null
         var beforeAccount: (suspend (io.ktor.client.request.HttpRequestData) -> Unit)? = null
@@ -2094,15 +2095,15 @@ class LedgerSessionImportsTest {
             override suspend fun get(): String? { tokenReadFailure?.let { throw it }; return token }
             override suspend fun set(value: String) { token = value }
             override suspend fun clear() { tokenClearFailure?.let { throw it }; token = null }
-        }, MockEngine { request ->
+        }, cashImportMockEngine { request ->
             if (request.method == HttpMethod.Options) {
-                return@MockEngine respond("{}", HttpStatusCode.NotFound, headersOf(HttpHeaders.ContentType, "application/json"))
+                return@cashImportMockEngine respond("{}", HttpStatusCode.NotFound, headersOf(HttpHeaders.ContentType, "application/json"))
             }
             paths += request.url.encodedPath
             assertEquals("Bearer ${expectedHttpToken ?: token}", request.headers[HttpHeaders.Authorization])
             val body = when (request.url.encodedPath) {
                 "/api/v1/auth/login", "/api/v1/auth/register" -> {
-                    authenticationStatus?.let { return@MockEngine respond("{\"error\":{\"code\":\"invalid_credentials\"}}", it,
+                    authenticationStatus?.let { return@cashImportMockEngine respond("{\"error\":{\"code\":\"invalid_credentials\"}}", it,
                         headersOf(HttpHeaders.ContentType, "application/json")) }
                     Json.encodeToString(com.finance.tracker.business.contracts.AuthResponseDto(authenticationToken, online.user,
                         online.activeWorkspaceId, online.workspaces))
@@ -2115,7 +2116,7 @@ class LedgerSessionImportsTest {
                     assertEquals("session-imports.example.test", request.url.host)
                     beforeAccount?.invoke(request)
                     accountFailure?.let { throw it }
-                    accountStatus?.let { return@MockEngine respond("{\"error\":{\"code\":\"permission_denied\"}}",
+                    accountStatus?.let { return@cashImportMockEngine respond("{\"error\":{\"code\":\"permission_denied\"}}",
                         HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
                     when {
                         request.url.encodedPath.contains("/receipts/") -> accountReceiptBody ?: accountReceiptJson
@@ -2133,28 +2134,50 @@ class LedgerSessionImportsTest {
                     Json.encodeToString(LedgerVersionDto(current.ledgerSeq))
                 }
                 "/api/v1/ledger/snapshot" -> { beforeSnapshot?.invoke(); Json.encodeToString(current) }
+                "/api/v1/cash-import/write-set/status" -> {
+                    val key = request.headers["Idempotency-Key"]
+                    assertEquals("batch", key)
+                    val saved = savedImportReceipt
+                    if (saved == null) beforeReceipt?.invoke()
+                    if (receiptUnauthorized) return@cashImportMockEngine respond(
+                        """{"error":{"code":"authentication_required"}}""", HttpStatusCode.Unauthorized,
+                        headersOf(HttpHeaders.ContentType, "application/json"))
+                    if (saved == null && receiptMissing) return@cashImportMockEngine respond(
+                        """{"error":{"code":"import_confirmation_not_found"}}""", HttpStatusCode.NotFound,
+                        headersOf(HttpHeaders.ContentType, "application/json"))
+                    val receipt = saved ?: (receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq)
+                    """{"operation_id":"$key","status":"committed","receipt_id":"${receipt.receiptId}"}"""
+                }
+                "/api/v1/cash-import/write-set/receipt" -> {
+                    assertEquals("batch", request.headers["Idempotency-Key"])
+                    assertEquals("workspace", request.url.parameters["workspace_id"])
+                    if (receiptMissing && savedImportReceipt == null) return@cashImportMockEngine respond(
+                        """{"error":{"code":"receipt_not_found"}}""", HttpStatusCode.NotFound,
+                        headersOf(HttpHeaders.ContentType, "application/json"))
+                    Json.encodeToString(savedImportReceipt ?: (receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq))
+                }
                 "/api/v1/cash-mutations/receipts/by-key" -> {
                     beforeReceipt?.invoke()
-                    if (receiptUnauthorized) return@MockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
+                    if (receiptUnauthorized) return@cashImportMockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("workspace", request.url.parameters["workspace_id"])
-                    if (request.url.parameters["key"] == "account-key") return@MockEngine respond(accountReceiptBody ?: accountReceiptJson,
+                    if (request.url.parameters["key"] == "account-key") return@cashImportMockEngine respond(accountReceiptBody ?: accountReceiptJson,
                         headers = headersOf(HttpHeaders.ContentType, "application/json"))
                     assertEquals("batch", request.url.parameters["key"])
-                    if (receiptMissing) return@MockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,
+                    if (receiptMissing) return@cashImportMockEngine respond("{\"error\":{\"code\":\"receipt_not_found\"}}", HttpStatusCode.NotFound,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                     Json.encodeToString((receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq))
                 }
-                "/api/v1/cash-mutations/receipts/receipt/rows" -> {
+                "/api/v1/cash-import/write-set/receipt/receipt/rows" -> {
                     assertEquals(listOf("workspace"), request.url.parameters.getAll("workspace_id"))
                     beforeResults?.invoke()
                     resultFailure?.let { throw it }
-                    resultStatus?.let { return@MockEngine respond("broken response", HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
+                    resultStatus?.let { return@cashImportMockEngine respond("broken response", HttpStatusCode.fromValue(it), headersOf(HttpHeaders.ContentType, "application/json")) }
                     resultBody ?: """{"items":[{"result_id":"1","result_kind":"row","item_ref":"row:0","transaction_id":"9007199254740993","outcome":"created"}],"next_after":null,"projection_refs":[],"projection_version":0}"""
                 }
                 "/api/v1/cash-import/pdf/parse" -> {
                     beforePdf?.invoke()
-                    return@MockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
+                    return@cashImportMockEngine respond("{\"error\":{\"code\":\"authentication_required\"}}", HttpStatusCode.Unauthorized,
                         headersOf(HttpHeaders.ContentType, "application/json"))
                 }
                 "/api/v1/cash-import/write-set" -> {
@@ -2163,7 +2186,9 @@ class LedgerSessionImportsTest {
                     assertEquals(checkNotNull(storage.submission).requestBody,
                         (request.body as io.ktor.http.content.TextContent).text)
                     postFailure?.let { throw it }
-                    Json.encodeToString((receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq))
+                    savedImportReceipt = (receiptOverride ?: localCashWriteSetReceiptFixture()).copy(ledgerSeq = current.ledgerSeq)
+                    return@cashImportMockEngine respond("""{"operation_id":"batch","status":"accepted"}""",
+                        HttpStatusCode.Accepted, headersOf(HttpHeaders.ContentType, "application/json"))
                 }
                 else -> error("Unexpected HTTP: ${request.url}")
             }

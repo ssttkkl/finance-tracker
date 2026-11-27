@@ -310,9 +310,10 @@ internal class LedgerSessionCacheOwner(
 
     /** Recover and rebase using the complete production calculation; original receipt verification always runs first. */
     suspend fun resumeLocalCashImport(batchId: String,
+        onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit = {},
         beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = withContext(Dispatchers.Default) {
         submissionMutex.withLock {
-            resumeImportSubmissionLocked(batchId, ::rebaseCashImport, beforeCompletion)
+            resumeImportSubmissionLocked(batchId, ::rebaseCashImport, beforeCompletion, onStatus = onStatus)
         }
     }
 
@@ -334,6 +335,28 @@ internal class LedgerSessionCacheOwner(
     suspend fun discardUnprovableImport(batchId: String, expected: LocalCashImportSubmission) =
         withImportFiles { it.discardUnprovableSubmission(batchId, expected) }
 
+    suspend fun cancelConfirmation(batchId: String): com.finance.tracker.business.contracts.CashImportConfirmation {
+        requireImportSession()
+        val submission = withImportFiles { it.readSubmission(batchId) }
+            ?: throw ApiFailure("import_cancel_not_recorded", 409)
+        return try {
+            api.cashImportConfirmation(scope.workspaceId, submission.idempotencyKey, credentials,
+                cancel = true, beforeSend = ::requireImportSession)
+        } catch (failure: ApiFailure) {
+            if (failure.code == "import_confirmation_not_found") throw ApiFailure("import_cancel_not_recorded", 409)
+            throw failure
+        }
+    }
+
+    suspend fun finishCancelledConfirmation(batchId: String, key: String) = submissionMutex.withLock {
+        requireImportSession()
+        withImportFiles { files ->
+            val submission = files.readSubmission(batchId) ?: return@withImportFiles
+            if (submission.idempotencyKey != key || submission.receipt() != null) throw CashImportPlanError("plan_changed")
+            files.discardUnprovableSubmission(batchId, submission)
+        }
+    }
+
     /** Recovery and up to three explicit-baseline rebases. Unknown results always retain the same operation. */
     suspend fun resumeImportSubmission(batchId: String, calculate: LocalCashImportCalculator? = null): LocalCashImportSubmissionResult =
         submissionMutex.withLock {
@@ -347,7 +370,8 @@ internal class LedgerSessionCacheOwner(
 
     private suspend fun resumeImportSubmissionLocked(batchId: String, rebase: CashImportRebase?,
         beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {},
-        captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot? = ::captureCashImportRebaseSnapshot): LocalCashImportSubmissionResult =
+        captureSnapshot: suspend (LocalCashLedgerOwner) -> CashImportRebaseSnapshot? = ::captureCashImportRebaseSnapshot,
+        onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit = {}): LocalCashImportSubmissionResult =
         try {
             resumeCashImportSubmission(object : ClientImportSubmissionHost<LocalCashImportSubmissionResult> {
                 private lateinit var selected: LocalCashImportSubmission
@@ -368,6 +392,17 @@ internal class LedgerSessionCacheOwner(
                     requireImportSession()
                     readReceiptOrNull(key)
                 }
+
+                override suspend fun status(key: String) = sharedImportRequest {
+                    requireImportSession()
+                    try {
+                        api.cashImportConfirmation(scope.workspaceId, key, credentials, beforeSend = ::requireImportSession)
+                    } catch (failure: ApiFailure) {
+                        if (failure.status == 404 && failure.code == "import_confirmation_not_found") null else throw failure
+                    }
+                }
+
+                override suspend fun observeStatus(operation: com.finance.tracker.business.contracts.CashImportConfirmation) = onStatus(operation)
 
                 override suspend fun submit(attempt: StoredCashImportSubmission) = sharedImportRequest {
                     requireImportSession()
@@ -431,13 +466,13 @@ internal class LedgerSessionCacheOwner(
      * A mixed-version deployment may reject an encoding or compact command after advertising it.
      * Only a rejection that cannot have written may be retried; the same key and logical command stay frozen.
      */
-    private suspend fun submitImportCommand(batchId: String, prepared: LocalCashImportSubmission): CashMutationReceiptDto {
+    private suspend fun submitImportCommand(batchId: String, prepared: LocalCashImportSubmission): com.finance.tracker.business.contracts.CashImportConfirmation {
         var current = prepared
         var encodingRetried = false
         var commandRetried = false
         while (true) {
             try {
-                return api.submitFrozenCashImportWriteSet(scope.workspaceId, current, credentials, ::requireImportSession)
+                return api.acceptCashImportConfirmation(scope.workspaceId, current, credentials, ::requireImportSession)
             } catch (rejection: ApiFailure) {
                 val encodingRejected = rejection.status == 415 ||
                     rejection.status == 400 && rejection.code in setOf("content_encoding_invalid", "unsupported_content_encoding")
@@ -456,7 +491,10 @@ internal class LedgerSessionCacheOwner(
                             requireImportSession()
                             readReceiptOrNull(current.idempotencyKey).also { requireImportSession() }
                         }
-                    }?.let { return it }
+                    }?.let {
+                        return com.finance.tracker.business.contracts.CashImportConfirmation(current.idempotencyKey,
+                            com.finance.tracker.business.contracts.CashImportConfirmationStatus.COMMITTED, it.receiptId)
+                    }
                     withImportFiles { it.clearTransport(batchId, current) }
                     current = current.withoutTransport()
                     continue

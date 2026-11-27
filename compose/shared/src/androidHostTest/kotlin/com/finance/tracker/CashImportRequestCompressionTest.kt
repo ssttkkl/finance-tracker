@@ -20,10 +20,6 @@ class CashImportRequestCompressionTest {
         override suspend fun set(value: String) = Unit
         override suspend fun clear() = Unit
     }
-    private val receipt = """{"receipt_id":"receipt","plan_id":null,"operation_kind":"cash_write_set","committed":true,
-        "created_at":"2026-11-14T00:00:00Z","status":"completed","ledger_seq":"2",
-        "write_set_result":{"transactions":[],"source_bindings":[],"issues":[],"statement_account_mappings":[],
-        "relations":[],"entries":[],"resolved_issue_ids":[],"retired_entry_ids":[]}}"""
 
     private fun request() = CashWriteSetRequestDto("1", "cash-rules-v1", CashWriteSetDto())
     private fun submission(payload: String = "x".repeat(40_000)) =
@@ -41,7 +37,7 @@ class CashImportRequestCompressionTest {
             CashImportTransportCapabilities(setOf(1, 2), setOf("identity", "gzip"), setOf("gzip"))
         }
         var inspected = false
-        val api = FinanceApiClient({ "unused" }, store, MockEngine { request ->
+        val api = FinanceApiClient({ "unused" }, store, cashImportMockEngine { request ->
             inspected = true
             assertEquals("gzip", request.headers[HttpHeaders.ContentEncoding])
             val content = request.body as? ByteArrayContent ?: fail("expected byte content")
@@ -49,11 +45,11 @@ class CashImportRequestCompressionTest {
             val body = json.parseToJsonElement(decoded).jsonObject
             assertEquals(JsonPrimitive("1"), body["base_ledger_seq"])
             assertTrue(decoded.contains("x".repeat(1_000)))
-            respond(receipt, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            respond("""{"operation_id":"${request.headers["Idempotency-Key"]}","status":"accepted"}""", HttpStatusCode.Accepted, headersOf(HttpHeaders.ContentType, "application/json"))
         })
         try {
-            val result = api.submitFrozenCashImportWriteSet("workspace", submission(), credentials)
-            assertEquals("receipt", result.receiptId)
+            val result = api.acceptCashImportConfirmation("workspace", submission(), credentials) {}
+            assertEquals("accepted", result.status.name.lowercase())
             assertTrue(inspected)
         } finally { api.close() }
     }
@@ -61,14 +57,14 @@ class CashImportRequestCompressionTest {
     @Test fun withoutACapabilityTheOriginalJsonAndTextBodyAreKept() = runTest {
         CashImportTransportCache.resetForTest()
         var inspected = false
-        val api = FinanceApiClient({ "unused" }, store, MockEngine { request ->
+        val api = FinanceApiClient({ "unused" }, store, cashImportMockEngine { request ->
             inspected = true
             assertNull(request.headers[HttpHeaders.ContentEncoding])
             assertTrue(request.body is TextContent)
-            respond(receipt, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            respond("""{"operation_id":"${request.headers["Idempotency-Key"]}","status":"accepted"}""", HttpStatusCode.Accepted, headersOf(HttpHeaders.ContentType, "application/json"))
         })
         try {
-            api.submitFrozenCashImportWriteSet("workspace", submission(), credentials)
+            api.acceptCashImportConfirmation("workspace", submission(), credentials) {}
             assertTrue(inspected)
         } finally { api.close() }
     }
@@ -80,15 +76,15 @@ class CashImportRequestCompressionTest {
             ("command_version" to JsonPrimitive(2)) +
             ("request_digest" to JsonPrimitive(com.finance.tracker.business.domain.cashWriteSetRequestDigest(frozen.request())))).toString()
         var inspected = false
-        val api = FinanceApiClient({ "unused" }, store, MockEngine { request ->
+        val api = FinanceApiClient({ "unused" }, store, cashImportMockEngine { request ->
             inspected = true
             val text = (request.body as TextContent).text
             assertEquals(2, json.parseToJsonElement(text).jsonObject.getValue("command_version").jsonPrimitive.int)
             assertEquals(compact, text)
-            respond(receipt, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            respond("""{"operation_id":"${request.headers["Idempotency-Key"]}","status":"accepted"}""", HttpStatusCode.Accepted, headersOf(HttpHeaders.ContentType, "application/json"))
         })
         try {
-            api.submitFrozenCashImportWriteSet("workspace", frozen.withTransport(compact), credentials)
+            api.acceptCashImportConfirmation("workspace", frozen.withTransport(compact), credentials) {}
             assertTrue(inspected)
         } finally { api.close() }
     }

@@ -2,6 +2,8 @@ package com.finance.tracker.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.core.ImportRecoveryPointer
 import com.finance.tracker.core.ImportRecoveryStore
 import com.finance.tracker.domain.*
@@ -23,6 +25,7 @@ class CashImportTaskViewModel(
     val state: StateFlow<ImportTaskUiState> = mutableState.asStateFlow()
     private var job: Job? = null
     private var completionRetryJob: Job? = null
+    private var confirmationCancelJob: Job? = null
     private var recoverySessionId: String? = null
     private data class QueuedUpload(val upload: ImportUpload, val replacingFileRef: String?)
     private val uploadQueue = ArrayDeque<QueuedUpload>()
@@ -44,6 +47,8 @@ class CashImportTaskViewModel(
         job = null
         completionRetryJob?.cancel()
         completionRetryJob = null
+        confirmationCancelJob?.cancel()
+        confirmationCancelJob = null
         recoverySessionId = null
         mutableState.value = ImportTaskUiState(recoveryReady = false)
     }
@@ -457,6 +462,90 @@ class CashImportTaskViewModel(
         execute(state.value.beginConfirmation(state.value.context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId ?: newKey())) { sendOriginal(it) }
     }
 
+    fun stopWaitingForConfirmation(): Boolean {
+        val before = state.value
+        if (!before.canStopWaiting || before.requestingCancellation) return false
+        mutableState.value = before.copy(activeRequest = null, busy = false, submission = ImportSubmissionState.UNKNOWN)
+        job?.cancel()
+        job = null
+        return true
+    }
+
+    fun cancelConfirmation() {
+        val before = state.value
+        val batch = before.recoveryBatchId ?: return
+        val key = before.observedConfirmation?.operationId ?: return
+        if (!before.canCancelConfirmation || before.requestingCancellation) return
+        mutableState.value = before.copy(requestingCancellation = true, cancellationError = null)
+        fun matches() = state.value.taskId == before.taskId && state.value.recoveryBatchId == batch &&
+            state.value.observedConfirmation?.operationId == key
+        confirmationCancelJob = viewModelScope.launch {
+            try {
+                val result = repository.cancelConfirmation(batch)
+                if (matches() && result.operationId == key) {
+                    val current = state.value
+                    if (result.status == CashImportConfirmationStatus.CANCELLED) {
+                        mutableState.value = current.copy(observedConfirmation = result, cancellationError = null,
+                            activeRequest = null, busy = false, errorCode = null, errorDiagnostic = null)
+                        job?.cancel()
+                        job = null
+                    } else {
+                        mutableState.value = current.copy(observedConfirmation = result)
+                        if (!current.busy) resolve()
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: DomainFailure) {
+                if (matches()) mutableState.value = state.value.copy(cancellationError = failure.safeFailure().code)
+            } catch (failure: Exception) {
+                if (matches()) stopForInternalFailure(failure)
+            } finally {
+                if (matches()) mutableState.value = state.value.copy(requestingCancellation = false)
+            }
+        }
+    }
+
+    private fun publishConfirmationStatus(request: ImportTaskRequest, update: CashImportConfirmation) {
+        if (!current(request) || state.value.receipt != null) return
+        val previous = state.value
+        val old = previous.observedConfirmation
+        if (old?.operationId == update.operationId) {
+            if (old.status in setOf(CashImportConfirmationStatus.CANCELLED, CashImportConfirmationStatus.COMMITTED,
+                    CashImportConfirmationStatus.REJECTED)) return
+            if (old.status == CashImportConfirmationStatus.CANCEL_REQUESTED &&
+                update.status in setOf(CashImportConfirmationStatus.ACCEPTED, CashImportConfirmationStatus.RUNNING)) return
+        }
+        val changedOperation = old?.operationId != update.operationId
+        mutableState.value = previous.copy(observedConfirmation = update,
+            cancellationError = if (changedOperation) null else previous.cancellationError,
+            requestingCancellation = !changedOperation && previous.requestingCancellation)
+    }
+
+    fun finishCancelledConfirmation(onExit: () -> Unit) {
+        val before = state.value
+        if (!before.confirmationCancelled || before.requestingCancellation) return
+        val batch = before.recoveryBatchId ?: return
+        val operation = before.observedConfirmation ?: return
+        job?.cancel()
+        mutableState.value = before.copy(activeRequest = null, requestingCancellation = true)
+        job = viewModelScope.launch {
+            try {
+                repository.finishCancelledConfirmation(batch, operation.operationId)
+                if (state.value.taskId != before.taskId) return@launch
+                if ((recovery.load() as? ImportRecoveryPointer.LocalBatch)?.batchId == batch) recovery.clear()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (state.value.taskId == before.taskId && failure !is DomainFailure) stopForInternalFailure(failure)
+            }
+            if (state.value.taskId == before.taskId) {
+                mutableState.value = ImportTaskUiState(recoveryReady = true)
+                onExit()
+            }
+        }
+    }
+
     fun retryOriginal() {
         val before = state.value
         val recoveryBatch = before.recoveryBatchId.takeUnless { before.errorCode == "cash_import_worker_failed" }
@@ -489,7 +578,7 @@ class CashImportTaskViewModel(
         }
         if (!current(request)) return
         try {
-            val receipt = repository.confirm(command) { receipt ->
+            val receipt = repository.confirmWithStatus(command, { publishConfirmationStatus(request, it) }) { receipt ->
                 publishReceipt(request, receipt, command, pendingCleanupBatchId = sessionId.takeIf { local })
             }
             if (local) saveCompletedReceipt(request, receipt)
@@ -597,7 +686,7 @@ class CashImportTaskViewModel(
 
     private suspend fun resumeBatch(request: ImportTaskRequest, batchId: String) {
         val context = try {
-            repository.resumeBatch(batchId) { receipt ->
+            repository.resumeBatchWithStatus(batchId, { publishConfirmationStatus(request, it) }) { receipt ->
                 publishReceipt(request, receipt, originalBatchId = batchId, pendingCleanupBatchId = batchId)
             }
         } catch (failure: ImportCompletionFailure) {

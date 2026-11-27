@@ -171,7 +171,8 @@ internal class LocalCashImportTask(
      * Network and bounded production rebases do not occupy the task's file/preview lock.
      * Delivery precedes refresh/cleanup and can repeat after either fails; save the same scoped receipt idempotently.
      */
-    suspend fun resume(beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = recoveryMutex.withLock {
+    suspend fun resume(onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit = {},
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}): LocalCashImportSubmissionResult = recoveryMutex.withLock {
         val previous = mutex.withLock {
             imports.checkActive()
             if (closing) throw CashImportPlanError("plan_changed")
@@ -180,7 +181,7 @@ internal class LocalCashImportTask(
         }
         if (previous != null) return@withLock previous
         try {
-            val result = imports.resumeLocalCashImport(batchId, beforeCompletion)
+            val result = imports.resumeLocalCashImport(batchId, onStatus, beforeCompletion)
             mutex.withLock {
                 imports.checkActive()
                 completed = result

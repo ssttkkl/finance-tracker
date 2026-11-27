@@ -808,6 +808,13 @@
     <string name="cash_import_currency_will_add">Will add currencies to the target account: %1$s</string>
     <string name="cash_import_create_account_option">＋ Create account</string>
     <string name="cash_import_account_currency_missing">This account does not support: %1$s</string>
+    <string name="cash_import_confirmation_cancelled">Import cancelled</string>
+    <string name="cash_import_confirmation_cancelling">Cancelling import</string>
+    <string name="cash_import_confirmation_submitting">Submitting import</string>
+    <string name="cash_import_confirmation_running">Importing</string>
+    <string name="cash_import_confirmation_cancel_not_recorded">This cancellation was not recorded. Try cancelling again.</string>
+    <string name="cash_import_cancel_confirmation">Cancel import</string>
+    <string name="cash_import_stop_confirmation_wait">Stop waiting</string>
     <string name="cash_import_confirm_all">Import entire plan</string>
     <string name="cash_import_complete_attention">Imported with items to review</string>
     <string name="cash_import_result_created">New posted records</string>

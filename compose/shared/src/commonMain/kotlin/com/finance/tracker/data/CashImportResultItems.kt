@@ -31,14 +31,16 @@ private suspend fun FinanceApiClient.readCashImportResults(workspaceId: String, 
         var received = 0
         while (true) {
             checkActive()
-            val page: CashMutationResultPageDto = request(HttpMethod.Get,
-                appendQuery("/api/v1/cash-mutations/receipts/${encodePathSegment(receipt.receiptId)}/$kind",
+            val page: CashMutationResultPageDto = boundedCashImportRequest {
+                request(HttpMethod.Get,
+                appendQuery("/api/v1/cash-import/write-set/receipt/${encodePathSegment(receipt.receiptId)}/$kind",
                     listOf("workspace_id" to workspaceId, "after" to after, "limit" to "200")),
                 clearUnauthorizedToken = false, credentials = credentials,
                 preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true,
                 decodeResponse = onPage?.let { capture -> { text ->
                     apiJson.decodeFromString<CashMutationResultPageDto>(text).also { capture(text) }
                 } })
+            }
             checkActive()
             if (page.items.size > 200 || page.items.size > expected - received) invalidImportResultItems()
             var last = importResultId(after, allowZero = true)

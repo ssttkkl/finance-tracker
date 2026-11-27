@@ -161,6 +161,8 @@ interface CashImportLifecycleRepository {
     /** Recover only this batch's encrypted request, or return its editable local preparation. */
     suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
         throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
+    suspend fun resumeBatchWithStatus(batchId: String, onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit,
+        onCommitted: suspend (ImportReceipt) -> Unit): ImportContext = resumeBatch(batchId, onCommitted)
     /**
      * Create an empty import session before any file is read. Implementations that
      * still create a session inside upload may return null; the caller then uses
@@ -175,6 +177,9 @@ interface CashImportLifecycleRepository {
     suspend fun context(sessionId: String): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext
     suspend fun cancel(sessionId: String): ImportContext
+    suspend fun cancelConfirmation(batchId: String): com.finance.tracker.business.contracts.CashImportConfirmation =
+        throw DomainFailure("import_cancel_not_recorded", 409, FailureCategory.RECOVERABLE)
+    suspend fun finishCancelledConfirmation(batchId: String, key: String) = Unit
     suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan
     suspend fun plan(planId: String): ImportPlan
     suspend fun items(planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all", startIndex: Int? = null): ImportItemPage
@@ -184,6 +189,8 @@ interface CashImportLifecycleRepository {
     /** Delivery must finish before a local implementation releases its original recovery inputs. */
     suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt =
         confirm(command.planId, command.revision, command.idempotencyKey).also { onCommitted(it) }
+    suspend fun confirmWithStatus(command: ImportFrozenCommand, onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit,
+        onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt = confirm(command, onCommitted)
     suspend fun receipt(receiptId: String): ImportReceipt
     suspend fun restoreReceipt(receiptId: String, onCommitted: suspend (ImportReceipt) -> Unit) {
         onCommitted(receipt(receiptId))

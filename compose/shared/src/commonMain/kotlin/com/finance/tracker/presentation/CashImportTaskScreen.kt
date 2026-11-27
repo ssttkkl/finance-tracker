@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.stateDescription
@@ -271,7 +273,8 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
         } else if (!state.busy && state.errorCode != null) { closingTaskId = null; undoStarted = false }
     }
     fun requestExit(action: () -> Unit) {
-        if (task.state.value.busy || account.state.value.busy) { showBusyNotice(); return }
+        if (task.state.value.confirmationCancelled) { task.finishCancelledConfirmation(action); return }
+        if (account.state.value.busy || task.state.value.busy && !task.stopWaitingForConfirmation()) { showBusyNotice(); return }
         if (account.state.value.pendingKeys.isNotEmpty()) {
             exitNavigation = action
             completeExit()
@@ -348,6 +351,7 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
         if (!canWrite) Text(localizedText("copy_dd9a4bdee0"), color = MaterialTheme.colorScheme.error)
         if (result) key(state.receipt?.receiptId, state.submission) { CashImportTaskResult(state, sizeClass, canWrite,
             onContinue = { task.continueSubmission { canContinueWrite } },
+            onCancelConfirmation = task::cancelConfirmation,
             onReturn = { requestExit(onBack) },
             onReviewPending = { importTransactionIds -> requestExit { onReviewPending(importTransactionIds) } }, enabled = !busy) }
         else if (cashImportLoadBlocked(auxiliaryFailed, accountState) || state.internalFailure != null || accountState.internalFailure != null) {
@@ -599,7 +603,8 @@ internal fun CashImportTaskScreen(repository: CashImportLifecycleRepository, fin
 
 @Composable
 private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSizeClass, canWrite: Boolean,
-    onContinue: () -> Unit, onReturn: () -> Unit, onReviewPending: (List<String>?) -> Unit, enabled: Boolean) {
+    onContinue: () -> Unit, onCancelConfirmation: () -> Unit, onReturn: () -> Unit,
+    onReviewPending: (List<String>?) -> Unit, enabled: Boolean) {
     val connection = LocalSessionConnection.current
     val receipt = state.receipt
     val failed = receipt?.let(::importTaskHasUnexpectedFailure) == true ||
@@ -607,8 +612,25 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
     Column(Modifier.fillMaxSize().testTag("cash.import.result"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                if (receipt != null || !state.busy) Text(localizedText(when { failed -> "cash_import_error"; receipt != null && (receipt.pendingItemCount ?: 0) > 0 -> "cash_import_complete_attention";
-                    receipt != null -> "cash_import_complete"; else -> "cash_import_unknown" }), style = MaterialTheme.typography.headlineMedium)
+                val heading = when {
+                    receipt == null && state.confirmationCancelled -> "cash_import_confirmation_cancelled"
+                    receipt == null && state.confirmationStatus == com.finance.tracker.business.contracts.CashImportConfirmationStatus.CANCEL_REQUESTED ->
+                        "cash_import_confirmation_cancelling"
+                    failed -> "cash_import_error"
+                    receipt != null && (receipt.pendingItemCount ?: 0) > 0 -> "cash_import_complete_attention"
+                    receipt != null -> "cash_import_complete"
+                    state.confirmationStatus in setOf(com.finance.tracker.business.contracts.CashImportConfirmationStatus.ACCEPTED,
+                        com.finance.tracker.business.contracts.CashImportConfirmationStatus.RUNNING) -> "cash_import_confirmation_running"
+                    state.busy -> "cash_import_confirmation_submitting"
+                    else -> "cash_import_unknown"
+                }
+                Text(localizedText(heading), Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.headlineMedium)
+                if (receipt == null) state.cancellationError?.let { code ->
+                    val text = if (code == "import_cancel_not_recorded") localizedText("cash_import_confirmation_cancel_not_recorded")
+                        else cashImportTaskErrorText(code)
+                    Text(text, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error)
+                }
                 if (failed) {
                     if (receipt?.commitOutcome?.hasBusinessWrites == true) Text(localizedText("cash_import_partial_saved"))
                     val reasons = receipt?.commitOutcome?.reasonCodes.orEmpty()
@@ -644,7 +666,26 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
         HorizontalDivider()
         FlowRow(Modifier.fillMaxWidth().heightIn(min = 56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             verticalArrangement = Arrangement.Center) {
-            if (receipt == null && !state.busy && state.showRecoveryAction) {
+            if (receipt == null && state.canCancelConfirmation) {
+                val canCancel = canWrite && connection.canSubmit && !state.requestingCancellation
+                PlatformControlAccessibility("cash.import.cancel-confirmation", ControlAccessibilityState.Button(canCancel))
+                TextButton(onClick = onCancelConfirmation, enabled = canCancel,
+                    modifier = Modifier.testTag("cash.import.cancel-confirmation")) {
+                    Text(localizedText("cash_import_cancel_confirmation"))
+                }
+            }
+            if (state.canStopWaiting && !state.requestingCancellation) {
+                PlatformControlAccessibility("cash.import.stop-confirmation-wait", ControlAccessibilityState.Button(true))
+                TextButton(onClick = onReturn, modifier = Modifier.testTag("cash.import.stop-confirmation-wait")) {
+                    Text(localizedText("cash_import_stop_confirmation_wait"))
+                }
+            } else if (receipt == null && state.confirmationCancelled) {
+                val canReturn = enabled && !state.requestingCancellation
+                PlatformControlAccessibility("cash.import.return", ControlAccessibilityState.Button(canReturn))
+                Button(onClick = onReturn, enabled = canReturn, modifier = Modifier.testTag("cash.import.return")) {
+                    Text(localizedText("cash_import_back_ledger"))
+                }
+            } else if (receipt == null && !state.busy && state.showRecoveryAction) {
                 val canContinue = enabled && canWrite && connection.canSubmit
                 PlatformControlAccessibility("cash.import.resolve", ControlAccessibilityState.Button(canContinue))
                 Button(onClick = { if (canContinue) onContinue() }, enabled = canContinue,
