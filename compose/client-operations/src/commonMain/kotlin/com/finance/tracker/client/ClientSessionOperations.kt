@@ -2,6 +2,7 @@ package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.AccountReferenceDto
+import com.finance.tracker.business.contracts.CashImportConfirmation
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.contracts.CashMutationResultPageDto
@@ -359,12 +360,25 @@ class ClientSessionOperations(
             throw ClientOperationFailure("workspace_forbidden", 403)
     }
 
-    internal suspend fun cashImportReceipt(ledger: ClientLedgerRead, key: String): CashMutationReceiptDto? {
+    internal suspend fun cashWriteReceipt(ledger: ClientLedgerRead, key: String): CashMutationReceiptDto? =
+        readCashReceipt(ledger.binding) {
+            val workspace = encodeComponent(ledger.ledger.snapshot.workspaceId)
+            request("GET", "/api/v1/cash-mutations/receipts/by-key?workspace_id=$workspace&key=${encodeComponent(key)}", ledger.binding.token)
+        }
+
+    internal suspend fun cashImportReceipt(ledger: ClientLedgerRead, key: String): CashMutationReceiptDto? =
+        cashImportReceipt(ledger.binding, ledger.ledger.snapshot.workspaceId, key)
+
+    internal suspend fun cashImportReceipt(binding: ClientStoredSession, workspace: String, key: String): CashMutationReceiptDto? =
+        readCashReceipt(binding) {
+            scopedRequest("GET", "/api/v1/cash-import/write-set/receipt", binding, workspace, headers = mapOf("Idempotency-Key" to key))
+        }
+
+    private suspend fun readCashReceipt(binding: ClientStoredSession, read: suspend () -> CashMutationReceiptDto): CashMutationReceiptDto? {
         return try {
-            authenticated(ledger.binding) {
-                requireCurrent(ledger.binding)
-                request("GET", "/api/v1/cash-mutations/receipts/by-key?workspace_id=${encodeComponent(ledger.ledger.snapshot.workspaceId)}&key=${encodeComponent(key)}",
-                    ledger.binding.token)
+            authenticated(binding) {
+                requireCurrent(binding)
+                read().also { requireCurrent(binding) }
             }
         } catch (failure: ClientOperationFailure) {
             if (failure.status == 404 && failure.code == "receipt_not_found") null else throw failure
@@ -381,7 +395,7 @@ class ClientSessionOperations(
                 while (true) {
                     requireCurrent(ledger.binding)
                     val page: CashMutationResultPageDto = authenticated(ledger.binding) {
-                        request("GET", "/api/v1/cash-mutations/receipts/$id/$kind?workspace_id=$workspace&after=$after&limit=200",
+                        request("GET", "/api/v1/cash-import/write-set/receipt/$id/$kind?workspace_id=$workspace&after=$after&limit=200",
                             ledger.binding.token)
                     }
                     addAll(page.items)
@@ -393,11 +407,47 @@ class ClientSessionOperations(
         }
     }
 
-    internal suspend fun submitCashImport(ledger: ClientLedgerRead, key: String, body: String): CashMutationReceiptDto {
+    internal suspend fun submitCashImport(ledger: ClientLedgerRead, key: String, body: String): CashImportConfirmation {
         requireOnlineWriter(ledger)
         return authenticated(ledger.binding) {
             scopedRequest("POST", "/api/v1/cash-import/write-set", ledger.binding, ledger.ledger.snapshot.workspaceId,
                 body, mapOf("Idempotency-Key" to key))
+        }
+    }
+
+    internal suspend fun cashImportWorkspace(expected: String?): Pair<ClientStoredSession, String> {
+        val original = requireSession()
+        val workspace = workspace(original, expected)
+        val binding = try {
+            onlineSession(original)
+        } catch (_: ClientNetworkUnavailable) {
+            requireCurrent(original)
+            original
+        }
+        return binding to workspace(binding, workspace)
+    }
+
+    internal suspend fun cashImportConfirmation(ledger: ClientLedgerRead, key: String): CashImportConfirmation? {
+        if (ledger.offline) throw ClientNetworkUnavailable()
+        return cashImportConfirmation(ledger.binding, ledger.ledger.snapshot.workspaceId, key, cancel = false)
+    }
+
+    internal suspend fun cashImportConfirmation(binding: ClientStoredSession, workspace: String, key: String,
+        cancel: Boolean): CashImportConfirmation? {
+        requireCurrent(binding)
+        if (cancel && binding.session.workspaces.none { it.id == workspace && it.role.canWrite })
+            throw ClientOperationFailure("workspace_forbidden", 403)
+        val action = if (cancel) "cancel" else "status"
+        return try {
+            authenticated(binding) {
+                scopedRequest<CashImportConfirmation>(if (cancel) "POST" else "GET", "/api/v1/cash-import/write-set/$action",
+                    binding, workspace, null, mapOf("Idempotency-Key" to key))
+            }.let { operation ->
+                requireCurrent(binding)
+                requireCashImportConfirmation(key, operation)
+            }
+        } catch (failure: ClientOperationFailure) {
+            if (!cancel && failure.status == 404 && failure.code == "import_confirmation_not_found") null else throw failure
         }
     }
 

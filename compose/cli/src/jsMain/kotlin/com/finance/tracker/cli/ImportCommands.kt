@@ -1,6 +1,7 @@
 package com.finance.tracker.cli
 
 import com.finance.tracker.business.contracts.CashImportAccountInput
+import com.finance.tracker.business.contracts.CashImportConfirmation
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.CashImportArchivePage
 import com.finance.tracker.business.contracts.CashImportPlanDto
@@ -18,6 +19,7 @@ import com.finance.tracker.client.CashImportPreparedFile
 import com.finance.tracker.client.CashImportReviewOperations
 import com.finance.tracker.client.ClientCashImportListing
 import com.finance.tracker.client.ClientCashImportResume
+import com.finance.tracker.client.ClientImportConfirmationOutcome
 import com.finance.tracker.client.ImportAccountChangeResult
 import com.finance.tracker.client.PreparedCashImport
 import kotlinx.serialization.json.JsonArray
@@ -35,8 +37,8 @@ internal val importHelp = """
            ft import items BATCH [--status confirmed|pending|all] [--cursor CURSOR] [--limit N]
            ft import item BATCH --id ID
            ft import processing BATCH [--cursor CURSOR] [--limit N]
-           ft import confirm BATCH --review REV
-           ft import <result|resume> BATCH
+           ft import confirm BATCH --review REV [--no-wait]
+           ft import <status|cancel-confirmation|result|resume> BATCH
            ft import account create BATCH --revision REV --name NAME --type TYPE --currency CNY[,USD]
            ft import account currencies BATCH --revision REV --account ID --account-revision REV --currency CNY[,USD]
            ft import account undo BATCH --revision REV
@@ -77,12 +79,12 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
         "processing" -> setOf("--cursor", "--limit", "--timezone")
         "map" -> setOf("--timezone", "--revision", "--source-account", "--account", "--account-revision")
         "confirm" -> setOf("--review")
-        "resume" -> emptySet()
+        "resume", "status", "cancel-confirmation" -> emptySet()
         "result" -> setOf("--kind", "--offset", "--limit")
         else -> throw CliFailure("unknown_command")
     }
     val batch = positional(args, "BATCH")
-    val options = parseOptions(args.drop(1), scopeOptions + optionsAllowed)
+    val options = parseOptions(args.drop(1), scopeOptions + optionsAllowed, if (action == "confirm") setOf("--no-wait") else emptySet())
     val expected = options["--workspace"]
     val zone = options["--timezone"] ?: "UTC"
     return withCashImport(options["--server"], reportProgress = action in setOf("review", "confirm", "resume")) { operations ->
@@ -117,7 +119,19 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
                 reviewResult(operations.mapAccounts(expected, batch, revision,
                     listOf(CashImportAccountInput(source, account, options.revision("--account-revision"))), zone))
             }
-            "confirm" -> importResult(operations.confirm(expected, batch, options.revision("--review")))
+            "confirm" -> {
+                val revision = options.revision("--review")
+                if ("--no-wait" !in options) importResult(operations.confirm(expected, batch, revision))
+                else when (val confirmation = operations.acceptConfirmation(expected, batch, revision)) {
+                    is ClientImportConfirmationOutcome.Complete -> importResult(confirmation.result)
+                    is ClientImportConfirmationOutcome.Observed -> confirmationResult(batch, confirmation.operation)
+                }
+            }
+            "status" -> confirmationResult(batch, operations.confirmationStatus(expected, batch))
+            "cancel-confirmation" -> {
+                val confirmation = operations.cancelConfirmation(expected, batch)
+                confirmationResult(batch, confirmation.operation, confirmation.receipt)
+            }
             "resume" -> when (val resumed = operations.resume(expected, batch)) {
                 is ClientCashImportResume.Committed -> importResult(resumed.result)
                 is ClientCashImportResume.Editable -> preparedResult(resumed.preparation)
@@ -232,6 +246,19 @@ private fun reviewResult(review: CashImportReviewOperations.Review): TerminalRes
         for ((key, count) in plan.itemCounts) appendLine("$key  $count")
         for (file in plan.fileResults) appendLine("${file.displayName}  ${file.status}")
     }.trimEnd())
+}
+
+private fun confirmationResult(batch: String, value: CashImportConfirmation, receipt: CashMutationReceiptDto? = null): TerminalResult {
+    val encoded = outputJson.encodeToJsonElement(CashImportConfirmation.serializer(), value).jsonObject
+    val status = encoded.getValue("status")
+    return TerminalResult(buildJsonObject {
+        put("batch_id", batch)
+        encoded.forEach { (key, item) -> put(key, item) }
+        receipt?.let { put("receipt", exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), it))) }
+    }, buildString {
+        append("Batch $batch  Operation ${value.operationId}  ${status.toString().trim('"')}")
+        if (receipt != null) append("  Receipt ${receipt.receiptId}")
+    })
 }
 
 private fun importResult(result: CashImportResultContent, kind: String = "row", offset: Int = 0, limit: Int = 50): TerminalResult {

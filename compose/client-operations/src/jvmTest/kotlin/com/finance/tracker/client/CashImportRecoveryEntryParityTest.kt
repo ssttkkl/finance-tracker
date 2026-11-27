@@ -1,6 +1,8 @@
 package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.CashImportAccountInput
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.contracts.CashMutationResultPageDto
@@ -35,10 +37,15 @@ class CashImportRecoveryEntryParityTest {
             val events = mutableListOf<String>()
             val host = object : ClientImportSubmissionHost<CashMutationReceiptDto> {
                 override suspend fun current() = ClientImportSubmissionState.Pending(attempt)
+                override suspend fun status(key: String): CashImportConfirmation? {
+                    assertEquals(attempt.key, key)
+                    events += "lookup"
+                    return null
+                }
                 override suspend fun receipt(key: String): CashMutationReceiptDto? {
                     assertEquals(attempt.key, key)
                     events += "lookup"
-                    return if (events.size == 1) null else when (duringLookup) {
+                    return when (duringLookup) {
                         "unavailable" -> throw ClientNetworkUnavailable()
                         "committed" -> receipt
                         else -> null
@@ -100,10 +107,16 @@ class CashImportRecoveryEntryParityTest {
                 "/api/v1/auth/session" -> ClientHttpResponse(200, Json.encodeToString(session.session))
                 "/api/v1/ledger/version" -> ClientHttpResponse(200, """{"ledger_seq":"${snapshot.ledgerSeq}"}""")
                 "/api/v1/ledger/snapshot" -> ClientHttpResponse(200, Json.encodeToString(snapshot))
-                "/api/v1/cash-mutations/receipts/by-key" -> {
-                    assertTrue(call.path.endsWith("key=batch-1"))
+                "/api/v1/cash-import/write-set/receipt" -> {
+                    assertEquals("batch-1", call.headers["Idempotency-Key"])
                     if (committed) ClientHttpResponse(200, cashWriteSetJson.encodeToString(receipt))
                     else ClientHttpResponse(404, """{"error":{"code":"receipt_not_found"}}""")
+                }
+                "/api/v1/cash-import/write-set/status" -> {
+                    assertEquals("batch-1", call.headers["Idempotency-Key"])
+                    if (committed) ClientHttpResponse(200, Json.encodeToString(CashImportConfirmation("batch-1",
+                        CashImportConfirmationStatus.COMMITTED, receipt.receiptId)))
+                    else ClientHttpResponse(404, """{"error":{"code":"import_confirmation_not_found"}}""")
                 }
                 "/api/v1/cash-import/write-set" -> {
                     posts++
@@ -114,9 +127,9 @@ class CashImportRecoveryEntryParityTest {
                     committed = true
                     throw ClientNetworkUnavailable()
                 }
-                "/api/v1/cash-mutations/receipts/synthetic-receipt/rows" ->
+                "/api/v1/cash-import/write-set/receipt/synthetic-receipt/rows" ->
                     ClientHttpResponse(200, Json.encodeToString(CashMutationResultPageDto(listOf(item), null, emptyList(), 9007199254740996L)))
-                "/api/v1/cash-mutations/receipts/synthetic-receipt/relations" ->
+                "/api/v1/cash-import/write-set/receipt/synthetic-receipt/relations" ->
                     ClientHttpResponse(200, Json.encodeToString(CashMutationResultPageDto(emptyList(), null, emptyList(), 9007199254740996L)))
                 else -> error("Unexpected API call")
             }

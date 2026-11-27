@@ -27,21 +27,34 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
     private fun same(first: Principal, current: Principal) {
         if (first.userId != current.userId || first.workspaceId != current.workspaceId) throw AccessFailure(true)
     }
-    fun submit(token: String?, expectedWorkspace: String, payload: JsonObject, idempotencyKey: String?): JsonObject {
+    fun submit(token: String?, expectedWorkspace: String, payload: JsonObject, idempotencyKey: String?): JsonObject =
+        transact(expectedWorkspace, CashImportProtocol.idempotencyKey(idempotencyKey), { cashWriteSetRequestBody(payload) },
+            context = { connection, lock ->
+                if (lock) reads.lockedContext(connection, token, expectedWorkspace, write = true)
+                else reads.context(connection, token, write = true)
+            })
+
+    internal fun execute(grant: CashImportExecutionGrant, key: String, body: CashWriteSetRequestBody,
+        verifyClaim: (Connection) -> Unit, completeClaim: (Connection) -> Unit): JsonObject =
+        transact(grant.workspace, key, { body }, verifyClaim, completeClaim, sharedAuthorizationLock = true) { connection, lock ->
+            reads.importGrantContext(connection, grant, lock)
+        }
+
+    private fun transact(expectedWorkspace: String, key: String, prepared: () -> CashWriteSetRequestBody,
+        verifyClaim: (Connection) -> Unit = {}, completeClaim: (Connection) -> Unit = {}, sharedAuthorizationLock: Boolean = false,
+        context: (Connection, Boolean) -> Principal): JsonObject {
         val boundary = CashImportCommitBoundary(afterStep)
         try {
-            val key = CashImportProtocol.idempotencyKey(idempotencyKey)
-            val body = cashWriteSetRequestBody(payload)
+            val body = prepared()
             val receipt = database.writeGuarded(boundary::committing) { c ->
-                val first = reads.context(c, token, write = true)
+                val first = context(c, false)
                 if (first.workspaceId != expectedWorkspace) throw AccessFailure(true)
                 beforeWorkspaceLock(c)
                 if (!c.lockWorkspace(database.sqlite, expectedWorkspace)) throw AccessFailure(true)
-                val current = reads.lockedContext(c, token, expectedWorkspace, write = true)
+                val current = context(c, true)
                 same(first, current)
-                val m = WORKSPACE_MEMBERSHIPS
-                val membership = c.jooq(database.sqlite).select(m.ROLE).from(m).where(m.WORKSPACE_ID.eq(expectedWorkspace)).and(m.USER_ID.eq(current.userId))
-                if ((if (database.sqlite) membership else membership.forUpdate()).fetchOne(m.ROLE) !in setOf("admin", "editor")) throw AccessFailure(true)
+                reads.requireCashImportMembership(c, current.userId, expectedWorkspace, shared = sharedAuthorizationLock)
+                verifyClaim(c)
                 val repository = ReceiptRepository(c, expectedWorkspace, database.sqlite, now)
                 val result = repository.replay(current.userId, key, body.digest, "cash_write_set") ?: run {
                     boundary.noPriorResult()
@@ -108,7 +121,8 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                 }
                 boundary.enter("authorization")
                 beforeFinalAuthorization(c)
-                same(first, reads.lockedContext(c, token, expectedWorkspace, write = true))
+                same(first, context(c, true))
+                completeClaim(c)
                 ReceiptRepositoryView.strip(result)
             }
             boundary.enter("response")
@@ -129,13 +143,14 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
         } catch (failure: AccessFailure) { throw failure }
         catch (failure: LedgerBaseChanged) { throw failure }
         catch (failure: CashImportProtocolError) { throw failure }
+        catch (failure: CashImportClaimLost) { throw failure }
         catch (failure: Exception) { throw CashImportCommitFailure(boundary.commitState, boundary.diagnostic(), failure) }
     }
 }
 
 /** Sorted object keys, exact number lexemes, bounded before recursive contract decoding. */
-private data class CashWriteSetRequestBody(val payload: JsonObject, val digest: String)
-private fun cashWriteSetRequestBody(payload: JsonObject): CashWriteSetRequestBody {
+internal data class CashWriteSetRequestBody(val payload: JsonObject, val digest: String)
+internal fun cashWriteSetRequestBody(payload: JsonObject): CashWriteSetRequestBody {
     val digest = java.security.MessageDigest.getInstance("SHA-256")
     var remaining = CashImportProtocol.MAX_PLAN_INPUT_BYTES
     fun invalid(): Nothing = throw CashWriteSetSubmissionFailure("write_set_payload_invalid")

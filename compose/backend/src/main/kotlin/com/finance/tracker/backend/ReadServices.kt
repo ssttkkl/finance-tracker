@@ -45,8 +45,40 @@ class ReadServices(private val database: Database, private val now: () -> Instan
     internal fun lockedContext(connection: Connection, token: String?, expectedWorkspace: String, write: Boolean): Principal =
         joinedContext(connection, token, expectedWorkspace, write, lock = true)
 
-    private fun joinedContext(connection: Connection, token: String?, expectedWorkspace: String?, write: Boolean, lock: Boolean): Principal {
-        if (token == null) throw AccessFailure()
+    internal fun importGrant(connection: Connection, token: String?, workspace: String): CashImportExecutionGrant {
+        val principal = joinedContext(connection, token, workspace, write = true, lock = true, sharedLock = true)
+        val sessionId = connection.jooq(database.sqlite).select(USER_SESSIONS.ID).from(USER_SESSIONS)
+            .where(USER_SESSIONS.TOKEN_DIGEST.eq(tokenDigest(checkNotNull(token)))).fetchOne(USER_SESSIONS.ID)
+            ?: throw AccessFailure()
+        return CashImportExecutionGrant(principal.userId, workspace, sessionId)
+    }
+
+    internal fun importGrantContext(connection: Connection, grant: CashImportExecutionGrant, lock: Boolean): Principal =
+        joinedContext(connection, null, grant.workspace, write = true, lock = lock, sessionId = grant.sessionId, sharedLock = true).also {
+            if (it.userId != grant.user) throw AccessFailure(true)
+        }
+
+    internal fun cancelImportContext(connection: Connection, token: String?, workspace: String): Principal {
+        val principal = joinedContext(connection, token, workspace, write = true, lock = true, sharedLock = true)
+        requireCashImportMembership(connection, principal.userId, workspace, shared = true)
+        return principal
+    }
+
+    internal fun requireCashImportMembership(connection: Connection, user: String, workspace: String, shared: Boolean) {
+        val member = WORKSPACE_MEMBERSHIPS
+        val query = connection.jooq(database.sqlite).select(member.ROLE).from(member)
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.USER_ID.eq(user))
+        val stored = when {
+            database.sqlite -> query
+            shared -> query.forShare()
+            else -> query.forUpdate()
+        }.fetchOne(member.ROLE)
+        if (stored !in setOf("admin", "editor")) throw AccessFailure(true)
+    }
+
+    private fun joinedContext(connection: Connection, token: String?, expectedWorkspace: String?, write: Boolean, lock: Boolean,
+        sessionId: String? = null, sharedLock: Boolean = false): Principal {
+        if (token == null && sessionId == null) throw AccessFailure()
         val sessions = USER_SESSIONS.`as`("s")
         val users = USERS.`as`("u")
         val members = WORKSPACE_MEMBERSHIPS.`as`("m")
@@ -54,8 +86,12 @@ class ReadServices(private val database: Database, private val now: () -> Instan
         val query = connection.jooq(database.sqlite).select(sessions.USER_ID, sessions.ACTIVE_WORKSPACE_ID, expiry, users.EMAIL, members.ROLE)
             .from(sessions).join(users).on(users.ID.eq(sessions.USER_ID))
             .leftJoin(members).on(members.WORKSPACE_ID.eq(sessions.ACTIVE_WORKSPACE_ID)).and(members.USER_ID.eq(sessions.USER_ID))
-            .where(sessions.TOKEN_DIGEST.eq(tokenDigest(token)))
-        val row = (if (lock && !database.sqlite) query.forUpdate().of(sessions) else query).fetchOne() ?: throw AccessFailure()
+            .where(if (sessionId == null) sessions.TOKEN_DIGEST.eq(tokenDigest(checkNotNull(token))) else sessions.ID.eq(sessionId))
+        val row = when {
+            !lock || database.sqlite -> query
+            sharedLock -> query.forShare().of(sessions)
+            else -> query.forUpdate().of(sessions)
+        }.fetchOne() ?: throw AccessFailure()
         requireActiveExpiry(row[expiry]!!)
         val workspace = row[sessions.ACTIVE_WORKSPACE_ID] ?: throw AccessFailure(true)
         if (expectedWorkspace != null && workspace != expectedWorkspace) throw AccessFailure(true)

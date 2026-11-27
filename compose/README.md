@@ -157,10 +157,13 @@ ft import map "$BATCH_ID" --revision "$BATCH_REV" \
 ft import review "$BATCH_ID" --json
 ft import items "$BATCH_ID" --status pending --json
 ft import confirm "$BATCH_ID" --review "$REVIEW_REV" --json
+ft import status "$BATCH_ID" --json
 ft import result "$BATCH_ID" --kind row --json
 ```
 
 准备结果列出文件、来源账户与批次修订。每次文件或选择变化都使用最新修订；确认使用整批核对返回的 `review_revision`。CSV／XLSX 本地解析，PDF／旧 XLS 需要服务端解析。PDF 密码按文件从标准输入提供。退出后用 `ft import batches` 查批次，用 `ft import resume "$BATCH_ID"` 接续准备或核实收据。标为已保存但明细待补齐时，也用原批次继续。账户创建与补币种即时生效，用 `ft import account undo` 按原修订逐项撤回。
+
+默认确认等到原操作的入账收据才报告成功。要在服务端持久受理后退出，在确认命令加 `--no-wait`。它会返回批次、操作标识和实际状态。用 `ft import status` 只查询，用 `ft import resume` 接续原确认并读取收据。退出 CLI 只结束本次等待。使用 `ft import cancel-confirmation "$BATCH_ID"` 显式取消已受理的确认。服务端未记录取消时可沿用原批次重试，已提交时读取原收据。
 
 核对和确认的阶段进展写入标准错误，`--json` 的标准输出仍是单个 JSON 结果。批次和账本版本未变化时，确认直接使用已核对的整批内容。`error.code` 为 `payload_too_large` 且 `error.commit_state` 为 `not_committed` 时，可在原批次调整文件并重新核对。状态为 `unknown` 时先接续原批次核实结果。
 

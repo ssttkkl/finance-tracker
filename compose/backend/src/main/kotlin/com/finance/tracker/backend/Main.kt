@@ -6,8 +6,23 @@ import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.netty.Netty
 
 /** Production server entrypoint. Empty databases are initialized from the checked-in baseline. */
-fun main() {
-    try { runServer() }
+fun main(args: Array<String>) {
+    try {
+        when {
+            args.isEmpty() -> runServer()
+            args.contentEquals(arrayOf("upgrade-cash-import-confirmation")) -> {
+                val config = databaseConnectionConfig(System.getenv())
+                Database(config.jdbcUrl, config.user, config.password).apply {
+                    upgradeCashImportConfirmationSchema()
+                    validateSchema()
+                }
+            }
+            else -> {
+                System.err.println("Usage: backend [upgrade-cash-import-confirmation]")
+                kotlin.system.exitProcess(2)
+            }
+        }
+    }
     catch (failure: StorageFailure) {
         System.err.println(storageStartupDiagnostic(failure))
         kotlin.system.exitProcess(1)

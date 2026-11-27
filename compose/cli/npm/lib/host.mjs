@@ -33,8 +33,7 @@ export async function request(origin, method, path, token, body, suppliedHeaders
     if (url.origin !== origin) throw new Error('Invalid request origin');
     const headers = { Accept: 'application/json', ...suppliedHeaders };
     if (token !== null) headers.Authorization = `Bearer ${token}`;
-    const bulk = url.pathname === '/api/v1/ledger/snapshot' ||
-        url.pathname === '/api/v1/cash-import/write-set' || body instanceof FormData;
+    const bulk = url.pathname === '/api/v1/ledger/snapshot' || body instanceof FormData;
     const signal = AbortSignal.timeout(bulk ? 90000 : 8000);
     let response;
     try {

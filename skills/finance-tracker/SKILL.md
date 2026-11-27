@@ -81,6 +81,7 @@ ft import map "$BATCH_ID" --workspace "$WORKSPACE_ID" --revision "$BATCH_REV" \
 ft import review "$BATCH_ID" --workspace "$WORKSPACE_ID" --json
 ft import items "$BATCH_ID" --workspace "$WORKSPACE_ID" --status pending --json
 ft import confirm "$BATCH_ID" --workspace "$WORKSPACE_ID" --review "$REVIEW_REV" --json
+ft import status "$BATCH_ID" --workspace "$WORKSPACE_ID" --json
 ft import result "$BATCH_ID" --workspace "$WORKSPACE_ID" --kind row --json
 ```
 
@@ -93,4 +94,4 @@ ft import result "$BATCH_ID" --workspace "$WORKSPACE_ID" --kind row --json
 写入期间断线、进程退出，或错误返回 `error.commit_state = "unknown"` 时，沿原操作核实，再判断是否入账。
 
 - **记账、转账或维护。** 用 `ft cash pending --json` 找回原操作，或使用错误返回的 `error.operation_id`，再执行 `ft cash resume "$OPERATION_ID" --workspace "$WORKSPACE_ID" --json`。
-- **现金导入。** 用 `ft import batches --json` 找回原批次，再执行 `ft import resume "$BATCH_ID" --workspace "$WORKSPACE_ID" --json`。结果仍待核实时保留该 ID；重新创建一笔记账或开启新批次可能造成重复写入。
+- **现金导入。** 确认默认等待实际收据。明确需要提前退出时在确认命令添加 `--no-wait`，已受理仍须用 `ft import status` 查询原批次状态。用 `ft import resume "$BATCH_ID" --workspace "$WORKSPACE_ID" --json` 接续同一操作。退出等待保留原批次。只有明确要求撤销已受理的导入时，才调用 `ft import cancel-confirmation "$BATCH_ID" --json`。区分取消未记录、正在取消、已取消和已入账。

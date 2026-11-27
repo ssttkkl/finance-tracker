@@ -35,8 +35,9 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     });
     let backendLogs = '';
     backend.stderr.on('data', (data) => { backendLogs = (backendLogs + data).slice(-5000); });
+    const requestedPaths = [];
     let writeCount = 0;
-    let writtenReceipt;
+    let acceptedConfirmation;
     let sentBody;
     let sentKey;
     let manualWrites = 0;
@@ -56,6 +57,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     const oversizedImportAttempts = [];
     const proxy = createServer(async (req, res) => {
         try {
+            requestedPaths.push(new URL(req.url, origin).pathname);
             const body = Buffer.concat(await Array.fromAsync(req));
             if (oversizedImportReply && req.method === 'POST' && req.url.startsWith('/api/v1/cash-import/write-set?')) {
                 oversizedImportAttempts.push(req.headers['idempotency-key']);
@@ -67,7 +69,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 req.socket.destroy();
                 return;
             }
-            if (rejectReceiptLookup && req.method === 'GET' && req.url.startsWith('/api/v1/cash-mutations/receipts/by-key?')) {
+            if (rejectReceiptLookup && req.method === 'GET' && req.url.startsWith('/api/v1/cash-import/write-set/receipt?')) {
                 rejectReceiptLookup = false;
                 res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({
                     error: { code: 'ledger_base_changed' }, commit_state: 'not_committed',
@@ -112,7 +114,8 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 authorization = req.headers.authorization;
                 writeCount++;
                 if (response.ok && writeCount === 1) {
-                    writtenReceipt = JSON.parse(text);
+                    assert.equal(response.status, 202);
+                    acceptedConfirmation = JSON.parse(text);
                     sentKey = req.headers['idempotency-key'];
                     sentBody = JSON.parse(body);
                     req.socket.destroy();
@@ -218,18 +221,31 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.equal(writeCount, 1);
         assert.equal(sentKey, prepared.batch_id);
         assert.equal(sentBody.base_ledger_seq, review.ledger_seq);
-        assert.ok(writtenReceipt.committed);
+        assert.equal(acceptedConfirmation.operation_id, sentKey);
+        assert.equal(acceptedConfirmation.status, 'accepted');
 
         rejectReceiptLookup = true;
         const failedLookup = await run(['import', 'resume', prepared.batch_id]);
         assert.equal(failedLookup.value.error?.code, 'result_unknown');
         assert.equal(failedLookup.value.error.commit_state, 'unknown');
         assert.equal(writeCount, 1);
+        const cancelStart = requestedPaths.length;
+        const alreadyCommitted = await ok(['import', 'cancel-confirmation', prepared.batch_id]);
+        assert.equal(alreadyCommitted.status, 'committed');
+        assert.equal(alreadyCommitted.receipt.receipt_id, alreadyCommitted.receipt_id);
+        assert.ok(requestedPaths.slice(cancelStart).includes('/api/v1/cash-import/write-set/receipt'));
+        assert.ok(!requestedPaths.slice(cancelStart).some((path) => path.startsWith('/api/v1/ledger/')));
         const recovered = await ok(['import', 'resume', prepared.batch_id]);
+        assert.equal(recovered.receipt.receipt_id, alreadyCommitted.receipt_id);
         const reopened = await ok(['import', 'result', prepared.batch_id]);
         assert.deepEqual(reopened, recovered);
-        assert.equal(recovered.receipt.receipt_id, writtenReceipt.receipt_id);
-        assert.equal(recovered.receipt.ledger_seq, writtenReceipt.ledger_seq);
+        const statusStart = requestedPaths.length;
+        const confirmedOperation = await ok(['import', 'status', prepared.batch_id]);
+        assert.ok(!requestedPaths.slice(statusStart).some((path) => path.startsWith('/api/v1/ledger/')));
+        assert.equal(confirmedOperation.status, 'committed');
+        assert.equal(confirmedOperation.receipt_id, recovered.receipt.receipt_id);
+        assert.equal(confirmedOperation.operation_id, prepared.batch_id);
+        assert.equal(recovered.receipt.committed, true);
         assert.equal(recovered.items_complete, true);
         assert.equal(recovered.page.items.filter((item) => item.result_kind === 'row' && item.transaction_id).length, 1);
         const stale = await run(['import', 'confirm', prepared.batch_id, '--review', prepared.revision]);

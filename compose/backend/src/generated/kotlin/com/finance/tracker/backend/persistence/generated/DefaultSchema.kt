@@ -10,6 +10,7 @@ import com.finance.tracker.backend.persistence.generated.tables.CashCategories
 import com.finance.tracker.backend.persistence.generated.tables.CashCategoryStates
 import com.finance.tracker.backend.persistence.generated.tables.CashEntries
 import com.finance.tracker.backend.persistence.generated.tables.CashEntryMembers
+import com.finance.tracker.backend.persistence.generated.tables.CashImportConfirmations
 import com.finance.tracker.backend.persistence.generated.tables.CashInvestmentFundingRelations
 import com.finance.tracker.backend.persistence.generated.tables.CashIssueCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationReceipts
@@ -58,6 +59,8 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
     internal val CASH_ENTRIES: CashEntries get() = CashEntries.CASH_ENTRIES
 
     internal val CASH_ENTRY_MEMBERS: CashEntryMembers get() = CashEntryMembers.CASH_ENTRY_MEMBERS
+
+    internal val CASH_IMPORT_CONFIRMATIONS: CashImportConfirmations get() = CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS
 
     internal val CASH_INVESTMENT_FUNDING_RELATIONS: CashInvestmentFundingRelations get() = CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS
 
@@ -110,6 +113,7 @@ internal open class DefaultSchema : SchemaImpl(DSL.name(""), DefaultCatalog.DEFA
         CashCategoryStates.CASH_CATEGORY_STATES,
         CashEntries.CASH_ENTRIES,
         CashEntryMembers.CASH_ENTRY_MEMBERS,
+        CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS,
         CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS,
         CashIssueCandidates.CASH_ISSUE_CANDIDATES,
         CashMutationReceipts.CASH_MUTATION_RECEIPTS,

@@ -20,7 +20,7 @@ class SchemaBootstrapTest {
         database.bootstrapSchema()
         database.validateSchema()
         assertLedgerSequenceBaseline(database)
-        assertEquals("20261104_54", database.read { connection ->
+        assertEquals("20261127_55", database.read { connection ->
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
                     check(rows.next())

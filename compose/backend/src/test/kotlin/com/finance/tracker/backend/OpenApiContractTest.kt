@@ -17,7 +17,7 @@ class OpenApiContractTest {
         val operation = doc.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set").jsonObject.getValue("post").jsonObject
         assertEquals(JsonPrimitive("submitCashImportWriteSet"), operation["operationId"])
         assertEquals(JsonPrimitive("#/components/schemas/CashWriteSetRequest"), schema(doc, "/api/v1/cash-import/write-set")["\$ref"])
-        assertEquals(setOf("200", "400", "401", "403", "409", "413", "415", "422", "500", "503"), operation.getValue("responses").jsonObject.keys)
+        assertEquals(setOf("200", "202", "400", "401", "403", "409", "413", "415", "422", "500", "503"), operation.getValue("responses").jsonObject.keys)
         assertEquals(Json.parseToJsonElement("""[{"BearerAuth":[]}]"""), operation["security"])
         val encoding = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("Content-Encoding") }.jsonObject
         assertEquals(JsonPrimitive("header"), encoding["in"]); assertEquals(JsonPrimitive(false), encoding["required"])
@@ -25,8 +25,18 @@ class OpenApiContractTest {
         assertEquals(JsonPrimitive("Idempotency-Key"), key["name"]); assertEquals(JsonPrimitive(true), key["required"])
         val workspace = operation.getValue("parameters").jsonArray.single { it.jsonObject["name"] == JsonPrimitive("workspace_id") }.jsonObject
         assertEquals(JsonPrimitive("query"), workspace["in"]); assertEquals(JsonPrimitive(true), workspace["required"])
-        val success = operation.getValue("responses").jsonObject.getValue("200").jsonObject.getValue("content").jsonObject.getValue("application/json").jsonObject.getValue("schema").jsonObject
-        assertEquals(setOf("ledger_seq", "write_set_result"), success.getValue("allOf").jsonArray[1].jsonObject.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
+        for (status in listOf("200", "202")) {
+            val success = operation.getValue("responses").jsonObject.getValue(status).jsonObject.getValue("content")
+                .jsonObject.getValue("application/json").jsonObject.getValue("schema").jsonObject
+            assertEquals(JsonPrimitive("#/components/schemas/CashImportConfirmation"), success["\$ref"])
+        }
+        for ((path, verb) in listOf("status" to "get", "cancel" to "post")) {
+            val operation = doc.getValue("paths").jsonObject.getValue("/api/v1/cash-import/write-set/$path")
+                .jsonObject.getValue(verb).jsonObject
+            assertEquals(setOf("workspace_id", "Idempotency-Key"), operation.getValue("parameters").jsonArray.map {
+                it.jsonObject.getValue("name").jsonPrimitive.content
+            }.toSet())
+        }
         val schemas = doc.getValue("components").jsonObject.getValue("schemas").jsonObject
         val request = schemas.getValue("CashWriteSetRequest").jsonObject
         assertEquals(setOf("base_ledger_seq", "rules_version", "changes", "command_version", "coverage_table", "replay_groups", "request_digest"), request.getValue("properties").jsonObject.keys)
@@ -223,7 +233,7 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(75, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(80, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         assertFalse("get" in paths.getValue("/api/v1/cash-projections").jsonObject)
         assertTrue("delete" in paths.getValue("/api/v1/cash-projections").jsonObject)
         for (retired in listOf("/api/v1/cash-projections/{projection_id}", "/api/v1/evidence/cash-projections/{projection_id}",

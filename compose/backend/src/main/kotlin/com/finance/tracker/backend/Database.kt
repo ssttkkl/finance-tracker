@@ -138,9 +138,10 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
 
     internal fun <T> writeGuarded(beforeCommit: () -> Unit, block: (Connection) -> T): T = transaction(true, block, beforeCommit)
 
-    internal fun <T> writeNonblocking(block: (Connection) -> T): T = transaction(true, block, nonblocking = true)
+    internal fun <T> writeNonblocking(lockTimeoutMillis: Int = 1, block: (Connection) -> T): T =
+        transaction(true, block, lockTimeoutMillis = lockTimeoutMillis)
 
-    private fun <T> transaction(write: Boolean, block: (Connection) -> T, beforeCommit: () -> Unit = {}, nonblocking: Boolean = false): T {
+    private fun <T> transaction(write: Boolean, block: (Connection) -> T, beforeCommit: () -> Unit = {}, lockTimeoutMillis: Int? = null): T {
         try {
             val url = if (sqlite) {
                 val path = Path.of(jdbcUrl.removePrefix("jdbc:sqlite:"))
@@ -156,7 +157,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 if (sqlite) registerAssociationDecimalComparison(rawConnection)
                 if (sqlite) rawConnection.createStatement().use {
                     it.execute("PRAGMA foreign_keys=ON")
-                    it.execute(if (nonblocking) "PRAGMA busy_timeout=0" else "PRAGMA busy_timeout=5000")
+                    it.execute(if (lockTimeoutMillis != null) "PRAGMA busy_timeout=0" else "PRAGMA busy_timeout=5000")
                     it.execute("PRAGMA journal_mode=WAL")
                     // WAL + NORMAL keeps transaction atomicity while avoiding a full fsync per mutation.
                     it.execute("PRAGMA synchronous=NORMAL")
@@ -165,7 +166,9 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 val explicitSqlite = sqlite && write
                 if (explicitSqlite) connection.createStatement().use { it.execute("BEGIN IMMEDIATE") }
                 else connection.autoCommit = false
-                if (nonblocking && !sqlite) connection.createStatement().use { it.execute("SET LOCAL lock_timeout = '1ms'") }
+                if (lockTimeoutMillis != null && !sqlite) connection.createStatement().use {
+                    it.execute("SET LOCAL lock_timeout = '${lockTimeoutMillis}ms'")
+                }
                 fun finish(commit: Boolean) {
                     if (explicitSqlite) connection.createStatement().use { it.execute(if (commit) "COMMIT" else "ROLLBACK") }
                     else if (commit) connection.commit() else connection.rollback()
@@ -188,6 +191,28 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
         }
     }
 
+    internal fun upgradeCashImportConfirmationSchema() = write { connection ->
+        if (sqlite) throw StorageFailure("storage.schema")
+        connection.createStatement().use { it.execute("SELECT pg_advisory_xact_lock(7210319053)") }
+        val tables = postgresTables(connection)
+        val bulkImport = "cash_import_confirmations"
+        if ("alembic_version" !in tables || !tables.containsAll(requiredTables - bulkImport)) throw StorageFailure("storage.schema")
+        connection.createStatement().use { statement ->
+            val version = statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
+                if (!rows.next()) throw StorageFailure("storage.schema")
+                rows.getString(1).also { if (rows.next()) throw StorageFailure("storage.schema") }
+            }
+            when {
+                version == "20261127_55" && bulkImport in tables -> Unit
+                version == "20261104_54" && bulkImport !in tables -> {
+                    SchemaSql.cashImportConfirmation().forEach(statement::execute)
+                    check(statement.executeUpdate("UPDATE alembic_version SET version_num='20261127_55' WHERE version_num='20261104_54'") == 1)
+                }
+                else -> throw StorageFailure("storage.schema")
+            }
+        }
+    }
+
     fun validateSchema() = read { connection ->
         try {
             val tables = mutableSetOf<String>()
@@ -200,7 +225,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 throw StorageFailure("storage.schema")
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT version_num FROM alembic_version").use { rows ->
-                    if (!rows.next() || rows.getString(1) != "20261104_54" || rows.next())
+                    if (!rows.next() || rows.getString(1) != "20261127_55" || rows.next())
                         throw StorageFailure("storage.schema")
                 }
             }
@@ -217,7 +242,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
             "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
             "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",
             "cash_mutation_results", "cash_relation_candidates",
-            "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
+            "cash_import_confirmations", "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
         )
     }
 }
