@@ -4,8 +4,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import { appendFile, mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
-import { request } from 'node:http';
-import { createServer } from 'node:https';
 import { createServer as reserveServer } from 'node:net';
 import { availableParallelism, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -13,6 +11,7 @@ import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { measureCommand } from './large-measure.mjs';
+import { openProxy, verifyPreparedFiles } from './large-support.mjs';
 
 const perfDirectory = dirname(fileURLToPath(import.meta.url));
 const checkout = resolve(perfDirectory, '../../..');
@@ -46,28 +45,6 @@ async function sha256(path) {
     const hash = createHash('sha256');
     for await (const block of createReadStream(path)) hash.update(block);
     return hash.digest('hex');
-}
-
-function openProxy(cert, key, backendPort, observed) {
-    return createServer({ cert, key }, (incoming, outgoing) => {
-        const path = new URL(incoming.url, 'https://127.0.0.1').pathname.replace(/\/$/, '');
-        const observation = { method: incoming.method, path, bytes: 0, status: null };
-        if (path === '/api/v1/cash-import/write-set')
-            observation.key = incoming.headers['idempotency-key'] ?? null;
-        observed.push(observation);
-        incoming.on('data', chunk => { observation.bytes += chunk.length; });
-        const forwarded = request({
-            hostname: '127.0.0.1', port: backendPort, path: incoming.url, method: incoming.method,
-            headers: { ...incoming.headers, host: '127.0.0.1' },
-        }, response => {
-            observation.status = response.statusCode;
-            outgoing.writeHead(response.statusCode, response.headers);
-            response.pipe(outgoing);
-        });
-        forwarded.on('error', () => outgoing.destroy());
-        outgoing.on('close', () => forwarded.destroy());
-        incoming.pipe(forwarded);
-    });
 }
 
 async function listen(server, port = 0) {
@@ -255,27 +232,29 @@ async function main() {
         const mutatingRequests = after => observed.slice(after)
             .filter(item => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(item.method));
 
+        const plainFiles = manifest.files.filter(file => !file.password_required).map(file => file.file);
+        const encryptedFiles = manifest.files.filter(file => file.password_required).map(file => file.file);
+        const expectedFiles = [...plainFiles];
+        const preparationReport = [];
+        checks.preparation = preparationReport;
         const startPrepare = performance.now();
-        const files = manifest.files.filter(file => !file.password_required).map(file => join(fixture, file.file));
-        const preparations = [await run(['import', 'prepare', ...files, ...scope])];
+        const preparations = [await run(['import', 'prepare', ...plainFiles.map(file => join(fixture, file)), ...scope])];
         let prepared = preparations[0].value;
-        assert.equal(prepared.files.length, 16);
+        verifyPreparedFiles(prepared, expectedFiles, 'prepare', preparationReport);
         const batch = prepared.batch_id;
-        for (const { file } of manifest.files.filter(file => file.password_required)) {
+        for (const file of encryptedFiles) {
             const addition = await run(
                 ['import', 'file', 'add', batch, join(fixture, file), ...scope, '--revision', prepared.revision, '--password-stdin'],
                 { input: pdfPassword },
             );
             preparations.push(addition);
             prepared = addition.value;
+            expectedFiles.push(file);
+            verifyPreparedFiles(prepared, expectedFiles, `add ${file}`, preparationReport);
         }
         const prepareMs = performance.now() - startPrepare;
         assert.equal(prepared.batch_id, batch);
-        assert.deepEqual(prepared.files.map(file => file.name).sort(), manifest.files.map(file => file.file).sort());
-        for (const file of prepared.files) {
-            assert.equal(file.status, 'parsed', file.name);
-            assert.equal(file.code, null, file.name);
-        }
+        assert.equal(prepared.files.length, 19);
         assert.equal(prepared.source_accounts.length, 8);
         await record('large.prepare', { ms: prepareMs, rssBytes: Math.max(...preparations.map(r => r.rssBytes)) }, {
             files: prepared.files.length, groups: prepared.source_accounts.length, encryptedPdfs: 3,
@@ -401,6 +380,7 @@ async function main() {
     } catch (error) {
         checks.completed = false;
         checks.failure = error.message;
+        checks.transportErrors = observed.filter(item => item.transportError);
         throw error;
     } finally {
         try {

@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: client-operations-performance-${{ github.ref }}
-  cancel-in-progress: true
+  group: client-operations-performance-${{ github.ref }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
 
 env:
   FT_PERF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
