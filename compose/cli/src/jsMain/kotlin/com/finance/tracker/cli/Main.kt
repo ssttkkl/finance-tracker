@@ -11,13 +11,32 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 internal val process: dynamic = js("globalThis.process")
 
 internal class CliFailure(val code: String, val parameter: String? = null, val exitCode: Int = 2) : Exception(code)
 
-internal class TerminalResult(val text: String, val json: () -> String) {
+internal class TerminalResult private constructor(private val output: suspend (Boolean) -> Unit) {
+    constructor(text: String, json: () -> String) : this({ machine -> println(if (machine) json() else text) })
     constructor(value: JsonElement, text: String) : this(text, { value.toString() })
+    constructor(text: String, jsonParts: List<String>) : this({ machine ->
+        if (machine) {
+            for (part in jsonParts) writeTerminalPart(part)
+            writeTerminalPart("\n")
+        } else println(text)
+    })
+
+    suspend fun print(machine: Boolean) = output(machine)
+}
+
+private suspend fun writeTerminalPart(part: String) = suspendCoroutine<Unit> { continuation ->
+    process.stdout.write(part) { error: dynamic ->
+        if (error == null) continuation.resume(Unit)
+        else continuation.resumeWithException(IllegalStateException("stdout write failed"))
+    }
 }
 
 internal val outputJson = Json { encodeDefaults = true }
@@ -39,7 +58,7 @@ suspend fun main() {
     val machine = "--json" in args
     try {
         val result = dispatch(args.filterNot { it == "--json" })
-        println(if (machine) result.json() else result.text)
+        result.print(machine)
     } catch (failure: CliFailure) {
         report(machine, failure.code, failure.exitCode, failure.parameter)
     } catch (failure: ClientOperationFailure) {

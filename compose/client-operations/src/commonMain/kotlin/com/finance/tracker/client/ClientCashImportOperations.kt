@@ -60,8 +60,8 @@ interface ClientCashImportStore {
         read(session, workspaceId, batchId)
     suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? = null
     suspend fun archivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportConfirmation? = null
-    /** Record the status projection of the archive just saved in this transaction. */
-    suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String, key: String, receiptId: String) {}
+    /** Save local read projections of the verified archive in the same transaction. */
+    suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String, archive: CashImportResultContent) {}
     /** Freezing an editable batch must atomically reject associated unresolved account commands. */
     suspend fun compareAndSave(
         session: ClientStoredSession,
@@ -462,6 +462,24 @@ class ClientCashImportOperations(
 
     suspend fun result(workspaceId: String?, batchId: String): CashImportResultContent {
         val (binding, workspace) = session.localImportWorkspace(workspaceId)
+        return savedResult(binding, workspace, batchId)
+    }
+
+    suspend fun <T : Any> result(
+        workspaceId: String?, batchId: String,
+        readArchived: suspend (ClientStoredSession, String) -> T?,
+        render: (CashImportResultContent) -> T,
+    ): T {
+        val (binding, workspace) = session.localImportWorkspace(workspaceId)
+        session.requireCurrent(binding)
+        readArchived(binding, workspace)?.let {
+            session.requireCurrent(binding)
+            return it
+        }
+        return render(savedResult(binding, workspace, batchId))
+    }
+
+    private suspend fun savedResult(binding: ClientStoredSession, workspace: String, batchId: String): CashImportResultContent {
         val batch = batch(binding, workspace, batchId)
         return result(batch) ?: batch.submission?.receipt?.let { provisionalResult(batch) }
             ?: throw ClientOperationFailure("result_not_available")
@@ -612,7 +630,7 @@ class ClientCashImportOperations(
             LocalCashImportResultInput.decode(checkNotNull(raw.resultInput)), serverItems)
         save(scope, current, current.copy(files = emptyList(), review = null, submission = null, result = content.encode()),
             removedFileIds = current.files.map { it.storageId })
-        store.rememberArchivedConfirmation(scope.binding, scope.id, batch.id, raw.key, content.authoritativeReceipt().receiptId)
+        store.rememberArchivedConfirmation(scope.binding, scope.id, content)
         return content
     }
 

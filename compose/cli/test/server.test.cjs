@@ -6,6 +6,7 @@ const { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, truncat
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { once } = require('node:events');
+const { DatabaseSync } = require('node:sqlite');
 const { test } = require('node:test');
 const { pathToFileURL } = require('node:url');
 const { setTimeout: sleep } = require('node:timers/promises');
@@ -173,7 +174,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const run = (args, input = '', override = {}, executable = bin) => new Promise((resolve, reject) => {
             const child = execFile(executable, [...args, '--json'], { cwd: dir, env: { ...env, ...override }, timeout: 20000 }, (error, stdout, stderr) => {
                 if (error && typeof error.code !== 'number') return reject(error);
-                try { resolve({ status: error?.code || 0, value: JSON.parse(stdout), stderr }); }
+                try { resolve({ status: error?.code || 0, value: JSON.parse(stdout), stdout, stderr }); }
                 catch (failure) { reject(new Error(`Invalid CLI response: ${stdout} ${stderr}`, { cause: failure })); }
             });
             child.stdin.end(input);
@@ -250,14 +251,73 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.equal(provisional.receipt.receipt_id, alreadyCommitted.receipt_id);
         assert.equal(provisional.items_complete, false);
         assert.ok(!Object.hasOwn(provisional, 'page'));
-        const recovered = await ok(['import', 'resume', prepared.batch_id]);
+        const archivePrefix = `.import.${prepared.batch_id}.file.archive-output-v1`;
+        const interruptedArchive = join(dir, 'interrupt-archive.mjs');
+        writeFileSync(interruptedArchive, `
+            import { StatementSync } from 'node:sqlite';
+            const run = StatementSync.prototype.run;
+            StatementSync.prototype.run = function (...args) {
+                const result = run.apply(this, args);
+                if (String(args[1]).includes('.file.archive-output-v1.') && String(args[1]).endsWith('.receipt.0'))
+                    process.kill(process.pid, 'SIGKILL');
+                return result;
+            };
+        `);
+        await assert.rejects(run(['import', 'resume', prepared.batch_id], '', {
+            NODE_OPTIONS: `--import=${pathToFileURL(interruptedArchive)}`,
+        }), error => error.signal === 'SIGKILL');
+        const localDb = join(env.FT_CLI_STATE_DIR, 'client.sqlite');
+        const derivedSlots = () => {
+            const database = new DatabaseSync(localDb);
+            try {
+                return database.prepare('SELECT slot FROM client_state WHERE instr(slot, ?) > 0 ORDER BY slot')
+                    .all(archivePrefix).map(row => row.slot);
+            } finally {
+                database.close();
+            }
+        };
+        assert.deepEqual(derivedSlots(), [], 'interrupted local archive must roll back every derived row');
+        const resumedOutput = await run(['import', 'resume', prepared.batch_id]);
+        assert.equal(resumedOutput.status, 0);
+        const recovered = resumedOutput.value;
+        const slots = derivedSlots();
+        assert.ok(slots.some(slot => slot.endsWith(archivePrefix)));
+        assert.ok(slots.some(slot => slot.endsWith('.receipt.0')));
+        assert.ok(slots.some(slot => slot.endsWith('.row.0')));
         const resumePaths = requestedPaths.slice(resumeStart);
         assert.ok(resumePaths.filter(path => path === '/api/v1/cash-import/write-set/receipt/pages').length >= 10);
         assert.ok(!resumePaths.some(path => path.startsWith('/api/v1/ledger/')));
         assert.ok(!resumePaths.includes('/api/v1/cash-import/write-set/receipt'));
         assert.equal(recovered.receipt.receipt_id, alreadyCommitted.receipt_id);
-        const reopened = await ok(['import', 'result', prepared.batch_id]);
+        const openedOutput = await run(['import', 'result', prepared.batch_id]);
+        assert.equal(openedOutput.status, 0);
+        const reopened = openedOutput.value;
         assert.deepEqual(reopened, recovered);
+        assert.equal(openedOutput.stdout, resumedOutput.stdout);
+
+        const changeCiphertext = slot => {
+            const database = new DatabaseSync(localDb);
+            try {
+                const { payload } = database.prepare('SELECT payload FROM client_state WHERE slot = ?').get(slot);
+                payload[12] ^= 1;
+                database.prepare('UPDATE client_state SET payload = ? WHERE slot = ?').run(payload, slot);
+            } finally {
+                database.close();
+            }
+        };
+        const resultSlot = slots.find(slot => slot.endsWith('.receipt.0'));
+        const parentSlot = slots.find(slot => slot.endsWith(archivePrefix)).replace('.file.archive-output-v1', '');
+        for (const slot of [resultSlot, parentSlot]) {
+            changeCiphertext(slot);
+            try {
+                const damaged = await run(['import', 'result', prepared.batch_id, '--limit', '1']);
+                assert.equal(damaged.status, 1);
+                assert.deepEqual(damaged.value, { error: { code: 'local_state_unreadable' } });
+                assert.equal(damaged.stdout, '{"error":{"code":"local_state_unreadable"}}' + '\n');
+            } finally {
+                changeCiphertext(slot);
+            }
+        }
         const oneResult = await ok(['import', 'result', prepared.batch_id, '--limit', '1']);
         assert.deepEqual(oneResult.receipt, reopened.receipt);
         assert.deepEqual(oneResult.page.items, reopened.page.items.slice(0, 1));
@@ -300,6 +360,9 @@ for (const database of backends) test(`the installed CLI resumes the original ca
             execFileSync('npm', ['install', '--prefix', previous, '--no-audit', '--no-fund', '--ignore-scripts', resolve(previousPackage)]);
             const oldBin = join(previous, 'node_modules/.bin/ft');
             assert.deepEqual(await ok(['import', 'status', prepared.batch_id], '', {}, oldBin), confirmedOperation);
+            const oldOutput = await run(['import', 'result', prepared.batch_id], '', {}, oldBin);
+            assert.equal(oldOutput.status, 0);
+            assert.equal(oldOutput.stdout, openedOutput.stdout);
             const oldCancel = await ok(['import', 'cancel-confirmation', prepared.batch_id], '', {}, oldBin);
             assert.equal(oldCancel.status, 'committed');
             assert.deepEqual(oldCancel.receipt, alreadyCommitted.receipt);

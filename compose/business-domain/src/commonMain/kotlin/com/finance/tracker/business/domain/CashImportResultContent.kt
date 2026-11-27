@@ -74,26 +74,35 @@ class CashImportResultContent private constructor(
             raw.jsonObject.getValue("parents").jsonArray.forEach { validate(it.jsonObject["operation_index"]) }
         }
     }
+    private fun validateArchive() {
+        val receipt = authoritativeReceipt()
+        requireCashWriteSetReceipt(receipt)
+        validateLinks()
+        items?.let { validateImportResultItems(receipt, it) }
+    }
+
     fun encode(): String = Json.encodeToString(StoredResult(1, batchId, submissionKey, receiptBody, input.encode(), serverItems()))
 
     companion object {
         fun assemble(batchId: String, submissionKey: String, receipt: String, input: LocalCashImportResultInput,
             serverItems: List<CashMutationResultDto>?): CashImportResultContent {
-            return CashImportResultContent(batchId, submissionKey, receipt, input, serverItems?.toList()).also {
-                it.validateLinks(); serverItems?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
-            }
+            checkIdentity(batchId, submissionKey)
+            return CashImportResultContent(batchId, submissionKey, receipt, input, serverItems?.toList()).also { it.validateArchive() }
         }
         fun decode(body: String): CashImportResultContent {
             val stored = Json.decodeFromString<StoredResult>(body)
-            check(stored.version == 1 && stored.batchId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "cash_import_result_invalid" }
-            check(isCashWriteSetKey(stored.submissionKey)) { "cash_import_submission_identity_invalid" }
+            check(stored.version == 1) { "cash_import_result_invalid" }
+            checkIdentity(stored.batchId, stored.submissionKey)
             return CashImportResultContent(stored.batchId, stored.submissionKey, stored.receipt,
-                LocalCashImportResultInput.decode(stored.input), stored.serverItems).also {
-                requireCashWriteSetReceipt(it.authoritativeReceipt())
-                it.validateLinks()
-                stored.serverItems?.let { items -> validateImportResultItems(it.authoritativeReceipt(), items) }
-            }
+                LocalCashImportResultInput.decode(stored.input), stored.serverItems).also { it.validateArchive() }
         }
+
+        private fun checkIdentity(batchId: String, submissionKey: String) {
+            check(batchId.matches(batchIdPattern)) { "cash_import_result_invalid" }
+            check(isCashWriteSetKey(submissionKey)) { "cash_import_submission_identity_invalid" }
+        }
+
+        private val batchIdPattern = Regex("[A-Za-z0-9_-]{1,128}")
         private val normalSkips = setOf("row_not_selected", "unpaid_closed", "failed_repay", "account_opening")
         private val successfulCounts = setOf("created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate", "merged_draft",
             "relations_confirmed", "relations_deferred", "relations_ignored", "relations_duplicate")
@@ -110,22 +119,29 @@ private fun JsonObject.optionalText(key: String): String? = get(key)?.takeUnless
 }
 
 
-fun CashImportResultContent.page(kind: String, offset: Int, limit: Int): com.finance.tracker.business.contracts.CashImportArchivePage {
+fun CashImportResultContent.resultItems(kind: String): List<CashMutationResultDto> {
     val server = checkNotNull(serverItems()) { "cash_import_results_incomplete" }.filter { it.resultKind == kind }
     val local = if (kind == "row") rows() else relationFailures()
-    val total = server.size + local.size
-    require(offset in 0..total && limit in 1..200) { "import_payload_invalid" }
-    val end = minOf(offset + limit, total)
-    val items = (offset until end).map { position ->
-        if (position < server.size) server[position] else {
-            val index = position - server.size
-            val raw = local[index].jsonObject
-            val ref = if (kind == "row") "local-row:$index" else "local-relation:$index"
-            if (kind == "row") CashMutationResultDto(ref, kind, raw.text("row_ref"),
+    return object : AbstractList<CashMutationResultDto>() {
+        override val size = server.size + local.size
+
+        override fun get(index: Int): CashMutationResultDto {
+            if (index < server.size) return server[index]
+            val localIndex = index - server.size
+            val raw = local[localIndex].jsonObject
+            val ref = if (kind == "row") "local-row:$localIndex" else "local-relation:$localIndex"
+            return if (kind == "row") CashMutationResultDto(ref, kind, raw.text("row_ref"),
                 if (raw.text("planned_action") == "skip") "skipped" else "duplicate", raw.optionalText("code"),
                 operationRef = raw.optionalText("operation_ref"), transactionId = raw["transaction_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
             else CashMutationResultDto(ref, kind, raw.optionalText("suggestion_id") ?: ref, "failed", raw.text("code"))
         }
     }
-    return com.finance.tracker.business.contracts.CashImportArchivePage(items, end.takeIf { it < total }?.toString())
+}
+
+fun CashImportResultContent.page(kind: String, offset: Int, limit: Int): com.finance.tracker.business.contracts.CashImportArchivePage {
+    val items = resultItems(kind)
+    require(offset in 0..items.size && limit in 1..200) { "import_payload_invalid" }
+    val end = offset + minOf(limit, items.size - offset)
+    return com.finance.tracker.business.contracts.CashImportArchivePage(items.subList(offset, end).toList(),
+        end.takeIf { it < items.size }?.toString())
 }

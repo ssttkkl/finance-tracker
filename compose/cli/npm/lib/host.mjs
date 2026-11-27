@@ -345,13 +345,15 @@ export function openStore(origin, createKey) {
             return { error: existing || createKey ? 'storage_key_unavailable' : 'authentication_required' };
         }
         const aad = (slot) => Buffer.from(`ft-client-v1\0${server}\0${slot}`);
-        const writeState = (slot, encode) => {
+        const writeState = (slot, encode, fingerprint = false) => {
             const dataKey = randomBytes(32);
             const associated = aad(slot);
             try {
+                const payload = encode(dataKey, associated);
                 database.prepare('INSERT OR REPLACE INTO client_state VALUES (?, ?, ?, ?)').run(
-                    server, slot, seal(key, associated, dataKey), encode(dataKey, associated),
+                    server, slot, seal(key, associated, dataKey), payload,
                 );
+                if (fingerprint) return createHash('sha256').update(payload).digest('hex');
             } finally {
                 dataKey.fill(0);
             }
@@ -364,6 +366,10 @@ export function openStore(origin, createKey) {
                 const item = database.prepare('SELECT wrapped_key FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 return item ? Buffer.from(item.wrapped_key).toString('base64') : null;
             },
+            stateFingerprint(slot) {
+                const item = database.prepare('SELECT payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
+                return item ? createHash('sha256').update(item.payload).digest('hex') : null;
+            },
             read(slot) {
                 const item = database.prepare('SELECT wrapped_key, payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 if (!item) return null;
@@ -374,8 +380,8 @@ export function openStore(origin, createKey) {
                     dataKey.fill(0);
                 }
             },
-            write(slot, payload) {
-                writeState(slot, (key, aad) => sealStateText(key, aad, payload));
+            write(slot, payload, fingerprint = false) {
+                return writeState(slot, (key, aad) => sealStateText(key, aad, payload), fingerprint);
             },
             writeGeneratedState(slot, createCursor) {
                 writeState(slot, (key, aad) => sealGeneratedState(key, aad, createCursor));

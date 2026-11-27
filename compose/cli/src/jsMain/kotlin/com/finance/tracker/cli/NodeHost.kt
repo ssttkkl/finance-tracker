@@ -22,6 +22,7 @@ import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
 import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
+import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.client.ClientHttp
 import com.finance.tracker.client.ClientHttpBody
 import com.finance.tracker.client.ClientHttpResponse
@@ -79,6 +80,17 @@ internal suspend fun <T> withCashImport(server: String?, reportProgress: Boolean
             if (reportProgress) process.stderr.write("ft import: $stage\n")
         }))
     }
+
+internal suspend fun withCashImportResult(
+    server: String?, workspace: String?, batch: String, range: () -> ImportResultRange,
+): TerminalResult = withHost(server, false) { session, store ->
+    ClientCashImportOperations(session, store, nodeCalendar, ::newReference).result(workspace, batch,
+        readArchived = { binding, workspaceId -> store.archivedResult(binding, workspaceId, batch, range) },
+        render = { content ->
+            val (kind, offset, limit) = range()
+            importResult(content, kind, offset, limit)
+        })
+}
 
 internal suspend fun <T> withImportAccounts(server: String?, action: suspend (ClientImportAccountOperations) -> T): T =
     withHost(server, false) { session, store ->
@@ -157,6 +169,7 @@ private const val largeImportRequestLength = 1024 * 1024
 private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore {
     private var observedLedger: ObservedLedger? = null
     private var observedBatch: ObservedBatch? = null
+    private var savedArchive: Pair<String, String>? = null
     private var savedConfirmation: SavedConfirmation? = null
     private var checkpointedConfirmation: SavedConfirmation? = null
 
@@ -288,12 +301,21 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         return CashImportConfirmation(index.operationKey, CashImportConfirmationStatus.COMMITTED, index.receiptId)
     }
 
-    override suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String,
-        key: String, receiptId: String) {
+    fun archivedResult(session: ClientStoredSession, workspaceId: String, batchId: String,
+        range: () -> ImportResultRange): TerminalResult? =
+        readArchivedImportResult(database, "${slot(session, workspaceId)}.import.$batchId", batchId, range)
+
+    override suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String,
+        archive: CashImportResultContent) {
         if (!sameState(session, session())) throw ClientOperationFailure("session_changed")
-        val batch = "${slot(session, workspaceId)}.import.$batchId"
+        val batch = "${slot(session, workspaceId)}.import.${archive.batchId}"
         val stamp = checkNotNull(stateStamp(batch))
-        database.write("$batch.file.archive-status", Json.encodeToString(ArchivedConfirmationIndex(stamp, key, receiptId)))
+        database.write("$batch.file.archive-status", Json.encodeToString(ArchivedConfirmationIndex(
+            stamp, archive.submissionKey, archive.authoritativeReceipt().receiptId,
+        )))
+        val fingerprint = checkNotNull(savedArchive?.takeIf { it.first == batch }).second
+        savedArchive = null
+        writeArchivedImportResult(database, batch, stamp, fingerprint, archive)
     }
 
     private fun stateStamp(key: String): String? = database.stateStamp(key) as String?
@@ -315,6 +337,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     ): Boolean {
         if (!sameState(session, session())) return false
         savedConfirmation = null
+        savedArchive = null
         val prefix = "${slot(session, workspaceId)}.import.${batch.id}"
         val observed = observedBatch
         val current = if (observed != null && observed.batch.deref() === previous && observed.key == prefix &&
@@ -391,6 +414,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         val saved = savedConfirmation
         savedConfirmation = null
         observedBatch = null
+        savedArchive = null
         checkpointedConfirmation = null
         val version = if (saved != null) database.dataVersion() as Int else null
         observedLedger = null
@@ -401,7 +425,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private fun writeImportBatch(slot: String, batch: ClientCashImportBatch) {
         val submission = batch.submission
         if (submission == null || submission.request.length < largeImportRequestLength) {
-            database.write(slot, Json.encodeToString(batch.copy(reviewed = null)))
+            val text = Json.encodeToString(batch.copy(reviewed = null))
+            if (batch.result == null) database.write(slot, text)
+            else savedArchive = slot to (database.write(slot, text, true) as String)
         } else {
             val metadata = Json.encodeToString(batch.copy(reviewed = null, submission = submission.copy(request = "")))
             database.writeFrozenImportBatch(slot, metadata, submission.request)

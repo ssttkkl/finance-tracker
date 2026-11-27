@@ -91,6 +91,9 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
     val options = parseOptions(args.drop(1), scopeOptions + optionsAllowed, if (action == "confirm") setOf("--no-wait") else emptySet())
     val expected = options["--workspace"]
     val zone = options["--timezone"] ?: "UTC"
+    if (action == "result") return withCashImportResult(options["--server"], expected, batch) {
+        ImportResultRange(options["--kind"] ?: "row", options.integer("--offset") ?: 0, options.integer("--limit") ?: 50)
+    }
     return withCashImport(options["--server"], reportProgress = action in setOf("review", "confirm", "resume")) { operations ->
         when (action) {
             "review" -> {
@@ -140,8 +143,6 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
                 is ClientCashImportResume.Committed -> importResult(resumed.result)
                 is ClientCashImportResume.Editable -> preparedResult(resumed.preparation)
             }
-            "result" -> importResult(operations.result(expected, batch), options["--kind"] ?: "row",
-                options.integer("--offset") ?: 0, options.integer("--limit") ?: 50)
             else -> error("unreachable import command")
         }
     }
@@ -265,22 +266,38 @@ private fun confirmationResult(batch: String, value: CashImportConfirmation, rec
     })
 }
 
-private fun importResult(result: CashImportResultContent, kind: String = "row", offset: Int = 0, limit: Int = 50): TerminalResult {
-    if (kind !in setOf("row", "relation") || offset < 0 || limit !in 1..200) throw CliFailure("invalid_parameter")
+internal fun validateImportResultRange(kind: String, offset: Int, limit: Int) {
+    if (kind != "row" && kind != "relation" || offset < 0 || limit !in 1..200) throw CliFailure("invalid_parameter")
+}
+
+internal fun importResult(result: CashImportResultContent, kind: String = "row", offset: Int = 0, limit: Int = 50): TerminalResult {
+    validateImportResultRange(kind, offset, limit)
     val page = if (result.hasServerItems) try {
         result.page(kind, offset, limit)
     } catch (_: IllegalArgumentException) {
         throw CliFailure("invalid_parameter", "--offset")
     } else null
     val receipt = result.displayReceipt()
-    val text = buildString {
-        appendLine("Batch ${result.batchId}  Receipt ${receipt.receiptId}")
-        for ((key, count) in receipt.summary) appendLine("$key  $count")
-        if (!result.hasServerItems) appendLine("Saved. Use ft import resume ${result.batchId} to finish retrieving results.")
-    }.trimEnd()
     val output = ImportResultOutput(result.batchId, receipt, result.hasServerItems, page)
-    return TerminalResult(text, output::encode)
+    return TerminalResult(importResultText(result.batchId, receipt, result.hasServerItems), output::encode)
 }
+
+internal fun importResultText(batchId: String, receipt: CashMutationReceiptDto, complete: Boolean): String = buildString {
+    appendLine("Batch $batchId  Receipt ${receipt.receiptId}")
+    for ((key, count) in receipt.summary) appendLine("$key  $count")
+    if (!complete) appendLine("Saved. Use ft import resume $batchId to finish retrieving results.")
+}.trimEnd()
+
+private fun CashMutationReceiptDto.needsExactResultIdentifiers(): Boolean =
+    projectionVersion != null || accountRevision != null || account != null ||
+        summary.keys.any { it in exactReadIdentifierFields } || legacyByAccount.keys.any { it in exactReadIdentifierFields }
+
+private fun CashMutationReceiptDto.receiptWithExactIdentifiers() =
+    exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), this))
+
+internal fun archivedReceiptJson(receipt: CashMutationReceiptDto): String =
+    if (receipt.needsExactResultIdentifiers()) receipt.receiptWithExactIdentifiers().toString()
+    else outputJson.encodeToString(CashMutationReceiptDto.serializer(), receipt)
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -291,14 +308,12 @@ private data class ImportResultOutput(
     @EncodeDefault(EncodeDefault.Mode.NEVER) val page: CashImportArchivePage? = null,
 ) {
     fun encode(): String {
-        if (receipt.projectionVersion == null && receipt.accountRevision == null && receipt.account == null &&
-            receipt.summary.keys.none { it in exactReadIdentifierFields } &&
-            receipt.legacyByAccount.keys.none { it in exactReadIdentifierFields })
+        if (!receipt.needsExactResultIdentifiers())
             return outputJson.encodeToString(this)
         // Permitted historical receipt metadata still uses the same exact numeric identifier conversion.
         return buildJsonObject {
             put("batch_id", batchId)
-            put("receipt", exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), receipt)))
+            put("receipt", receipt.receiptWithExactIdentifiers())
             put("items_complete", itemsComplete)
             page?.let { put("page", outputJson.encodeToJsonElement(CashImportArchivePage.serializer(), it)) }
         }.toString()

@@ -199,6 +199,14 @@ class CashImportRecoveryEntryParityTest {
         readPaths.clear()
         val ledgerReadsBeforeRecovery = store.ledgerStateReads
         val frozen = checkNotNull(store.batch)
+        store.batch = frozen.copy(submission = checkNotNull(frozen.submission).copy(
+            key = "damaged/key", receipt = cashWriteSetJson.encodeToString(receipt),
+        ))
+        val invalidArchive = assertFailsWith<IllegalStateException> { reopened.resume(workspace.id, prepared.batchId) }
+        assertEquals("cash_import_submission_identity_invalid", invalidArchive.message)
+        assertEquals(null, store.batch?.result)
+        store.batch = frozen
+        readPaths.clear()
         val recovered = assertIs<ClientCashImportResume.Committed>(reopened.resume(workspace.id, prepared.batchId))
         assertEquals(listOf(
             "/api/v1/auth/session",

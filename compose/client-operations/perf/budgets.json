@@ -1419,6 +1419,12 @@
       ]
     },
     {
+      "signature": "ClientCashImportOperations.result|result(kotlin.String?;kotlin.String;kotlin.coroutines.SuspendFunction2<com.finance.tracker.client.ClientStoredSession,kotlin.String,0:0?>;kotlin.Function1<com.finance.tracker.business.domain.CashImportResultContent,0:0>){0§<kotlin.Any>}",
+      "scenarios": [
+        "large.result"
+      ]
+    },
+    {
       "signature": "ClientCashImportOperations.resume|resume(kotlin.String?;kotlin.String){}",
       "scenarios": [
         "import.resume",
@@ -2146,9 +2152,9 @@
       "reason": "Narrow committed status record covered by installed status after archiving the original receipt"
     },
     {
-      "signature": "ClientCashImportStore.rememberArchivedConfirmation|rememberArchivedConfirmation(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String;kotlin.String;kotlin.String){}",
+      "signature": "ClientCashImportStore.rememberArchivedConfirmation|rememberArchivedConfirmation(com.finance.tracker.client.ClientStoredSession;kotlin.String;com.finance.tracker.business.domain.CashImportResultContent){}",
       "disposition": "spi",
-      "reason": "Archive commit and status-cache persistence covered by installed response-loss recovery"
+      "reason": "Archive commit and authenticated local projections covered by installed response-loss recovery and large.result"
     }
   ],
   "nonOperations": [
