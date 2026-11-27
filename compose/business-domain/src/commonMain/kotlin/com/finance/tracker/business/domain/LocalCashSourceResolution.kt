@@ -15,7 +15,7 @@ fun resolveLocalCashSourceFile(rows: List<SourceOccurrence>, records: List<Sourc
 /** Batch deduplication only; selecting eligible cached records is the caller's read-port responsibility. */
 fun resolveLocalCashSourceBatch(input: SourceBatchRows, records: List<SourceRecord>,
     knownDocumentEvidence: List<SourceDocumentEvidence> = emptyList()): SourceBatchPlan =
-    localCashSourceBatch.resolve(input, records, knownDocumentEvidence)
+    localCashSourceBatch.resolveWithoutRetainingNormalization(input, records, knownDocumentEvidence)
 
 /** Allocate once per new intent; persist an unbound row's random identity before retrying a submission. */
 @OptIn(ExperimentalUuidApi::class)
