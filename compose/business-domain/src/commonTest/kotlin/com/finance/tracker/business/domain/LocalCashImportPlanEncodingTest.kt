@@ -1,5 +1,6 @@
 package com.finance.tracker.business.domain
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.*
 import kotlin.test.*
 import kotlin.time.Instant
@@ -50,5 +51,36 @@ class LocalCashImportPlanEncodingTest {
         assertEquals(Json.parseToJsonElement("""{"summary":{"count":2147483647},"file_results":[{"recognized_row_count":null}]}"""),
             freezeLocalCashImportPreviewPlan(mapOf("summary" to mapOf("count" to Int.MAX_VALUE),
                 "file_results" to listOf(mapOf("recognized_row_count" to null)))))
+    }
+
+    @Test
+    fun malformedKeysAreRejectedWithoutInvokingTheirConversion() {
+        val badKey = object {
+            override fun toString(): String = error("unexpected key conversion")
+        }
+        val nested = linkedMapOf("valid" to 0, badKey to 1)
+        assertFailsWith<InvalidCashValue> { freezeLocalCashImportPreviewPlan(mapOf("outer" to nested)) }
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    @Test
+    fun frozenJsonPreservesCanonicalFieldsAndOwnsTheCopiedContainers() {
+        val locations = mutableListOf(mapOf("row_number" to JsonPrimitive(9L)))
+        val input = linkedMapOf(
+            "summary" to linkedMapOf("new" to JsonUnquotedLiteral("0007")),
+            "file_results" to listOf(mapOf(
+                "recognized_row_count" to JsonPrimitive(2L),
+                "diagnostic" to mapOf("locations" to locations, "total_locations" to JsonPrimitive(1L)),
+            )),
+            "𐐷" to listOf(JsonUnquotedLiteral("-00042"), CashImportPreviewInteger.parse("9223372036854775808")),
+            "\uE000" to "中文",
+        )
+        val frozen = freezeLocalCashImportPreviewPlan(input)
+        input.clear()
+        locations.clear()
+        assertEquals(
+            """{"file_results":[{"diagnostic":{"locations":[{"row_number":9}],"total_locations":1},"recognized_row_count":2}],"summary":{"new":7},"":"中文","𐐷":[-42,9223372036854775808]}""",
+            frozen.toString(),
+        )
     }
 }

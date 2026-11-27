@@ -15,19 +15,24 @@ fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
         return SourceJsonInteger(number)
     }
 
-    fun transform(value: Any?, path: List<String>): Any? = when (value) {
-        null, JsonNull -> null
-        is CashAmount -> localCashStoredDecimalText(value.toString())
-        is CashDecimalLiteral -> localCashStoredDecimalText(value.text)
-        is Instant -> formatPythonCashTimestamp(value)
-        is JsonPrimitive -> value.also {
-            if (!it.isString && it.booleanOrNull == null && !localCashInteger.matches(it.content) &&
-                it.doubleOrNull?.isFinite() != true) throw InvalidCashValue()
+    fun encode(value: Any?, path: List<String>): JsonElement = when (value) {
+        is CashAmount -> encodeLocalCashValue(localCashStoredDecimalText(value.toString()))
+        is CashDecimalLiteral -> encodeLocalCashValue(localCashStoredDecimalText(value.text))
+        is Instant -> encodeLocalCashValue(formatPythonCashTimestamp(value))
+        is JsonPrimitive -> {
+            if (value != JsonNull && !value.isString && value.booleanOrNull == null && !localCashInteger.matches(value.content) &&
+                value.doubleOrNull?.isFinite() != true) throw InvalidCashValue()
+            encodeLocalCashValue(value)
         }
-        is Number -> value.also { if (!it.toDouble().isFinite()) throw InvalidCashValue() }
-        is List<*> -> value.map { transform(it, path + "[]") }
-        is Map<*, *> -> value.entries.associate { (key, item) ->
-            val name = key as? String ?: throw InvalidCashValue()
+        is Number -> {
+            if (!value.toDouble().isFinite()) throw InvalidCashValue()
+            encodeLocalCashValue(value)
+        }
+        is List<*> -> {
+            val itemPath = path + "[]"
+            JsonArray(value.map { encode(it, itemPath) })
+        }
+        is Map<*, *> -> encodeLocalCashObject(value) { name, item ->
             val normalized = when {
                 path == listOf("summary") -> count(item)
                 path == listOf("file_results", "[]") && name == "recognized_row_count" -> count(item, true)
@@ -35,9 +40,9 @@ fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
                 path == listOf("file_results", "[]", "diagnostic", "locations", "[]") && name == "row_number" -> count(item, true)
                 else -> item
             }
-            name to transform(normalized, path + name)
+            encode(normalized, path + name)
         }
-        else -> value
+        else -> encodeLocalCashValue(value)
     }
-    return encodeLocalCashValue(transform(value, emptyList())).jsonObject
+    return encode(value, emptyList()).jsonObject
 }

@@ -62,14 +62,21 @@ fun encodeLocalCashValue(value: Any?): JsonElement = when (value) {
     is Instant -> JsonPrimitive(localCashInstantText(value))
     is Number -> JsonUnquotedLiteral(localCashFloatText(value.toDouble()))
     is List<*> -> JsonArray(value.map(::encodeLocalCashValue))
-    is Map<*, *> -> JsonObject(value.entries.sortedWith { a, b -> pythonStringOrder(a.key.toString(), b.key.toString()) }
-        .associate { (key, item) ->
-            val text = key as? String ?: throw InvalidCashValue()
-            text.encodeToByteArray(throwOnInvalidSequence = true)
-            text to encodeLocalCashValue(item)
-        })
+    is Map<*, *> -> encodeLocalCashObject(value) { _, item -> encodeLocalCashValue(item) }
     else -> throw InvalidCashValue()
 }
+
+internal inline fun encodeLocalCashObject(
+    values: Map<*, *>, encode: (String, Any?) -> JsonElement,
+): JsonObject = JsonObject(values.entries.sortedWith { a, b ->
+    val first = a.key as? String ?: throw InvalidCashValue()
+    val second = b.key as? String ?: throw InvalidCashValue()
+    pythonStringOrder(first, second)
+}.associate { (key, item) ->
+    val text = key as? String ?: throw InvalidCashValue()
+    text.encodeToByteArray(throwOnInvalidSequence = true)
+    text to encode(text, item)
+})
 
 private fun localCashFloatText(value: Double): String = when {
     value.isNaN() -> "NaN"
