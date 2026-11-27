@@ -6,9 +6,9 @@ import kotlinx.serialization.json.*
 /** Compare complete review results and writes. Choice recovery, discovery and retry authorization remain with the caller. */
 fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String {
     val values = CashImportConclusionValues(source.facts, changes)
-    val writes = values.normalized()
-    val review = PlanConclusion(source.facts, plan, values).normalized()
-    return hashCashImportConclusion(source.workspaceId, writes, review)
+    return hashCashImportConclusion(source.workspaceId, values::normalized) { append ->
+        PlanConclusion(source.facts, plan, values).writeNormalized(append)
+    }
 }
 
 internal val fullConclusionJson = Json { encodeDefaults = true }
@@ -57,42 +57,45 @@ private class PlanConclusion(private val facts: LedgerFactsDto, private val plan
         }))
     }
 
-    fun normalized(): JsonObject {
-        val review = buildJsonObject {
-            put("can_commit", plan.getValue("can_commit")); put("summary", plan.getValue("summary"))
-            put("files", plan.getValue("file_results"))
-            put("rows", ordered(plan.objects("row_decisions").map(::row)))
-            put("processing", ordered(plan.objects("processing_details").map(::row)))
-            put("operations", ordered(operations.map(::operation)))
-            put("groups", ordered(normalizedGroups))
-            put("failures", ordered(plan.objects("relation_failures").map(::failure)))
-            val stale = plan.getValue("invalidated_relation_choices").jsonObject.mapValues { (_, raw) -> staleChoice(raw.jsonObject) }
-            put("invalidated", ordered(plan.objects("invalidated_choices").map { marker ->
+    fun writeNormalized(append: (Int) -> Unit) {
+        val stale by lazy {
+            plan.getValue("invalidated_relation_choices").jsonObject.mapValues { (_, raw) -> staleChoice(raw.jsonObject) }
+        }
+        val fields = mapOf<String, () -> JsonElement>(
+            "can_commit" to { plan.getValue("can_commit") },
+            "summary" to { plan.getValue("summary") },
+            "files" to { plan.getValue("file_results") },
+            "rows" to { ordered(plan.objects("row_decisions").map(::row)) },
+            "processing" to { ordered(plan.objects("processing_details").map(::row)) },
+            "operations" to { ordered(operations.map(::operation)) },
+            "groups" to { ordered(normalizedGroups) },
+            "failures" to { ordered(plan.objects("relation_failures").map(::failure)) },
+            "invalidated" to { ordered(plan.objects("invalidated_choices").map { marker ->
                 val reference = marker.text("reference") ?: marker.text("suggestion_id")
                 JsonObject(marker.filterKeys { it !in setOf("reference", "suggestion_id", "candidate_id") } +
                     (stale[reference]?.let { mapOf("source" to it) } ?: emptyMap()))
-            }))
-            put("invalidated_sources", ordered(stale.values.toList()))
-            put("type_effects", JsonObject(plan.getValue("type_effects").jsonObject.mapValues { (key, raw) -> when (key) {
+            }) },
+            "invalidated_sources" to { ordered(stale.values.toList()) },
+            "type_effects" to { JsonObject(plan.getValue("type_effects").jsonObject.mapValues { (key, raw) -> when (key) {
                 "removed_relation_ids" -> ordered(raw.jsonArray.map { relationKey(it.jsonPrimitive.content) })
                 "removed_funding_ids" -> ordered(raw.jsonArray.map { funding(oldFunding.getValue(it.jsonPrimitive.content)) })
                 else -> raw
-            } }))
-            put("items", ordered(plan.objects("items").map { item ->
+            } }) },
+            "items" to { ordered(plan.objects("items").map { item ->
                 val detail = plan.getValue("item_details").jsonObject.getValue(item.text("preview_item_id")!!).jsonObject
                 JsonObject(item.filterKeys { it != "preview_item_id" } + mapOf(
                     "display" to financial(item.getValue("display").jsonObject),
                     "member_refs" to references(item.getValue("member_refs")), "detail" to detail(detail)))
-            }))
-            put("monthly", ordered(plan.objects("monthly_source").map(::financial)))
-            put("details", ordered(plan.getValue("detail_values").jsonObject.map { (id, fields) ->
+            }) },
+            "monthly" to { ordered(plan.objects("monthly_source").map(::financial)) },
+            "details" to { ordered(plan.getValue("detail_values").jsonObject.map { (id, fields) ->
                 buildJsonObject { put("parent", parent(id)); put("values", financial(fields.jsonObject)) }
-            }))
-            put("source_candidates", ordered(plan.getValue("source_candidate_sets").jsonObject.values.map { candidates ->
+            }) },
+            "source_candidates" to { ordered(plan.getValue("source_candidate_sets").jsonObject.values.map { candidates ->
                 ordered(candidates.jsonArray.map { parent(it.jsonPrimitive.content) })
-            }))
-        }
-        return JsonObject(review + ("participants" to participantFacts()))
+            }) },
+        )
+        writeCashImportReviewConclusion(fields, ::participantFacts, append)
     }
 
     private fun parent(id: String): JsonElement { participants += id; return values.parent(id) }

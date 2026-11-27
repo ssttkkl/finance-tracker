@@ -61,6 +61,26 @@ class LocalCashImportRecalculationTest {
         assertEquals(sha256Hex(previous), hashCashImportConclusion(workspace, normalized, review))
     }
 
+    @Test fun separateReviewSectionsPreserveTheOldBytesAndCompleteParticipantClosure() {
+        val prefix = JsonArray(listOf(JsonPrimitive("original"), JsonPrimitive(1)))
+        val suffix = JsonArray(listOf(JsonPrimitive(("😀\t\u0000\"\\\uD800").repeat(4096)), JsonNull))
+        val visited = mutableSetOf<String>()
+        val fields = mapOf<String, () -> JsonElement>(
+            "rows" to { visited += "later"; suffix },
+            "operations" to { visited += "earlier"; prefix },
+        )
+        val participants = JsonArray(listOf(JsonPrimitive("earlier"), JsonPrimitive("later")))
+        val previous = JsonObject(linkedMapOf("operations" to prefix, "participants" to participants, "rows" to suffix))
+        val expected = sha256HexAscii { append -> writeConclusionText(previous.toString(), append) }
+        val actual = sha256HexAscii { append ->
+            writeCashImportReviewConclusion(fields, {
+                assertEquals(setOf("earlier", "later"), visited)
+                participants
+            }, append)
+        }
+        assertEquals(expected, actual)
+    }
+
     @Test fun oneFrozenPlanPreservesTheLegacyCommandConclusionAndPreviewHistory() {
         val fixture = fixture()
         val evaluatedAt = Instant.parse("2026-10-03T09:00:00Z")

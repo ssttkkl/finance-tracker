@@ -56,8 +56,9 @@ fun calculateCashImportReview(
         includePreviewContext, requireActive, progress, Clock.System::now,
     )
     val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, prepared.changes)
+    val review = prepared.confirmedReview()
     val body = if (prepared.canCommit) encodeCashImportRequest(request) else null
-    return CashImportCalculation(prepared.plan, prepared.confirmedReview(), request,
+    return CashImportCalculation(prepared.plan, review, request,
         prepared.previousReviewFor, prepared.previewContext, body)
 }
 

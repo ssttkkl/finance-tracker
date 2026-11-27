@@ -12,16 +12,70 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 internal fun hashCashImportConclusion(workspace: String, writes: CashWriteSetDto, review: JsonObject): String =
+    hashCashImportConclusion(workspace, { writes }) { append -> writeCanonicalConclusion(review, append) }
+
+internal fun hashCashImportConclusion(
+    workspace: String, writes: () -> CashWriteSetDto, review: ((Int) -> Unit) -> Unit,
+): String =
     sha256HexAscii { append ->
         val fields = linkedMapOf<String, () -> Unit>(
-            "review" to { writeCanonicalConclusion(review, append) },
+            "review" to { review(append) },
             "rules" to { writeCanonicalConclusion(JsonPrimitive(CASH_RULES_VERSION), append) },
             "version" to { writeCanonicalConclusion(JsonPrimitive("cash-import-conclusion-v1"), append) },
             "workspace" to { writeCanonicalConclusion(JsonPrimitive(workspace), append) },
-            "writes" to { writeConclusionWrites(writes, append) },
+            "writes" to { writeConclusionWrites(writes(), append) },
         )
         writeConclusionFields(fields, append)
     }
+
+/** Buffer only the ordered suffix whose fields must register their participants before the closure. */
+internal fun writeCashImportReviewConclusion(
+    fields: Map<String, () -> JsonElement>, participants: () -> JsonElement, append: (Int) -> Unit,
+) {
+    val participantField = "participants"
+    fun writeField(key: String, value: () -> JsonElement, output: (Int) -> Unit) {
+        writeConclusionText(JsonPrimitive(key).toString(), output)
+        output(':'.code)
+        writeCanonicalConclusion(value(), output)
+    }
+
+    check(participantField !in fields)
+    val keys = fields.keys.sortedWith(::pythonStringOrder)
+    val deferred = ConclusionAsciiChunks()
+    append('{'.code)
+    for (key in keys) {
+        if (pythonStringOrder(key, participantField) < 0) {
+            writeField(key, fields.getValue(key), append)
+            append(','.code)
+        } else {
+            deferred.append(','.code)
+            writeField(key, fields.getValue(key), deferred::append)
+        }
+    }
+    writeField(participantField, participants, append)
+    deferred.writeTo(append)
+    append('}'.code)
+}
+
+private class ConclusionAsciiChunks {
+    private val full = mutableListOf<ByteArray>()
+    private var tail = ByteArray(8192)
+    private var used = 0
+
+    fun append(ascii: Int) {
+        if (used == tail.size) {
+            full += tail
+            tail = ByteArray(tail.size)
+            used = 0
+        }
+        tail[used++] = ascii.toByte()
+    }
+
+    fun writeTo(append: (Int) -> Unit) {
+        for (chunk in full) for (byte in chunk) append(byte.toInt())
+        for (index in 0 until used) append(tail[index].toInt())
+    }
+}
 
 @OptIn(ExperimentalSerializationApi::class)
 private fun writeConclusionWrites(writes: CashWriteSetDto, append: (Int) -> Unit) {
