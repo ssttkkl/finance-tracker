@@ -31,7 +31,7 @@ internal class CashImportConfirmationService(
     }
 
     fun accept(token: String?, workspace: String, key: String, input: JsonObject): CashImportConfirmation {
-        val body = cashWriteSetRequestBody(input)
+        val body = cashWriteSetRequestBody(input, canonicalTree = false)
         fun replay(c: Connection, id: CashImportOperationKey): CashImportConfirmation? {
             val repo = repository(c)
             repo.receipt(id)?.let { existing ->
@@ -60,7 +60,7 @@ internal class CashImportConfirmationService(
             ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf(field))
         val base = text("base_ledger_seq", 24)
         val rules = text("rules_version", 128)
-        val stored = body.payload.toString()
+        val stored = canonicalQueuedCashWriteSet(body.payload)
         return database.writeNonblocking(lockTimeoutMillis = 250) { c ->
             val grant = reads.importGrant(c, token, workspace)
             val id = CashImportOperationKey(workspace, grant.user, key)

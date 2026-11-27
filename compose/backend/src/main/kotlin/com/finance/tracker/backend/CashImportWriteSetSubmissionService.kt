@@ -150,7 +150,7 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
 
 /** Sorted object keys, exact number lexemes, bounded before recursive contract decoding. */
 internal data class CashWriteSetRequestBody(val payload: JsonObject, val digest: String)
-internal fun cashWriteSetRequestBody(payload: JsonObject): CashWriteSetRequestBody {
+internal fun cashWriteSetRequestBody(payload: JsonObject, canonicalTree: Boolean = true): CashWriteSetRequestBody {
     val digest = java.security.MessageDigest.getInstance("SHA-256")
     var remaining = CashImportProtocol.MAX_PLAN_INPUT_BYTES
     fun invalid(): Nothing = throw CashWriteSetSubmissionFailure("write_set_payload_invalid")
@@ -176,21 +176,61 @@ internal fun cashWriteSetRequestBody(payload: JsonObject): CashWriteSetRequestBo
         return when (value) {
             is JsonObject -> {
                 emit("{")
-                val result = linkedMapOf<String, JsonElement>()
+                val fields = if (canonicalTree) linkedMapOf<String, JsonElement>() else null
                 value.keys.sorted().forEachIndexed { index, key ->
                     if (index > 0) emit(",")
-                    quoted(key); emit(":"); result[key] = visit(value.getValue(key), depth + 1)
+                    quoted(key)
+                    emit(":")
+                    val member = visit(value.getValue(key), depth + 1)
+                    fields?.put(key, member)
                 }
-                emit("}"); JsonObject(result)
+                emit("}")
+                if (fields == null) value else JsonObject(fields)
             }
             is JsonArray -> {
                 emit("[")
-                val result = value.mapIndexed { index, item -> if (index > 0) emit(","); visit(item, depth + 1) }
-                emit("]"); JsonArray(result)
+                val items = if (canonicalTree) ArrayList<JsonElement>(value.size) else null
+                value.forEachIndexed { index, item ->
+                    if (index > 0) emit(",")
+                    val member = visit(item, depth + 1)
+                    items?.add(member)
+                }
+                emit("]")
+                if (items == null) value else JsonArray(items)
             }
-            is JsonPrimitive -> { if (value.isString) quoted(value.content) else emit(value.toString()); value }
+            is JsonPrimitive -> {
+                if (value.isString) quoted(value.content) else emit(value.toString())
+                value
+            }
         }
     }
     val frozen = visit(payload, 0).jsonObject
     return CashWriteSetRequestBody(frozen, digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) })
+}
+
+internal fun canonicalQueuedCashWriteSet(payload: JsonObject): String = buildString {
+    fun appendValue(value: JsonElement) {
+        when (value) {
+            is JsonObject -> {
+                append('{')
+                value.keys.sorted().forEachIndexed { index, key ->
+                    if (index > 0) append(',')
+                    append(JsonPrimitive(key))
+                    append(':')
+                    appendValue(value.getValue(key))
+                }
+                append('}')
+            }
+            is JsonArray -> {
+                append('[')
+                value.forEachIndexed { index, item ->
+                    if (index > 0) append(',')
+                    appendValue(item)
+                }
+                append(']')
+            }
+            is JsonPrimitive -> append(value)
+        }
+    }
+    appendValue(payload)
 }

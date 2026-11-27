@@ -45,11 +45,19 @@ internal fun strictCashJsonRequest(source:PythonJsonText):DecodedPythonJson=Pyth
 internal fun exactCashWriteSetJson(text: String): JsonElement = PythonJsonInput(text,
     rejectDuplicateKeys = true, rejectNonFiniteNumbers = true, maxDepth = 128, preserveNumberLexemes = true).decode().value
 
+private val inputJsonLiterals = listOf(
+    "null" to JsonNull, "true" to JsonPrimitive(true), "false" to JsonPrimitive(false),
+    "NaN" to JsonPrimitive(Double.NaN), "Infinity" to JsonPrimitive(Double.POSITIVE_INFINITY),
+    "-Infinity" to JsonPrimitive(Double.NEGATIVE_INFINITY),
+)
+private val inputJsonNumber = Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
+
 private class PythonJsonInput(private val text:String,private val rawSurrogates:Set<Int> = emptySet(),
     private val rejectDuplicateKeys:Boolean=false,private val rejectNonFiniteNumbers:Boolean=false,private val maxDepth:Int?=null,private val preserveNumberLexemes:Boolean=false) {
     private val representations=java.util.IdentityHashMap<JsonElement,String>()
     private val rawSurrogatePositions=java.util.IdentityHashMap<JsonElement,Set<Int>>()
     private var lastStringSurrogates:Set<Int> = emptySet()
+    private val fieldNames = if (preserveNumberLexemes) HashMap<String, String>() else null
     private fun points(start:Int,end:Int):Int=text.codePointCount(start,end)+(start until end-1).count {
         text[it].isHighSurrogate() && text[it+1].isLowSurrogate() && (it in rawSurrogates || it+1 in rawSurrogates)
     }
@@ -79,14 +87,15 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
             '{' ->obj(depth)
             '[' ->array(depth)
             else -> {
-                for((literal,result) in listOf("null" to JsonNull,"true" to JsonPrimitive(true),"false" to JsonPrimitive(false),
-                    "NaN" to JsonPrimitive(Double.NaN),"Infinity" to JsonPrimitive(Double.POSITIVE_INFINITY),"-Infinity" to JsonPrimitive(Double.NEGATIVE_INFINITY))) {
-                    if(text.startsWith(literal,cursor)) {
-                        if(rejectNonFiniteNumbers && literal in setOf("NaN","Infinity","-Infinity")) failure("Non-finite number")
-                        cursor+=literal.length;return result
+                for ((index, entry) in inputJsonLiterals.withIndex()) {
+                    val (literal, result) = entry
+                    if (text.startsWith(literal, cursor)) {
+                        if (rejectNonFiniteNumbers && index >= 3) failure("Non-finite number")
+                        cursor += literal.length
+                        return result
                     }
                 }
-                val number=Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?").find(text,cursor)?.takeIf {it.range.first==cursor}?.value
+                val number = inputJsonNumber.matchAt(text, cursor)?.value
                     ?: failure("Expecting value")
                 cursor+=number.length
                 if(preserveNumberLexemes) exactNumber(number) else if(number.any {it in ".eE"}) {
@@ -108,7 +117,11 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
         if(cursor<text.length && text[cursor]=='}') {cursor++;return JsonObject(result)}
         while(true) {
             if(cursor==text.length || text[cursor]!='"') failure("Expecting property name enclosed in double quotes")
-            val key=string();whitespace()
+            val name = string()
+            val key = fieldNames?.get(name) ?: name.also {
+                if (name.length <= 96 && fieldNames != null && fieldNames.size < 128) fieldNames[name] = name
+            }
+            whitespace()
             if(rejectDuplicateKeys && key in result) failure("Duplicate object key")
             if(cursor==text.length || text[cursor]!=':') failure("Expecting ':' delimiter")
             cursor++;whitespace();result[key]=value(depth+1);whitespace()
@@ -128,6 +141,20 @@ private class PythonJsonInput(private val text:String,private val rawSurrogates:
         }
     }
     private fun string():String {
+        if (preserveNumberLexemes) {
+            var end = cursor + 1
+            while (end < text.length) {
+                val char = text[end]
+                if (char == '"') {
+                    val value = text.substring(cursor + 1, end)
+                    cursor = end + 1
+                    lastStringSurrogates = emptySet()
+                    return value
+                }
+                if (char == '\\' || char.code < 32) break
+                end++
+            }
+        }
         val start=cursor++
         val separate=mutableSetOf<Int>()
         return buildString {
