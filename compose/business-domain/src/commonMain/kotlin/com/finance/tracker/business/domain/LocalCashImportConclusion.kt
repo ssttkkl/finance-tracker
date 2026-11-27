@@ -6,7 +6,7 @@ import kotlinx.serialization.json.*
 /** Compare complete review results and writes. Choice recovery, discovery and retry authorization remain with the caller. */
 fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String {
     val values = CashImportConclusionValues(source.facts, changes)
-    return hashCashImportConclusion(source.workspaceId, values::normalized) { append ->
+    return hashCashImportConclusion(source.workspaceId, values::forSerialization) { append ->
         PlanConclusion(source.facts, plan, values).writeNormalized(append)
     }
 }

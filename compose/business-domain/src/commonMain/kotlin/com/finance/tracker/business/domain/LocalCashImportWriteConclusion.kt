@@ -43,43 +43,56 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
         is NewCashWriteReferenceDto -> ref
     }
 
-    fun normalized(): CashWriteSetDto {
+    fun normalized(): CashWriteSetDto = normalized(deferCollections = false)
+
+    fun forSerialization(): CashWriteSetDto = normalized(deferCollections = true)
+
+    private fun normalized(deferCollections: Boolean): CashWriteSetDto {
         require(changes.deletedTransactions.isEmpty() && changes.issueResolutions.isEmpty() && changes.entrySplitChoices.isEmpty()) {
             "cash_import_conclusion_file_only"
         }
         require(transactions.size == changes.transactions.size && transactions.values.toSet().size == transactions.size &&
             components.size == changes.transactions.sumOf { it.components.size } && components.values.toSet().size == components.size &&
             relations.size == changes.relations.size && relations.values.toSet().size == relations.size) { "cash_import_conclusion_identity_collision" }
+        fun <T> collection(size: Int, read: () -> List<T>): List<T> = when {
+            size == 0 -> emptyList()
+            deferCollections -> ConclusionWriteCollection(size, read)
+            else -> read()
+        }
         return changes.copy(
-            transactions = ordered(changes.transactions.map { row -> row.copy(target = transaction(row.target),
+            transactions = collection(changes.transactions.size) { ordered(changes.transactions.map { row -> row.copy(target = transaction(row.target),
                 values = row.values.copy(amount = row.values.amount?.let(::amount), occurredAt = row.values.occurredAt?.let(::timestamp)), components = ordered(row.components.map { it.copy(reference = componentRef(it.reference), amount = it.amount?.let(::amount), ordinal = integer(it.ordinal)) }),
-                editedFields = row.editedFields.sorted(), entryEdit = row.entryEdit?.let { it.copy(entry = it.entry?.let(::entry)) }) }),
-            relations = ordered(changes.relations.map { relation -> relation.copy(target = CashWriteVersionedReferenceDto(relations.getValue(relation.target.reference), null),
+                editedFields = row.editedFields.sorted(), entryEdit = row.entryEdit?.let { it.copy(entry = it.entry?.let(::entry)) }) }) },
+            relations = collection(changes.relations.size) { ordered(changes.relations.map { relation -> relation.copy(target = CashWriteVersionedReferenceDto(relations.getValue(relation.target.reference), null),
                 primaryTransaction = transaction(relation.primaryTransaction), secondaryTransaction = relation.secondaryTransaction?.let(::transaction),
                 primaryComponent = relation.primaryComponent?.let(::componentRef), secondaryComponent = relation.secondaryComponent?.let(::componentRef),
                 anchorTransaction = transaction(relation.anchorTransaction), anchorComponent = relation.anchorComponent?.let(::componentRef),
                 decisionGroupId = null, appliedAmount = amount(relation.appliedAmount), candidates = ordered(relation.candidates.map {
                     it.copy(transaction = transaction(it.transaction), component = it.component?.let(::componentRef))
-                })) }),
+                })) }) },
             // Group order is retained: B is applied in this order before final entry edits.
-            relationGroups = changes.relationGroups.map { it.copy(relations = it.relations.map(relations::getValue).sortedBy { it.ref }) },
-            issues = ordered(changes.issues.map { it.copy(target = CashWriteVersionedReferenceDto(issue(it.transaction.reference, it.issueKey), null),
-                transaction = transaction(it.transaction), candidates = ordered(it.candidates.map(::transaction))) }),
-            resolvedIssues = ordered(changes.resolvedIssues.map { version ->
+            relationGroups = collection(changes.relationGroups.size) {
+                changes.relationGroups.map { it.copy(relations = it.relations.map(relations::getValue).sortedBy { it.ref }) }
+            },
+            issues = collection(changes.issues.size) { ordered(changes.issues.map { it.copy(target = CashWriteVersionedReferenceDto(issue(it.transaction.reference, it.issueKey), null),
+                transaction = transaction(it.transaction), candidates = ordered(it.candidates.map(::transaction))) }) },
+            resolvedIssues = collection(changes.resolvedIssues.size) { ordered(changes.resolvedIssues.map { version ->
                 val old = oldIssues.getValue((version.reference as ExistingCashWriteReferenceDto).id)
                 CashWriteVersionedReferenceDto(issue(ExistingCashWriteReferenceDto(old.transactionId), old.issueKey), null)
-            }),
-            entries = ordered(changes.entries.map { it.copy(rootTransaction = transaction(it.rootTransaction),
+            }) },
+            entries = collection(changes.entries.size) { ordered(changes.entries.map { it.copy(rootTransaction = transaction(it.rootTransaction),
                 manualFields = it.manualFields.sorted(), editedFields = it.editedFields.sorted(), members = ordered(it.members.map { member ->
                     member.copy(transaction = transaction(member.transaction), standaloneManualFields = member.standaloneManualFields.sorted())
-                })) }),
+                })) }) },
             entryDependencies = emptyList(),
-            sourceBindings = ordered(changes.sourceBindings.map { it.copy(target = CashWriteVersionedReferenceDto(identity("binding",
+            sourceBindings = collection(changes.sourceBindings.size) { ordered(changes.sourceBindings.map { it.copy(target = CashWriteVersionedReferenceDto(identity("binding",
                 JsonPrimitive(it.sourceType), JsonPrimitive(it.sourceScopeKind), JsonPrimitive(it.sourceScopeKey),
-                JsonPrimitive(it.identityKind), JsonPrimitive(it.identityKey)), null), transaction = transactionRef(it.transaction)) }),
-            sourceEmptyPages = ordered(changes.sourceEmptyPages),
-            statementAccountMappings = ordered(changes.statementAccountMappings.map { it.copy(target = CashWriteVersionedReferenceDto(
-                identity("mapping", JsonPrimitive(it.sourceType), JsonPrimitive(it.identityKind), JsonPrimitive(it.sourceAccountKey)), null)) }),
+                JsonPrimitive(it.identityKind), JsonPrimitive(it.identityKey)), null), transaction = transactionRef(it.transaction)) }) },
+            sourceEmptyPages = collection(changes.sourceEmptyPages.size) { ordered(changes.sourceEmptyPages) },
+            statementAccountMappings = collection(changes.statementAccountMappings.size) { ordered(changes.statementAccountMappings.map {
+                it.copy(target = CashWriteVersionedReferenceDto(
+                    identity("mapping", JsonPrimitive(it.sourceType), JsonPrimitive(it.identityKind), JsonPrimitive(it.sourceAccountKey)), null))
+            }) },
         )
     }
 
@@ -107,6 +120,13 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
         return CashWriteVersionedReferenceDto(identity("entry-members", JsonArray(group)), null)
     }
     private fun issue(owner: CashWriteReferenceDto, key: String) = identity("issue", reference(owner), JsonPrimitive(key))
+}
+
+/** The serializer uses each iterator once. The normalized list belongs to that iterator, not the write set. */
+private class ConclusionWriteCollection<T>(override val size: Int, private val read: () -> List<T>) : AbstractList<T>() {
+    override fun iterator(): Iterator<T> = read().iterator()
+
+    override fun get(index: Int): T = read()[index]
 }
 
 private val conclusionJson = Json { encodeDefaults = true }

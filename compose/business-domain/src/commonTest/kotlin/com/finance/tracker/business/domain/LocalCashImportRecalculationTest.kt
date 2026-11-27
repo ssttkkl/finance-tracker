@@ -1,5 +1,6 @@
 package com.finance.tracker.business.domain
 
+import com.finance.tracker.business.contracts.CashSourceBindingWriteDto
 import kotlinx.serialization.json.*
 import kotlin.test.*
 import kotlin.time.Instant
@@ -79,6 +80,32 @@ class LocalCashImportRecalculationTest {
             }, append)
         }
         assertEquals(expected, actual)
+    }
+
+    @Test fun normalizedWriteSetsAreMaterializedOnlyWhenTheirCollectionIsConsumed() {
+        val fixture = fixture()
+        val (_, batch) = fixture.confirmed()
+        val reference = CashImportConclusionValues(fixture.source.facts, batch.writes).normalized()
+        val bindings = batch.writes.sourceBindings
+        assertTrue(bindings.isNotEmpty())
+        var reads = 0
+        val checked = object : AbstractList<CashSourceBindingWriteDto>() {
+            override val size = bindings.size
+            override fun get(index: Int) = bindings[index].also { reads++ }
+        }
+        val result = CashImportConclusionValues(fixture.source.facts, batch.writes.copy(sourceBindings = checked))
+            .forSerialization()
+        assertEquals(reference.sourceBindings.size, result.sourceBindings.size)
+        assertEquals(reference.transactions, result.transactions.toList())
+        assertEquals(0, reads)
+        assertEquals(reference.sourceBindings, result.sourceBindings.toList())
+        assertEquals(bindings.size, reads)
+        assertEquals(cashWriteSetJson.encodeToString(reference), cashWriteSetJson.encodeToString(result))
+        reads = 0
+        val review = buildJsonObject { put("note", "摘要𐐷") }
+        assertEquals(hashCashImportConclusion(fixture.source.workspaceId, reference, review),
+            hashCashImportConclusion(fixture.source.workspaceId, result, review))
+        assertEquals(bindings.size, reads)
     }
 
     @Test fun oneFrozenPlanPreservesTheLegacyCommandConclusionAndPreviewHistory() {
