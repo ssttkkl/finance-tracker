@@ -140,6 +140,7 @@ async function main() {
     const observed = [];
     let requestFlow;
     const requestReports = [];
+    const payloadShapes = process.env.FT_PERF_PAYLOAD_PROFILE === '1' ? [] : undefined;
     const raw = [];
     const processes = [];
     const checks = {};
@@ -154,6 +155,7 @@ async function main() {
             dirty: tool('git', ['-C', checkout, 'status', '--porcelain']).trim() !== '',
         },
         runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks, requestReports,
+        ...(payloadShapes ? { payloadProfile: { diagnosticOnly: true, payloadShapes } } : {}),
     };
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
@@ -251,7 +253,8 @@ async function main() {
         } else {
             server = await startMeasured(productionEntry, []);
         }
-        proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed, () => requestFlow);
+        proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed, () => requestFlow,
+            payloadShapes && (shape => payloadShapes.push(shape)));
         const proxyPort = await listen(proxy);
         const primaryState = join(work, 'state-primary');
         const coldState = join(work, 'state-cold');
@@ -326,9 +329,11 @@ async function main() {
             for (let i = 0; i < 5; i++) await run(['account', 'list', ...scope], prewarm);
             beginRequestRss = openSerialRssWindows(() => serviceMemory.start());
         }
-        const snapshotPath = '/api/v1/ledger/snapshot';
+        const legacySnapshot = legacyComparison || payloadShapes && process.env.FT_PERF_PAYLOAD_PROFILE_LEGACY === '1';
+        const snapshotPath = legacySnapshot ? '/api/v1/ledger/snapshot' : '/api/v1/ledger/snapshot/pages';
         const snapshots = after => observed.slice(after)
-            .filter(item => item.path === snapshotPath && item.method === 'GET' && item.status === 200).length;
+            .filter(item => item.path === snapshotPath && item.method === 'GET' && item.status === 200 &&
+                (legacySnapshot || item.page?.section === null)).length;
         const writeRequests = (key) => observed
             .filter(item => item.path === '/api/v1/cash-import/write-set' && item.method === 'POST' && item.key === key);
         const mutatingRequests = after => observed.slice(after)

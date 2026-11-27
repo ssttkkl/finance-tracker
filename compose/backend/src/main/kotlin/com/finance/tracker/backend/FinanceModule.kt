@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_HEADER
+import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
 import io.ktor.server.application.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
@@ -357,6 +359,11 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
                     put("diagnostic", Json.encodeToJsonElement(diagnostic))
                 })
+            })
+        }
+        exception<ReadPageFailure> { call, failure ->
+            call.respond(failure.status, buildJsonObject {
+                put("error", buildJsonObject { put("code", JsonPrimitive(failure.code)) })
             })
         }
         exception<CashImportProtocolError> { call, failure ->
@@ -958,7 +965,9 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(mapOf("ok" to true))
         }
         get("/api/v1/auth/session") {
-            call.respond(withContext(Dispatchers.IO) { services.state(bearerToken(call.request.headers[HttpHeaders.Authorization])) })
+            val state = withContext(Dispatchers.IO) { services.state(bearerToken(call.request.headers[HttpHeaders.Authorization])) }
+            call.response.header(COMPATIBLE_READ_PAGES_HEADER, COMPATIBLE_READ_PAGES_VERSION)
+            call.respond(state)
         }
         post("/api/v1/cash-import/accounts/currency-requirements") {
             val expectedWorkspace=call.accountWorkspace(call.attributes[requestPrincipalKey])

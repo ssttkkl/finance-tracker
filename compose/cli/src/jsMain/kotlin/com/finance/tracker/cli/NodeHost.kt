@@ -14,6 +14,11 @@ import com.finance.tracker.client.ClientCashCommandStore
 import com.finance.tracker.client.ClientCashWriteOperations
 import com.finance.tracker.client.ClientPendingCommand
 import com.finance.tracker.client.ClientCashMaintenanceOperations
+import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
+import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
+import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
+import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
+import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
 import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
 import com.finance.tracker.client.ClientHttp
 import com.finance.tracker.client.ClientHttpBody
@@ -38,7 +43,8 @@ import kotlin.time.Instant
 @JsModule("./host.mjs")
 private external object NodeHost {
     fun serverOrigin(value: String): String?
-    fun request(origin: String, method: String, path: String, token: String?, body: dynamic, headers: dynamic): Promise<dynamic>
+    fun request(origin: String, method: String, path: String, token: String?, body: dynamic, headers: dynamic,
+        maxResponseBytes: Int): Promise<dynamic>
     fun statementBody(metadata: String, ref: String, name: String, mediaType: String, bytes: ByteArray): dynamic
     fun timeZoneExists(zone: String): Boolean
     fun timeZoneOffset(epochSeconds: String, zone: String): Int
@@ -131,11 +137,18 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
             is ClientHttpBody.Statement -> NodeHost.statementBody(input.metadata, input.ref, input.name, input.mediaType, input.bytes)
             null -> null
         }
-        val result = NodeHost.request(origin, request.method, request.path, request.token, body, headers).await()
+        val maxResponseBytes = when (request.path.substringBefore('?')) {
+            LEDGER_SNAPSHOT_PAGE_PATH -> LEDGER_SNAPSHOT_PAGE_MAX_BYTES
+            CASH_IMPORT_RECEIPT_PAGE_PATH -> CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
+            else -> 0
+        }
+        if (maxResponseBytes != 0) headers["Accept-Encoding"] = "identity"
+        val result = NodeHost.request(origin, request.method, request.path, request.token, body, headers, maxResponseBytes).await()
         val status = result.status as Int
         if (status == 0) throw ClientNetworkUnavailable(IllegalStateException(result.diagnostic as String))
         if (status == -1) throw ClientOperationFailure("transport_error", cause = IllegalStateException(result.diagnostic as String))
-        ClientHttpResponse(status, result.body as String)
+        if (status == -2) throw ClientOperationFailure("protocol_error")
+        ClientHttpResponse(status, result.body as String, (result.readPages as String?) == COMPATIBLE_READ_PAGES_VERSION)
     }
 private const val largeImportRequestLength = 1024 * 1024
 
@@ -183,7 +196,12 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     override suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean {
         val workspaceId = ledger.snapshot.workspaceId
         if (!sameState(session, session()) || ledgerState(session, workspaceId).generation != expectedGeneration) return false
-        database.write(slot(session, workspaceId), Json.encodeToString(ClientLedgerState(newReference(), ledger)))
+        val parts = ledgerCacheText(newReference(), ledger)
+        database.writeGeneratedState(slot(session, workspaceId), {
+            val cursor = parts.iterator()
+            val next: () -> String? = { if (cursor.hasNext()) cursor.next() else null }
+            next
+        })
         return true
     }
 

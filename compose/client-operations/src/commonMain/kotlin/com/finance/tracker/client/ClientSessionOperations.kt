@@ -1,5 +1,10 @@
 package com.finance.tracker.client
 
+import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
+import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
+import com.finance.tracker.business.contracts.CashImportReceiptReadPage
+import com.finance.tracker.business.contracts.LedgerSnapshotReadPage
+import com.finance.tracker.business.contracts.ReadPagePosition
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.AccountReferenceDto
 import com.finance.tracker.business.contracts.CashImportConfirmation
@@ -20,6 +25,7 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.serializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.SerializationException
 import com.finance.tracker.business.domain.CashStatementFormat
 import com.finance.tracker.business.domain.ParsedCashDocument
@@ -41,7 +47,7 @@ class ClientOperationFailure(
 ) : Exception(code, cause)
 class ClientNetworkUnavailable(cause: Throwable? = null) : Exception("network_unavailable", cause)
 
-data class ClientHttpResponse(val status: Int, val body: String)
+data class ClientHttpResponse(val status: Int, val body: String, val supportsCompatibleReadPages: Boolean = false)
 
 sealed interface ClientHttpBody {
     class Json(val text: String) : ClientHttpBody
@@ -74,7 +80,11 @@ data class ClientInvitation(
 )
 
 @Serializable
-class ClientStoredSession(val token: String, val session: SessionDto)
+class ClientStoredSession(
+    val token: String,
+    val session: SessionDto,
+    @Transient internal val supportsCompatibleReadPages: Boolean = false,
+)
 
 @Serializable
 class ClientStoredLedger(
@@ -375,7 +385,8 @@ class ClientSessionOperations(
 
     internal suspend fun cashImportReceipt(binding: ClientStoredSession, workspace: String, key: String): CashMutationReceiptDto? =
         readCashReceipt(binding) {
-            withWorkspaceRead(binding, workspace) {
+            if (binding.supportsCompatibleReadPages) readPagedCashImportReceipt(binding, workspace, key)
+            else withWorkspaceRead(binding, workspace) {
                 scopedRequest("GET", "/api/v1/cash-import/write-set/receipt", binding, workspace,
                     headers = mapOf("Idempotency-Key" to key))
             }
@@ -556,8 +567,9 @@ class ClientSessionOperations(
                     throw ClientOperationFailure("read_snapshot_changed")
                 cached
             } else {
-                val snapshot = ledgerRequest<LedgerSnapshotDto>("/api/v1/ledger/snapshot$suffix", binding, workspace)
                 val minimumSeq = maxOf(seq, cached?.snapshot?.ledgerSeq?.let(::revision) ?: 0L)
+                val snapshot = if (binding.supportsCompatibleReadPages) readPagedSnapshot(binding, workspace, minimumSeq)
+                else ledgerRequest<LedgerSnapshotDto>("/api/v1/ledger/snapshot$suffix", binding, workspace)
                 if (snapshot.workspaceId != workspace || revision(snapshot.ledgerSeq) < minimumSeq || snapshot.rulesVersion.isBlank())
                     throw ClientOperationFailure("protocol_error")
                 ClientStoredLedger(snapshot, now()).also {
@@ -580,6 +592,48 @@ class ClientSessionOperations(
         }
     }
 
+    private suspend fun readPagedSnapshot(binding: ClientStoredSession, workspace: String, minimumSeq: Long): LedgerSnapshotDto {
+        val assembly = LedgerSnapshotAssembly(workspace, minimumSeq)
+        val path = "$LEDGER_SNAPSHOT_PAGE_PATH?workspace_id=${encodeComponent(workspace)}"
+        while (true) {
+            val position = assembly.position ?: break
+            requireCurrent(binding)
+            val query = pagePositionQuery(position, "ledger_seq", assembly.ledgerSeq)
+            val page = ledgerRequest<LedgerSnapshotReadPage>(path + query, binding, workspace)
+            requireCurrent(binding)
+            assembly.append(page)
+        }
+        return assembly.complete()
+    }
+
+    private suspend fun readPagedCashImportReceipt(binding: ClientStoredSession, workspace: String, key: String): CashMutationReceiptDto {
+        val assembly = CashImportReceiptAssembly(workspace)
+        val path = "$CASH_IMPORT_RECEIPT_PAGE_PATH?workspace_id=${encodeComponent(workspace)}"
+        val headers = mapOf("Idempotency-Key" to key)
+        while (true) {
+            val position = assembly.position ?: break
+            requireCurrent(binding)
+            val query = pagePositionQuery(position, "receipt_id", assembly.receiptId)
+            val page = try {
+                withWorkspaceRead(binding, workspace) {
+                    request<CashImportReceiptReadPage>("GET", path + query, binding.token, headers = headers)
+                }
+            } catch (failure: ClientOperationFailure) {
+                if (assembly.receiptId != null && failure.status == 404) invalidReadPage()
+                throw failure
+            }
+            requireCurrent(binding)
+            assembly.append(page)
+        }
+        return assembly.complete()
+    }
+
+    private fun pagePositionQuery(position: ReadPagePosition, pinName: String, pin: String?): String {
+        if (pin == null) return ""
+        return "&$pinName=${encodeComponent(pin)}&section=${encodeComponent(position.section)}&offset=${position.offset}" +
+            if (position.fragmentOffset == 0) "" else "&fragment_offset=${position.fragmentOffset}"
+    }
+
     internal suspend fun requireCurrent(binding: ClientStoredSession) {
         val current = store.session()
         if (current?.token != binding.token || current.session != binding.session)
@@ -589,13 +643,17 @@ class ClientSessionOperations(
     private suspend fun requireSession(): ClientStoredSession =
         store.session() ?: throw ClientOperationFailure("authentication_required", 401)
 
-    private suspend fun onlineSession(original: ClientStoredSession): ClientStoredSession =
-        accept(original, authenticated(original) { access.session(original.token) })
+    private suspend fun onlineSession(original: ClientStoredSession): ClientStoredSession {
+        val (dto, supportsPages) = authenticated(original) { access.sessionCapabilities(original.token) }
+        return accept(original, dto, supportsPages)
+    }
 
-    private suspend fun accept(original: ClientStoredSession, response: SessionDto): ClientStoredSession {
+    private suspend fun accept(
+        original: ClientStoredSession, response: SessionDto, supportsPages: Boolean = false,
+    ): ClientStoredSession {
         val session = validateClientSession(response)
         if (session.user != original.session.user) throw ClientOperationFailure("protocol_error")
-        return ClientStoredSession(original.token, session).also {
+        return ClientStoredSession(original.token, session, supportsPages).also {
             if (!store.verify(original, it)) throw ClientOperationFailure("session_changed")
         }
     }

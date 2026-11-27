@@ -75,7 +75,37 @@ export function splitLargeImportRequest(text, field, threshold) {
     }
 }
 
-export async function request(origin, method, path, token, body, suppliedHeaders) {
+class InvalidReadPage extends Error {}
+
+async function readPageBody(response, limit) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new InvalidReadPage();
+    const encoding = response.headers.get('Content-Encoding')?.toLowerCase();
+    const length = response.headers.get('Content-Length');
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    let body = '';
+    let bytes = 0;
+    try {
+        if ((encoding && encoding !== 'identity') || (length !== null && Number(length) > limit)) throw new InvalidReadPage();
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            bytes += value.byteLength;
+            if (bytes > limit) throw new InvalidReadPage();
+            try { body += decoder.decode(value, { stream: true }); }
+            catch (error) { throw new InvalidReadPage('Invalid UTF-8 in read page', { cause: error }); }
+        }
+        try { return body + decoder.decode(); }
+        catch (error) { throw new InvalidReadPage('Invalid UTF-8 in read page', { cause: error }); }
+    } catch (error) {
+        await reader.cancel().catch(() => {});
+        throw error;
+    } finally {
+        reader.releaseLock();
+    }
+}
+
+export async function request(origin, method, path, token, body, suppliedHeaders, maxResponseBytes = 0) {
     const url = new URL(path, origin);
     if (url.origin !== origin) throw new Error('Invalid request origin');
     const headers = { Accept: 'application/json', ...suppliedHeaders };
@@ -85,9 +115,12 @@ export async function request(origin, method, path, token, body, suppliedHeaders
     let response;
     try {
         response = await fetch(url, { method, headers, body, redirect: 'manual', signal });
-        return { status: response.status, body: await response.text() };
+        const readPages = response.headers.get('X-FT-Read-Pages');
+        const text = maxResponseBytes > 0 ? await readPageBody(response, maxResponseBytes) : await response.text();
+        return { status: response.status, body: text, readPages };
     } catch (error) {
         if (response && !response.ok) return { status: response.status, body: '' };
+        if (error instanceof InvalidReadPage) return { status: -2, body: '' };
         const diagnostic = error.cause?.code || error.name;
         if (networkFailure(error, signal)) return { status: 0, body: '', diagnostic };
         if (error instanceof TypeError && error.cause) return { status: -1, body: '', diagnostic };
@@ -216,6 +249,20 @@ function sealStateText(key, aad, payload) {
     return sealStateChunks(key, aad, Buffer.byteLength(payload, 'utf8'), stateTextChunks(payload));
 }
 
+function* generatedStateText(createCursor) {
+    const next = createCursor();
+    for (let part = next(); part !== null; part = next()) {
+        if (typeof part !== 'string') throw new Error('Invalid encrypted state text');
+        yield* stateTextChunks(part);
+    }
+}
+
+function sealGeneratedState(key, aad, createCursor) {
+    let bytes = 0;
+    for (const part of generatedStateText(createCursor)) bytes += Buffer.byteLength(part, 'utf8');
+    return sealStateChunks(key, aad, bytes, generatedStateText(createCursor));
+}
+
 function escapedJsonStringBytes(text) {
     let bytes = Buffer.byteLength(text, 'utf8');
     for (let index = 0; index < text.length; index++) {
@@ -325,6 +372,9 @@ export function openStore(origin, createKey) {
             },
             write(slot, payload) {
                 writeState(slot, (key, aad) => sealStateText(key, aad, payload));
+            },
+            writeGeneratedState(slot, createCursor) {
+                writeState(slot, (key, aad) => sealGeneratedState(key, aad, createCursor));
             },
             writeFrozenImportBatch(slot, metadata, request) {
                 writeState(slot, (key, aad) => sealFrozenImportBatch(key, aad, metadata, request));

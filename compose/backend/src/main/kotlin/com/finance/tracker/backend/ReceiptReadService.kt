@@ -32,6 +32,7 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
         }
         catch(failure: AccessFailure) {throw failure}
         catch(failure: ReceiptFailure) {throw failure}
+        catch(failure: ReadPageFailure) {throw failure}
         catch(failure: Exception) {throw ReceiptUnavailable(failure)}
     }
     private fun verifyCurrent(expected: Principal, actual: Principal) {
@@ -49,6 +50,43 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
                 ?.takeIf { it["operation_kind"] == JsonPrimitive("cash_write_set") }
                 ?: throw ReceiptFailure("receipt_not_found")
             publicReceipt(receipt)
+        }
+
+    internal fun importReceiptPage(token: String?, key: String, page: ReadPageRequest): ByteArray =
+        context(token, lock = false, expectedWorkspace = page.workspace, snapshot = true) { connection, principal ->
+            val section = CashImportReceiptSection.entries.singleOrNull { it.wireName == page.position.section }
+                ?: throw ReadPageFailure()
+            val stored = ReceiptRepository(connection, page.workspace, database.sqlite)
+                .importPage(principal.userId, key, section, page.position)
+                ?: throw ReceiptFailure("receipt_not_found")
+            if (page.pin != null && page.pin != stored.id) readPageChanged()
+            val items = when (section) {
+                CashImportReceiptSection.HEADER -> {
+                    val authority = publicReceipt(stored.items.single().jsonObject)
+                    stored.pendingCount?.let { count ->
+                        if (!validReceiptPendingCount(authority["pending_item_count"]?.jsonPrimitive?.intOrNull, count))
+                            throw IllegalArgumentException("mutation_receipt_invalid")
+                    }
+                    listOf(buildJsonObject {
+                        put("receipt", authority)
+                        put("has_pending_transaction_ids", stored.pendingCount != null)
+                    })
+                }
+                CashImportReceiptSection.PENDING_TRANSACTION_IDS ->
+                    receiptPendingTransactions(stored.items, "mutation_receipt_invalid")
+                else -> {
+                    val arrays = buildJsonObject {
+                        for (field in CashImportReceiptSection.entries.drop(1).dropLast(1)) {
+                            put(field.wireName, JsonArray(if (field == section) stored.items else emptyList()))
+                        }
+                    }
+                    receiptWriteSetResult(arrays, "mutation_receipt_invalid").getValue(section.wireName).jsonArray
+                }
+            }
+            val chunk = boundedReadPageChunk(page.position, CashImportReceiptSection.entries.map { it.wireName },
+                stored.count, items.asSequence(), importReceiptReadPageTargetBytes)
+            val result = CashImportReceiptReadPage(page.workspace, stored.id, stored.version, chunk)
+            compatibleReadPageJson.encodeToString(result).encodeToByteArray()
         }
 
     internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null,

@@ -5,7 +5,8 @@ import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 
 import { requestSequenceHeader } from './client-request-clock.mjs';
-import { importRequestRoute } from './import-request-routes.mjs';
+import { importRequestRoute, readPageCoordinates } from './import-request-routes.mjs';
+import { observePayloadShape } from './payload-shape.mjs';
 import { observeProxyRequest } from './request-observation.mjs';
 import { forwardedLoopbackHeaders } from './loopback-headers.mjs';
 
@@ -13,12 +14,16 @@ export function observedTime() {
     return { utc: new Date().toISOString(), monotonicMs: performance.now() };
 }
 
-export function openProxy(cert, key, backendPort, observed, requestFlow = () => undefined) {
+export function openProxy(cert, key, backendPort, observed, requestFlow = () => undefined, observePayload) {
     // The CLI may spend several seconds parsing local files between two remote parser calls.
     // The temporary TLS front end owns that idle window separately from Ktor connections.
     const proxy = createServer({ cert, key }, (incoming, outgoing) => {
-        const path = new URL(incoming.url, 'https://127.0.0.1').pathname.replace(/\/$/, '');
+        const url = new URL(incoming.url, 'https://127.0.0.1');
+        const path = url.pathname.replace(/\/$/, '');
+        const route = importRequestRoute(incoming.method, path);
+        const page = readPageCoordinates(route, url);
         const flow = requestFlow();
+        if (observePayload && route === 'submit') observePayloadShape(incoming, route, observePayload);
         let tracker;
         let window;
         const finishRssWindow = () => {
@@ -32,13 +37,13 @@ export function openProxy(cert, key, backendPort, observed, requestFlow = () => 
             flow.started += 1;
             try {
                 window = flow.beginRss?.();
-                tracker = observeProxyRequest(incoming, { flow: flow.id, route: importRequestRoute(incoming.method, path) });
+                tracker = observeProxyRequest(incoming, { flow: flow.id, route, page });
             } catch (error) {
                 finishRssWindow();
                 flow.errors.push(error.message);
             }
         }
-        const observation = { method: incoming.method, path, bytes: 0, status: null };
+        const observation = { method: incoming.method, path, bytes: 0, status: null, ...(page ? { page } : {}) };
         const confirm = path === '/api/v1/cash-import/write-set' && incoming.method === 'POST';
         if (confirm) {
             observation.key = incoming.headers['idempotency-key'] ?? null;
@@ -60,6 +65,9 @@ export function openProxy(cert, key, backendPort, observed, requestFlow = () => 
             headers: { ...headers, host: '127.0.0.1' },
         }, response => {
             observation.status = response.statusCode;
+            if (observePayload && response.statusCode === 200 && (route === 'snapshot' || route === 'receipt')) {
+                observePayloadShape(response, route, observePayload);
+            }
             if (tracker) {
                 let rss;
                 if (window) response.once('end', () => { rss = finishRssWindow(); });

@@ -42,7 +42,7 @@
         "maxRequestBytes": 65536,
         "maxResponseBytes": 262144
       },
-      "receipt": {
+      "receiptPage": {
         "maxServerMs": 1000,
         "maxServiceIncreaseBytes": 33554432,
         "maxRequestBytes": 0,
@@ -60,7 +60,7 @@
         "maxRequestBytes": 0,
         "maxResponseBytes": 2097152
       },
-      "snapshot": {
+      "snapshotPage": {
         "maxServerMs": 2000,
         "maxServiceIncreaseBytes": 67108864,
         "maxRequestBytes": 0,
@@ -2187,7 +2187,7 @@
         "ClientHttpBody.Json.<init>|<init>(kotlin.String){}",
         "ClientHttpBody.Statement.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.ByteArray){}",
         "ClientHttpRequest.<init>|<init>(kotlin.String;kotlin.String;kotlin.String?;com.finance.tracker.client.ClientHttpBody?;kotlin.collections.Map<kotlin.String,kotlin.String>){}",
-        "ClientHttpResponse.<init>|<init>(kotlin.Int;kotlin.String){}",
+        "ClientHttpResponse.<init>|<init>(kotlin.Int;kotlin.String;kotlin.Boolean){}",
         "ClientImportAccountOperations.<init>|<init>(com.finance.tracker.client.ClientCashImportOperations;com.finance.tracker.client.ClientCashWriteOperations;com.finance.tracker.client.ClientSessionOperations){}",
         "ClientImportSubmissionState.Complete.<init>|<init>(1:0){}",
         "ClientImportSubmissionState.Pending.<init>|<init>(com.finance.tracker.business.contracts.StoredCashImportSubmission){}",
@@ -2199,7 +2199,7 @@
         "ClientPendingWrite.<init>|<init>(kotlin.String;kotlin.String){}",
         "ClientSessionOperations.<init>|<init>(com.finance.tracker.client.ClientHttp;com.finance.tracker.client.ClientSessionStore;kotlin.Function1<kotlin.String,kotlin.String>;kotlin.Function0<kotlin.String>){}",
         "ClientStoredLedger.<init>|<init>(com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlin.String){}",
-        "ClientStoredSession.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.SessionDto){}",
+        "ClientStoredSession.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.SessionDto;kotlin.Boolean){}",
         "ConfirmedAccountWrite.<init>|<init>(1:0;com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.String){}",
         "EditCashCategory.<init>|<init>(kotlin.String;kotlin.String?;kotlin.String;kotlin.Long){}",
         "ImportAccountChangeResult.<init>|<init>(kotlin.String;kotlin.String?;kotlin.String;kotlin.String?){}",
@@ -2498,10 +2498,12 @@
         "ClientHttpResponse.body.<get-body>|<get-body>(){}",
         "ClientHttpResponse.component1|component1(){}",
         "ClientHttpResponse.component2|component2(){}",
-        "ClientHttpResponse.copy|copy(kotlin.Int;kotlin.String){}",
+        "ClientHttpResponse.component3|component3(){}",
+        "ClientHttpResponse.copy|copy(kotlin.Int;kotlin.String;kotlin.Boolean){}",
         "ClientHttpResponse.equals|equals(kotlin.Any?){}",
         "ClientHttpResponse.hashCode|hashCode(){}",
         "ClientHttpResponse.status.<get-status>|<get-status>(){}",
+        "ClientHttpResponse.supportsCompatibleReadPages.<get-supportsCompatibleReadPages>|<get-supportsCompatibleReadPages>(){}",
         "ClientHttpResponse.toString|toString(){}",
         "ClientImportSubmissionState.Complete.component1|component1(){}",
         "ClientImportSubmissionState.Complete.copy|copy(1:0){}",

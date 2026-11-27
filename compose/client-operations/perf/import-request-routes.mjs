@@ -9,6 +9,7 @@ export const importRequestRoutes = {
     pdf: ['POST', `${importPath}/pdf/parse`],
     xls: ['POST', `${importPath}/xls/parse`],
     snapshot: ['GET', `${ledger}/snapshot`],
+    snapshotPage: ['GET', `${ledger}/snapshot/pages`],
     version: ['GET', `${ledger}/version`],
     accounts: ['GET', accounts],
     account: ['GET', `${accounts}/by-id/{account_id}`],
@@ -20,6 +21,7 @@ export const importRequestRoutes = {
     status: ['GET', `${writeSet}/status`],
     cancel: ['POST', `${writeSet}/cancel`],
     receipt: ['GET', `${writeSet}/receipt`],
+    receiptPage: ['GET', `${writeSet}/receipt/pages`],
     receiptRows: ['GET', `${writeSet}/receipt/{receipt_id}/rows`],
     receiptRelations: ['GET', `${writeSet}/receipt/{receipt_id}/relations`],
 };
@@ -30,4 +32,33 @@ const matchers = Object.entries(importRequestRoutes).map(([id, [method, template
 
 export function importRequestRoute(method, path) {
     return matchers.find((route) => route.method === method && route.path.test(path))?.id ?? 'unclassified';
+}
+
+export const compatibleReadSections = {
+    snapshotPage: [
+        'accounts', 'account_aliases', 'statement_account_mappings', 'cash_categories', 'cash_transactions',
+        'cash_transaction_components', 'cash_source_bindings', 'cash_source_empty_pages', 'transaction_relations',
+        'cash_relation_candidates', 'cash_transaction_issues', 'cash_issue_candidates', 'cash_entries', 'cash_entry_members',
+        'cash_investment_funding_relations',
+    ],
+    receiptPage: [
+        'header', 'transactions', 'source_bindings', 'issues', 'statement_account_mappings', 'relations', 'entries',
+        'resolved_issue_ids', 'retired_entry_ids', 'pending_transaction_ids',
+    ],
+};
+
+export function readPageCoordinates(route, url) {
+    if (!Object.hasOwn(compatibleReadSections, route)) return undefined;
+    const section = url.searchParams.get('section');
+    function index(name) {
+        const raw = url.searchParams.get(name);
+        if (raw === null) return 0;
+        const number = Number(raw);
+        return Number.isSafeInteger(number) && number >= 0 && String(number) === raw ? number : -1;
+    }
+    return {
+        section: section === null || compatibleReadSections[route].includes(section) ? section : 'invalid',
+        offset: index('offset'),
+        fragmentOffset: index('fragment_offset'),
+    };
 }

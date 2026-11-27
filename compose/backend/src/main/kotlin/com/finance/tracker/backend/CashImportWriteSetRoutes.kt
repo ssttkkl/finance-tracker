@@ -1,6 +1,8 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.CashDiagnosticDto
+import com.finance.tracker.business.contracts.CashImportReceiptSection
 import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -75,6 +77,14 @@ internal fun Route.cashImportWriteSetRoutes(service: CashImportConfirmationServi
         val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
         val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
         call.respond(withContext(Dispatchers.IO) { receipts.importReceiptByKey(token, key, workspace) })
+    }
+    get(importReceiptReadPagePath) {
+        val page = call.readPageRequest("receipt_id", CashImportReceiptSection.entries.map { it.wireName })
+        if (page.workspace != call.attributes[principalKey].workspaceId) throw AccessFailure(true)
+        val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+        val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
+        val body = withContext(Dispatchers.IO) { receipts.importReceiptPage(token, key, page) }
+        call.respondReadPage(body, CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES)
     }
     for ((path, kind) in listOf("rows" to "row", "relations" to "relation")) get("$cashImportConfirmationPath/receipt/{receipt_id}/$path") {
         val workspace = call.importWorkspace(principalKey, setOf("workspace_id", "after", "limit"))

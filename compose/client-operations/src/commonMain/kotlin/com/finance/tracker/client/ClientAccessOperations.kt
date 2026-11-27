@@ -31,8 +31,12 @@ class ClientAccessOperations(
         }
     }
 
-    suspend fun session(token: String?): SessionDto =
-        validateClientSession(send("GET", "/api/v1/auth/session", token))
+    suspend fun session(token: String?): SessionDto = sessionCapabilities(token).first
+
+    internal suspend fun sessionCapabilities(token: String?): Pair<SessionDto, Boolean> {
+        val response = http.request(ClientHttpRequest("GET", "/api/v1/auth/session", token, null, emptyMap()))
+        return validateClientSession(readClientResponse(SessionDto.serializer(), response)) to response.supportsCompatibleReadPages
+    }
 
     suspend fun logout(token: String?, clearOriginal: suspend () -> Unit): Boolean {
         var requestFailure: Throwable? = null

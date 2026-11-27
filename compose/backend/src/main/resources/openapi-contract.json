@@ -6883,6 +6883,158 @@
             ]
           }
         }
+      },
+      "CompatibleReadPosition": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "section": {
+            "type": "string",
+            "minLength": 1
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "fragment_offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "section",
+          "offset",
+          "fragment_offset"
+        ]
+      },
+      "CompatibleReadFragment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "total_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "base64": {
+            "type": "string",
+            "minLength": 4,
+            "contentEncoding": "base64"
+          }
+        },
+        "required": [
+          "total_bytes",
+          "base64"
+        ]
+      },
+      "CompatibleReadChunk": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/CompatibleReadPosition"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "items": {
+            "type": "array",
+            "items": {},
+            "maxItems": 1024
+          },
+          "fragment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompatibleReadFragment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompatibleReadPosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "position",
+          "total",
+          "items",
+          "fragment",
+          "next"
+        ]
+      },
+      "CompatibleLedgerSnapshotPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ledger_seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "rules_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category_directory_revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "chunk": {
+            "$ref": "#/components/schemas/CompatibleReadChunk"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ledger_seq",
+          "rules_version",
+          "category_directory_revision",
+          "chunk"
+        ]
+      },
+      "CompatibleCashImportReceiptPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "receipt_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ledger_seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "chunk": {
+            "$ref": "#/components/schemas/CompatibleReadChunk"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "receipt_id",
+          "ledger_seq",
+          "chunk"
+        ]
       }
     },
     "securitySchemes": {
@@ -7781,7 +7933,16 @@
                 "schema": {}
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-FT-Read-Pages": {
+                "description": "On successful session verification, version 1 advertises optional ledger snapshot and cash import receipt pages.",
+                "schema": {
+                  "type": "string",
+                  "const": "1"
+                }
+              }
+            }
           }
         },
         "summary": "Session"
@@ -13438,6 +13599,163 @@
         ]
       }
     },
+    "/api/v1/ledger/snapshot/pages": {
+      "get": {
+        "operationId": "getCompatibleLedgerSnapshotPage",
+        "parameters": [
+          {
+            "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "ledger_seq",
+            "in": "query",
+            "required": false,
+            "description": "The identity from the first response. Required with continuation coordinates.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "description": "Collection name from the preceding next position.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "accounts",
+                "account_aliases",
+                "statement_account_mappings",
+                "cash_categories",
+                "cash_transactions",
+                "cash_transaction_components",
+                "cash_source_bindings",
+                "cash_source_empty_pages",
+                "transaction_relations",
+                "cash_relation_candidates",
+                "cash_transaction_issues",
+                "cash_issue_candidates",
+                "cash_entries",
+                "cash_entry_members",
+                "cash_investment_funding_relations"
+              ]
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Zero-based index supplied by the preceding response.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          },
+          {
+            "name": "fragment_offset",
+            "in": "query",
+            "required": false,
+            "description": "UTF-8 byte offset from the preceding fragment response.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One version-pinned identity-encoded page, at most 33554432 bytes including the JSON envelope. Null next marks the complete representation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleLedgerSnapshotPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed page position or missing continuation identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Selected workspace is not accessible"
+          },
+          "409": {
+            "description": "The pinned snapshot version or original receipt identity changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read one ledger snapshot page",
+        "tags": [
+          "ledger-sync"
+        ]
+      }
+    },
     "/api/v1/ledger/version": {
       "get": {
         "operationId": "getLedgerVersion",
@@ -14180,6 +14498,198 @@
           }
         },
         "summary": "Read the original cash import receipt by operation key",
+        "tags": [
+          "cash-plans"
+        ]
+      }
+    },
+    "/api/v1/cash-import/write-set/receipt/pages": {
+      "get": {
+        "operationId": "getCompatibleCashImportReceiptPage",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          },
+          {
+            "name": "receipt_id",
+            "in": "query",
+            "required": false,
+            "description": "The identity from the first response. Required with continuation coordinates.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "description": "Collection name from the preceding next position.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "header",
+                "transactions",
+                "source_bindings",
+                "issues",
+                "statement_account_mappings",
+                "relations",
+                "entries",
+                "resolved_issue_ids",
+                "retired_entry_ids",
+                "pending_transaction_ids"
+              ]
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Zero-based index supplied by the preceding response.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          },
+          {
+            "name": "fragment_offset",
+            "in": "query",
+            "required": false,
+            "description": "UTF-8 byte offset from the preceding fragment response.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One version-pinned identity-encoded page, at most 2097152 bytes including the JSON envelope. Null next marks the complete representation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleCashImportReceiptPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed page position or missing continuation identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "The pinned snapshot version or original receipt identity changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read one original cash import receipt page by idempotency key",
         "tags": [
           "cash-plans"
         ]

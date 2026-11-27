@@ -69,7 +69,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 req.socket.destroy();
                 return;
             }
-            if (rejectReceiptLookup && req.method === 'GET' && req.url.startsWith('/api/v1/cash-import/write-set/receipt?')) {
+            if (rejectReceiptLookup && req.method === 'GET' && req.url.startsWith('/api/v1/cash-import/write-set/receipt/pages?')) {
                 rejectReceiptLookup = false;
                 res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({
                     error: { code: 'ledger_base_changed' }, commit_state: 'not_committed',
@@ -137,7 +137,9 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                     return;
                 }
             }
-            res.writeHead(response.status, { 'Content-Type': 'application/json' }).end(text);
+            const readPages = response.headers.get('X-FT-Read-Pages');
+            res.writeHead(response.status, { 'Content-Type': 'application/json',
+                ...(readPages ? { 'X-FT-Read-Pages': readPages } : {}) }).end(text);
         } catch {
             res.writeHead(502).end('{}');
         }
@@ -233,9 +235,14 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const alreadyCommitted = await ok(['import', 'cancel-confirmation', prepared.batch_id]);
         assert.equal(alreadyCommitted.status, 'committed');
         assert.equal(alreadyCommitted.receipt.receipt_id, alreadyCommitted.receipt_id);
-        assert.ok(requestedPaths.slice(cancelStart).includes('/api/v1/cash-import/write-set/receipt'));
+        assert.ok(requestedPaths.slice(cancelStart).includes('/api/v1/cash-import/write-set/receipt/pages'));
         assert.ok(!requestedPaths.slice(cancelStart).some((path) => path.startsWith('/api/v1/ledger/')));
+        const resumeStart = requestedPaths.length;
         const recovered = await ok(['import', 'resume', prepared.batch_id]);
+        const resumePaths = requestedPaths.slice(resumeStart);
+        assert.ok(resumePaths.filter(path => path === '/api/v1/cash-import/write-set/receipt/pages').length >= 10);
+        assert.ok(!resumePaths.some(path => path.startsWith('/api/v1/ledger/')));
+        assert.ok(!resumePaths.includes('/api/v1/cash-import/write-set/receipt'));
         assert.equal(recovered.receipt.receipt_id, alreadyCommitted.receipt_id);
         const reopened = await ok(['import', 'result', prepared.batch_id]);
         assert.deepEqual(reopened, recovered);

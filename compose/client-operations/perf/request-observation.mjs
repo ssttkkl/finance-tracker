@@ -35,7 +35,7 @@ function countBody(message) {
     return result;
 }
 
-export function observeProxyRequest(incoming, { flow, route, now = () => performance.now() }) {
+export function observeProxyRequest(incoming, { flow, route, page, now = () => performance.now() }) {
     const sequence = Number(incoming.headers[requestSequenceHeader]);
     if (!Number.isSafeInteger(sequence) || sequence <= 0) throw new Error('missing client request sequence');
     const requestBody = countBody(incoming);
@@ -46,7 +46,7 @@ export function observeProxyRequest(incoming, { flow, route, now = () => perform
             const responseBody = countBody(response);
             const end = once(response, 'end').then(() => now());
             return Promise.all([requestBody, responseBody, end]).then(([sent, received, endMs]) => ({
-                sequence, flow, route, status: response.statusCode, serverMs: endMs - start,
+                sequence, flow, route, ...(page ? { page } : {}), status: response.statusCode, serverMs: endMs - start,
                 requestWireBytes: sent.wireBytes, requestDecodedBytes: sent.decodedBytes,
                 responseWireBytes: received.wireBytes, responseDecodedBytes: received.decodedBytes,
             }));

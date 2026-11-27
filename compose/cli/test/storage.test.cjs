@@ -194,3 +194,55 @@ test('large import text round-trips through the old encrypted state JSON shape',
     assert.equal(splitLargeImportRequest(duplicateRequest, 'submission', threshold), null);
     assert.equal(splitLargeImportRequest(escapedDuplicateRequest, 'submission', threshold), null);
 });
+
+test('paged HTTP responses bound the body and decode split UTF-8 without treating network loss as a page', async () => {
+    const { createServer } = require('node:http');
+    const { once } = require('node:events');
+    const { gzipSync } = require('node:zlib');
+    const { request } = await import('../build/npm/lib/host.mjs');
+    const value = Buffer.from('{"page":"账😀"}');
+    const server = createServer((incoming, response) => {
+        if (incoming.url === '/identity') {
+            response.setHeader('X-FT-Read-Pages', '1');
+            response.write(value.subarray(0, 11));
+            response.end(value.subarray(11));
+        } else if (incoming.url === '/oversize') {
+            response.setHeader('Content-Length', value.length);
+            response.end(value);
+        } else if (incoming.url === '/oversize-without-length') {
+            response.write(value);
+            response.end(value);
+        } else if (incoming.url === '/gzip') {
+            response.writeHead(200, { 'Content-Encoding': 'gzip' });
+            response.end(gzipSync(value));
+        } else if (incoming.url === '/invalid-utf8') {
+            response.end(Buffer.from([0xc3, 0x28]));
+        } else if (incoming.url === '/denied') {
+            response.writeHead(403, { 'Content-Length': value.length });
+            response.end(value);
+        } else if (incoming.url === '/dropped') {
+            response.writeHead(200, { 'Content-Length': value.length });
+            response.write(value.subarray(0, 4), () => response.destroy());
+        }
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    async function send(path, limit) { return request(origin, 'GET', path, null, null, {}, limit); }
+    try {
+        const valid = await send('/identity', value.length);
+        assert.equal(valid.body, value.toString());
+        assert.equal(valid.readPages, '1');
+        for (const [path, limit] of [
+            ['/oversize', value.length - 1],
+            ['/oversize-without-length', value.length],
+            ['/gzip', value.length],
+            ['/invalid-utf8', value.length],
+        ]) assert.equal((await send(path, limit)).status, -2, path);
+        assert.equal((await send('/denied', 1)).status, 403);
+        assert.equal((await send('/dropped', value.length)).status, 0);
+    } finally {
+        server.closeAllConnections();
+        await new Promise((done) => server.close(done));
+    }
+});

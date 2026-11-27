@@ -134,7 +134,7 @@ jobs:
           sudo chown "$(id -u):$(id -g)" "$parent"
           printf 'FT_PERF_CGROUP_PARENT=%s\nFT_PERF_CGROUP_SUDO=1\n' "$parent" >> "$GITHUB_ENV"
       - name: Verify subprocess failure handling
-        run: node --test compose/client-operations/perf/{large-measure,request-gate,request-observation,service-memory}.test.mjs
+        run: node --test compose/client-operations/perf/{large-measure,maximum-http-gate,payload-shape,request-gate,request-observation,service-memory}.test.mjs
       - name: Measure synthetic 19-file import and cold readback
         env:
           FT_PERF_REPLICA: ${{ matrix.replica }}

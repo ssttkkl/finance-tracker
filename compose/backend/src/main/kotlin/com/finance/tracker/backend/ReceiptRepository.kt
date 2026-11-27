@@ -1,6 +1,10 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.contracts.CashImportReceiptSection
+import com.finance.tracker.business.contracts.ReadPagePosition
 import java.sql.Connection
+import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.serialization.json.*
@@ -63,10 +67,7 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         val row = sql.select(receipts.ID, receipts.PLAN_ID, receipts.OPERATION_KIND, receipts.REQUEST_DIGEST,
             receipts.SESSION_DIGEST, receipts.EDIT_CONTEXT_DIGEST, receipts.CREATED_AT, receipts.RESULT_SUMMARY).from(receipts)
             .where(receipts.WORKSPACE_ID.eq(workspace)).and(receipts.USER_ID.eq(user)).and(column.eq(value)).fetchOne() ?: return null
-        val instant = row[receipts.CREATED_AT]!!
-        val micros=instant.nano/1000
-        val created=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC).format(instant)+
-            (if(micros==0) "" else "."+micros.toString().padStart(6,'0'))+"+00:00"
+        val created = formatReceiptCreationTime(row[receipts.CREATED_AT]!!)
         val summary = row[receipts.RESULT_SUMMARY]!!.jsonObject
         if ("write_set_result" in summary) {
             if (row[receipts.OPERATION_KIND] != "cash_write_set") throw IllegalArgumentException("mutation_receipt_invalid")
@@ -79,6 +80,119 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             put("committed",true);put("created_at",created);summary.forEach {(key,item) ->put(key,item)}
         }
     }
+    internal fun importPage(
+        user: String, key: String, section: CashImportReceiptSection, position: ReadPagePosition,
+    ): StoredImportReceiptPage? {
+        if (!validReceiptLookupKey(key)) throw IllegalArgumentException("mutation_reference_invalid")
+        if (section == CashImportReceiptSection.HEADER && position.offset != 0) throw ReadPageFailure()
+        return if (sqlite) sqliteImportPage(user, key, section, position.offset)
+        else postgresImportPage(user, key, section, position)
+    }
+
+    private fun sqliteImportPage(user: String, key: String, section: CashImportReceiptSection, offset: Int): StoredImportReceiptPage? {
+        val receipt = lookupKey(user, key)?.takeIf { it["operation_kind"] == JsonPrimitive("cash_write_set") } ?: return null
+        val version = receiptLedgerSequence(receipt["ledger_seq"], "mutation_receipt_invalid").content
+        val pending = receipt["pending_transaction_ids"]?.let { receiptPendingTransactions(it, "mutation_receipt_invalid") }
+        val arrays = receiptWriteSetResult(receipt["write_set_result"], "mutation_receipt_invalid")
+        val id = receipt.getValue("receipt_id").jsonPrimitive.content
+        val items = when (section) {
+            CashImportReceiptSection.HEADER -> listOf(JsonObject(receipt - setOf("pending_transaction_ids", "write_set_result")))
+            CashImportReceiptSection.PENDING_TRANSACTION_IDS -> pending?.toList().orEmpty()
+            else -> arrays.getValue(section.wireName).jsonArray
+        }
+        return StoredImportReceiptPage(id, version, pending?.size, items.size, items.drop(offset).take(readPageRowWindow))
+    }
+
+    private fun postgresImportPage(user: String, key: String, section: CashImportReceiptSection,
+        position: ReadPagePosition,
+    ): StoredImportReceiptPage? {
+        val header = section == CashImportReceiptSection.HEADER
+        val pending = section == CashImportReceiptSection.PENDING_TRANSACTION_IDS
+        val array = if (pending) "result_summary -> 'pending_transaction_ids'" else "result_summary -> 'write_set_result' -> ?"
+        val projection = if (header) """
+            1 as item_count,
+            (select json_object_agg(part.key, part.value)::text
+             from json_each(result_summary) part
+             where part.key not in ('write_set_result','pending_transaction_ids','affected_transaction_ids','projection_refs')) as header
+        """ else "coalesce(json_array_length($array), 0) as item_count"
+        val query = """
+            select id, plan_id, created_at, (result_summary -> 'ledger_seq')::text as ledger_seq,
+              json_array_length(result_summary -> 'pending_transaction_ids') as pending_count,
+              (select array_agg(field) from json_object_keys(result_summary -> 'write_set_result') as field) as write_fields,
+              $projection
+            from cash_mutation_receipts
+            where workspace_id = ? and user_id = ? and idempotency_key = ? and operation_kind = 'cash_write_set'
+        """
+        return connection.prepareStatement(query).use { statement ->
+            var index = 1
+            if (!header && !pending) statement.setString(index++, section.wireName)
+            statement.setString(index++, workspace)
+            statement.setString(index++, user)
+            statement.setString(index, key)
+            statement.executeQuery().use { row ->
+                if (!row.next()) return null
+                val id = row.getString("id")
+                val version = receiptLedgerSequence(row.getString("ledger_seq")?.let(Json::parseToJsonElement),
+                    "mutation_receipt_invalid").content
+                val pendingCount = row.getObject("pending_count", Int::class.javaObjectType)
+                val fields = row.getArray("write_fields")?.array as? Array<*>
+                val expected = CashImportReceiptSection.entries
+                    .filterNot { it in setOf(CashImportReceiptSection.HEADER, CashImportReceiptSection.PENDING_TRANSACTION_IDS) }
+                    .map { it.wireName }.toSet()
+                if (fields?.size != expected.size || fields.toSet() != expected)
+                    throw IllegalArgumentException("mutation_receipt_invalid")
+                val count = row.getInt("item_count")
+                val items = if (header) {
+                    val summary = Json.parseToJsonElement(row.getString("header")).jsonObject
+                    listOf(buildJsonObject {
+                        put("receipt_id", id)
+                        put("plan_id", row.getString("plan_id")?.let(::JsonPrimitive) ?: JsonNull)
+                        put("created_at", formatReceiptCreationTime(row.getObject("created_at", OffsetDateTime::class.java).toInstant()))
+                        put("operation_kind", "cash_write_set")
+                        put("committed", true)
+                        summary.forEach { (name, value) -> put(name, value) }
+                    })
+                } else if (count == 0 || position.offset >= count) emptyList()
+                else postgresImportPageItems(user, key, section, array, position)
+                StoredImportReceiptPage(id, version, pendingCount, count, items)
+            }
+        }
+    }
+
+    private fun postgresImportPageItems(
+        user: String, key: String, section: CashImportReceiptSection, array: String, position: ReadPagePosition,
+    ): List<JsonElement> {
+        val query = """
+            select item.value::text
+            from cash_mutation_receipts, lateral json_array_elements($array) with ordinality as item(value, position)
+            where workspace_id = ? and user_id = ? and idempotency_key = ? and operation_kind = 'cash_write_set'
+            order by item.position offset ? limit ?
+        """
+        return connection.prepareStatement(query).use { statement ->
+            var index = 1
+            if (section != CashImportReceiptSection.PENDING_TRANSACTION_IDS) statement.setString(index++, section.wireName)
+            statement.setString(index++, workspace)
+            statement.setString(index++, user)
+            statement.setString(index++, key)
+            statement.setInt(index++, position.offset)
+            statement.setInt(index, if (position.fragmentOffset == 0) readPageRowWindow else 1)
+            statement.fetchSize = 8
+            statement.executeQuery().use { row ->
+                buildList {
+                    var bytes = 0
+                    while (row.next()) {
+                        val value = row.getString(1)
+                        val size = value.encodeToByteArray().size
+                        if (isNotEmpty() && size > importReceiptReadPageTargetBytes - bytes) break
+                        add(Json.parseToJsonElement(value))
+                        bytes += size
+                        if (bytes >= importReceiptReadPageTargetBytes) break
+                    }
+                }
+            }
+        }
+    }
+
     fun results(user: Any?,receipt: Any?,resultKind: Any?=null,after: Any?=0,limit: Any?=50,onlyOperation: String?=null): JsonObject? {
         val size=strictCashInteger(limit)?.takeIf {it in java.math.BigInteger.ONE..java.math.BigInteger.valueOf(200)}?.toInt()
         val cursor=strictCashInteger(after)?.takeIf {it.signum()>=0 && it<=java.math.BigInteger.valueOf(Long.MAX_VALUE)}?.toLong()
@@ -99,4 +213,20 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             } }
         return buildJsonObject {put("items",JsonArray(items.take(size)));put("next_after",if(items.size>size) JsonPrimitive(items[size-1].getValue("result_id").jsonPrimitive.long) else JsonNull)}
     }
+}
+
+internal data class StoredImportReceiptPage(
+    val id: String,
+    val version: String,
+    val pendingCount: Int?,
+    val count: Int,
+    val items: List<JsonElement>,
+)
+
+private val receiptTimeFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC)
+
+private fun formatReceiptCreationTime(instant: Instant): String {
+    val micros = instant.nano / 1000
+    val fraction = if (micros == 0) "" else "." + micros.toString().padStart(6, '0')
+    return receiptTimeFormat.format(instant) + fraction + "+00:00"
 }

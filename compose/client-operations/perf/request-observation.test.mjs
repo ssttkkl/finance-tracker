@@ -60,6 +60,30 @@ test('records gzip wire bytes in both directions and decoded bytes after each bo
     assert.throws(() => joinClientRequestClocks([metrics], []), /counts differ/);
 });
 
+test('records a paged response only after its streaming reader reaches the end', async (t) => {
+    const origin = await listen(t, (_incoming, outgoing) => {
+        outgoing.write('{"page":');
+        outgoing.end('true}');
+    });
+    const clocks = [];
+    const client = instrumentClientRequests(fetch, {
+        origin: origin.origin, record: event => clocks.push(event),
+    });
+    const response = await client(origin, {});
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+    let body = '';
+    for (;;) {
+        assert.equal(clocks.length, 0);
+        const part = await reader.read();
+        if (part.done) break;
+        body += decoder.decode(part.value, { stream: true });
+    }
+    assert.deepEqual(JSON.parse(body + decoder.decode()), { page: true });
+    assert.equal(clocks.length, 1);
+    assert.ok(clocks[0].clientMs > 0);
+});
+
 test('records process high-water mark across a synchronous allocation with no timer tick', () => {
     const recording = startPeakRss();
     const before = recording.readPeakBytes();
