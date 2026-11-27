@@ -163,7 +163,10 @@ internal fun cashWriteSetRequestBody(payload: JsonObject, canonicalTree: Boolean
             is JsonObject -> {
                 digest.append("{")
                 val fields = if (canonicalTree) linkedMapOf<String, JsonElement>() else null
-                value.keys.sorted().forEachIndexed { index, key ->
+                val keys = value.keys.toTypedArray()
+                keys.sort()
+                for (index in keys.indices) {
+                    val key = keys[index]
                     if (index > 0) digest.append(",")
                     digest.quoted(key)
                     digest.append(":")
@@ -199,7 +202,10 @@ internal fun canonicalQueuedCashWriteSet(payload: JsonObject): String = buildStr
         when (value) {
             is JsonObject -> {
                 append('{')
-                value.keys.sorted().forEachIndexed { index, key ->
+                val keys = value.keys.toTypedArray()
+                keys.sort()
+                for (index in keys.indices) {
+                    val key = keys[index]
                     if (index > 0) append(',')
                     append(JsonPrimitive(key))
                     append(':')
