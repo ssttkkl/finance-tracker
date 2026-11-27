@@ -5,7 +5,16 @@ import kotlinx.serialization.json.*
 /** Scan locally normalized statement files without a server or a platform-supplied rule adapter. */
 fun scanLocalCashFunding(files: List<ParsedImportFile>): CashFundingScan = localCashFundingScan.scan(files)
 
-private val localCashFundingScan by lazy {
+private val localCashFundingScan by lazy { newLocalCashFundingScan(::copyLocalCashFields) }
+private val localFundingScanForOperations by lazy {
+    val fields = financialCashFields + setOf("record_type", "record_subtype")
+    newLocalCashFundingScan { row -> row.filterKeys { it in fields } }
+}
+
+internal fun scanLocalCashFundingForOperations(files: List<ParsedImportFile>): CashFundingScan =
+    localFundingScanForOperations.scan(files)
+
+private fun newLocalCashFundingScan(copyFields: (Map<String, Any?>) -> Map<String, Any?>) =
     CashFundingScanRules(
         { LedgerArithmeticValue.fromCashAmount(exactCashAmount(it)).toPlainString() },
         ::normalizeCashNfc,
@@ -13,9 +22,8 @@ private val localCashFundingScan by lazy {
         LocalCashSourceAccountMapping::normalizeAlipayComponent,
         LocalCashSourceAccountMapping::normalizeWechatPaymentIdentity,
         ::localSourceStringDigest,
-        { fields -> copyLocalCashFields(fields) },
+        copyFields,
     )
-}
 
 /** Normalized documents contain acyclic JSON containers and immutable scalar values. */
 @Suppress("UNCHECKED_CAST")

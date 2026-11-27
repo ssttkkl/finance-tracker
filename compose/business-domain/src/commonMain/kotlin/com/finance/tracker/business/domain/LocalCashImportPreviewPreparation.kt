@@ -15,6 +15,10 @@ class LocalCashImportPreviewPreparation(source: LedgerSnapshotDto, requireActive
         additionalSeedIds: Set<Long> = emptySet()): PreparedCashImportPreview<Long, Instant> =
         rules.prepare(operations, sourceRows, entryChoices, previousPlan, additionalSeedIds)
 
+    internal fun prepareOwned(operations: MutableList<MutableMap<String, Any?>>, sourceRows: Map<String, SourceOccurrence>,
+        entryChoices: List<Map<String, Any?>>, previousPlan: Map<String, Any?>?,
+    ): PreparedCashImportPreview<Long, Instant> = rules.prepareOwned(operations, sourceRows, entryChoices, previousPlan)
+
     fun prepareOperations(operations: List<Map<String, Any?>>, sourceRows: Map<String, SourceOccurrence> = emptyMap(),
         entryChoices: List<Map<String, Any?>> = emptyList(), previousPlan: Map<String, Any?>? = null,
         additionalSeedIds: Set<Long> = emptySet(), decisionGroupIds: List<String> = emptyList()): PreparedCashImportPreview<Long, Instant> =

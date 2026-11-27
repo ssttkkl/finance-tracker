@@ -103,4 +103,25 @@ class CashImportPreviewOverlayTest {
         broken.operations += operation(row("1"))
         assertSame(error, assertFailsWith<IllegalStateException> { rules().apply(broken) })
     }
+
+    @Test fun projectedGraphFailureRestoresTheOriginalPayloadAndDoesNotPublishTheOperation() {
+        val preview = snapshot().copy(graphBuilder = { _, _, _, _ -> throw CashRelationFailure("relation_graph_invalid") })
+        val original = preview.values.getValue("1")
+        val originalPayload = mapOf("source" to listOf("original"))
+        original["source_payload"] = originalPayload
+        val replacement = row("1").apply {
+            this["source_payload"] = mapOf("source" to listOf("replacement"))
+            this["record_type"] = "other"
+        }
+        preview.operations += operation(replacement)
+        preview.rows += linkedMapOf("operation_ref" to "op", "planned_action" to "update")
+
+        rules().applyForLocalPlanning(preview)
+
+        assertSame(original, preview.values.getValue("1"))
+        assertSame(originalPayload, preview.values.getValue("1")["source_payload"])
+        assertTrue(preview.operations.isEmpty())
+        assertTrue(preview.parentOps.isEmpty())
+        assertEquals("relation_endpoint_incompatible", preview.rows.single()["code"])
+    }
 }

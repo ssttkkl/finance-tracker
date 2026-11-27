@@ -8,6 +8,61 @@ import kotlin.time.Instant
 class LocalCashImportRecalculationTest {
     private fun fixture(strong: Boolean = false) = LocalCashImportRebindingTest().Fixture(strong)
 
+    @Test fun localPreviewConsumesOnlyItsOriginalMutableOperationRows() {
+        val fixture = fixture()
+        val selections = fixture.input.getValue("account_selections")
+        val files = fixture.files.map { file ->
+            val document = checkNotNull(file.document)
+            file.copy(document = document.copy(rows = document.rows.map { row ->
+                val payload = mapOf("商品说明" to "Source refund", "fixture" to listOf("a"))
+                row.copy(fields = checkNotNull(row.fields) + ("source_payload" to payload))
+            }))
+        }
+        val original = prepareLocalCashImportOperations(files, fixture.source, selections, wireValues = false)
+        val data = prepareOwnedLocalCashImportOperations(files, fixture.source, selections, JsonArray(emptyList()), emptyMap())
+        assertEquals(original.operations, data.operations)
+        assertEquals(original.rows, data.rows)
+        assertEquals(original.candidateSets, data.candidateSets)
+        val compactScan = scanLocalCashFundingForOperations(files)
+        assertEquals(original.scan.groups, compactScan.groups)
+        assertTrue(original.scan.rows.any { "source_payload" in it.fields })
+        assertTrue(compactScan.rows.none { "source_payload" in it.fields || "note" in it.fields })
+
+        val prepare = LocalCashImportPreviewPreparation(fixture.source) {}
+        val expected = prepare.prepare(original.operations, original.source.rows.rows)
+        val owned = prepare.prepareOwned(data.operations, data.source.rows.rows, emptyList(), null)
+        assertEquals(expected.operations, owned.operations)
+        assertEquals(expected.candidateIds, owned.candidateIds)
+        assertSame(data.operations.single(), owned.operations.single())
+        val at = { Instant.parse("2026-10-03T09:00:00Z") }
+        val external = buildLocalCashImportPreviewSnapshot(fixture.source, expected.context, expected.operations, original.rows, at)
+        val preview = buildOwnedLocalCashImportPreviewSnapshot(fixture.source, owned.context, data.operations, data.rows, at)
+        assertEquals(external.operations, preview.operations)
+        assertEquals(external.rows, preview.rows)
+        assertSame(data.operations.single(), preview.operations.single())
+        assertSame(data.rows.single(), preview.rows.single())
+        assertFalse("preview_transaction_id" in expected.operations.single())
+        val parent = preview.operations.single().getValue("preview_transaction_id") as String
+        val payload = assertNotNull((preview.operations.single().getValue("values") as Map<*, *>)["source_payload"])
+        val externalPayload = external.values.getValue(parent).getValue("source_payload")
+        assertEquals(payload, externalPayload)
+        assertNotSame((expected.operations.single().getValue("values") as Map<*, *>)["source_payload"], externalPayload)
+        assertNotSame((external.operations.single().getValue("values") as Map<*, *>)["source_payload"], externalPayload)
+        assertSame(payload, preview.values.getValue(parent).getValue("source_payload"))
+        val externalSeeds = cashImportPreviewDiscoverySeeds(external)
+        val internalSeeds = cashImportPreviewDiscoverySeeds(preview)
+        assertEquals(externalSeeds, internalSeeds)
+        val externalProposals = discoverLocalCashImportRelations(fixture.source, external, externalSeeds, expected.accounts) {}
+        val internalProposals = discoverLocalCashImportRelations(fixture.source, preview, internalSeeds, owned.accounts) {}
+        assertEquals(externalProposals, internalProposals)
+        val choices = prepareLocalCashImportInput(selections, JsonArray(emptyList()), JsonArray(emptyList()), null)
+        val externalPlan = completeLocalCashImportPreviewPlan(fixture.source, expected, external, externalProposals,
+            files, choices, null, original.candidateSets)
+        val internalPlan = completeLocalCashImportPreviewPlan(fixture.source, owned, preview, internalProposals,
+            files, choices, null, data.candidateSets)
+        assertEquals(freezeLocalCashImportPreviewPlan(externalPlan), freezeLocalCashImportPreviewPlan(internalPlan))
+    }
+
     @Test fun oneSnapshotRestoresBothDecisionsAndComparesTheActualCompleteResult() {
         val f = fixture(); val (review, original) = f.confirmed(); val frozen = review.encode(); val current = f.observed()
         val inputs = mutableListOf<JsonObject>()

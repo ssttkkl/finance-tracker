@@ -17,6 +17,11 @@ interface CashImportOperationRead {
 data class PreparedCashImportOperations(val rows: List<Map<String, Any?>>, val operations: List<Map<String, Any?>>,
     val source: PreparedCashSourcePlan, val scan: CashFundingScan, val candidateSets: Map<String, List<String>>)
 
+internal data class OwnedCashImportOperations(
+    val rows: MutableList<MutableMap<String, Any?>>, val operations: MutableList<MutableMap<String, Any?>>,
+    val source: PreparedCashSourcePlan, val candidateSets: Map<String, List<String>>,
+)
+
 private class SourceCandidateSets(private val digestValues: (List<Any?>) -> String) {
     private val values = linkedMapOf<String, List<String>>()
     private val groups = linkedMapOf<String, String>()
@@ -69,6 +74,14 @@ class CashImportOperationRules(
     fun prepare(files: List<ParsedImportFile>, accountSelections: List<Any?> = emptyList(),
         rowChoices: List<Any?> = emptyList(), recordIds: Map<String, String> = emptyMap(),
         sourcePlan: PreparedCashSourcePlan? = null, wireValues: Boolean = true): PreparedCashImportOperations {
+        val (prepared, scan) = prepareOwned(files, accountSelections, rowChoices, recordIds, sourcePlan)
+        val output = if (wireValues) prepared.operations.map { wireMap(it)!! } else prepared.operations
+        return PreparedCashImportOperations(prepared.rows, output, prepared.source, scan, prepared.candidateSets)
+    }
+
+    internal fun prepareOwned(files: List<ParsedImportFile>, accountSelections: List<Any?>,
+        rowChoices: List<Any?>, recordIds: Map<String, String>, sourcePlan: PreparedCashSourcePlan? = null,
+    ): Pair<OwnedCashImportOperations, CashFundingScan> {
         val validate = postingValidator()
         val filesList = files
         val preview = previewInput(accountSelections, rowChoices)
@@ -99,8 +112,8 @@ class CashImportOperationRules(
         val (targets, savedIssues) = reads.targets(records)
         val sourceResults = source.plan.rows.associateBy { it.rowRef }
         val groups = source.plan.groups.associateBy { it.groupRef }
-        val operations = mutableListOf<MutableMap<String, Any?>>()
-        val decisions = linkedMapOf<String, Map<String, Any?>>()
+        val operations = arrayListOf<MutableMap<String, Any?>>()
+        val decisions = linkedMapOf<String, MutableMap<String, Any?>>()
         val candidateSets = SourceCandidateSets(digestValues)
         val members = linkedMapOf<String, MutableList<String>>()
         for (resolution in source.plan.rows) members.getOrPut(resolution.duplicateOf ?: resolution.rowRef) { mutableListOf() } += resolution.rowRef
@@ -160,7 +173,7 @@ class CashImportOperationRules(
                 val operation: MutableMap<String, Any?>
                 if (choiceValue["action"] == "keep_existing") {
                     operation = keep(record!!, targets.getValue(record.transactionId).recordId,
-                        source.rows.rows.getValue(ref), savedIssues[record.transactionId].orEmpty()).toMutableMap()
+                        source.rows.rows.getValue(ref), savedIssues[record.transactionId].orEmpty())
                 } else if (resolution.action == "duplicate" && record == null) {
                     decisions[ref] = linkedMapOf("row_ref" to ref, "operation_ref" to null,
                         "planned_action" to "duplicate", "source_group_ref" to resolution.groupRef)
@@ -174,7 +187,7 @@ class CashImportOperationRules(
                     operation = operation(ref, record, resolution.transactionId?.let { targets[it] },
                         resolution.transactionId?.let { savedIssues[it] }.orEmpty(), source.rows.rows.getValue(ref), resolution,
                         funding.getValue(ref), selections, choiceValue, candidates, categories,
-                        allRows.getValue(ref).sourceExplanation, accounts, validate).toMutableMap()
+                        allRows.getValue(ref).sourceExplanation, accounts, validate)
                 }
                 candidateSets.bind(operation, candidates, candidateGroup)
                 val occurrenceKey = source.rows.rows.getValue(ref).occurrenceKey
@@ -196,7 +209,7 @@ class CashImportOperationRules(
                     "planned_action" to operation["planned_action"], "transaction_id" to operation["transaction_id"])
             } catch (error: CashImportPlanError) { throw error }
             catch (error: CashPolicyError) {
-                val skip = skip(ref, error.code, error.fields).toMutableMap()
+                val skip = skip(ref, error.code, error.fields)
                 if (record != null && error.code == "fixed_field_conflict") {
                     val incoming = (source.rows.rows.getValue(ref).fields + (choiceValue["patch"] as? Map<String, Any?>).orEmpty())
                     skip["field_diffs"] = wire(((error.fields).filter { it in incoming && it in financialCashFields + identityFields() }
@@ -216,9 +229,8 @@ class CashImportOperationRules(
         }
         for ((ref, row) in allRows) if (ref !in decisions) decisions[ref] = skip(ref, row.errorCode ?: "row_unreadable")
         sharedEntryEdits(operations)
-        val output = if (wireValues) operations.map { wireMap(it)!! } else operations
-        return PreparedCashImportOperations(allRows.keys.map { decisions.getValue(it) }, output,
-            source, scan, candidateSets.values())
+        return OwnedCashImportOperations(allRows.keys.mapTo(arrayListOf(), decisions::getValue), operations,
+            source, candidateSets.values()) to scan
     }
 
     private fun identityFields() = setOf("record_id", "source_type", "source_scope_key", "source_account_key",
@@ -253,7 +265,7 @@ class CashImportOperationRules(
             "amount" to item["amount"], "currency" to item["currency"])
     }
 
-    private fun skip(ref: String, code: String, fields: List<String> = emptyList()): Map<String, Any?> {
+    private fun skip(ref: String, code: String, fields: List<String> = emptyList()): MutableMap<String, Any?> {
         val field = fields.firstOrNull { it in importAndIdentity }
         val issue = try { plainIssue(code, field) } catch (_: IllegalArgumentException) {
             return linkedMapOf("row_ref" to ref, "operation_ref" to null, "planned_action" to "skip",
@@ -264,7 +276,7 @@ class CashImportOperationRules(
     }
 
     private fun keep(record: SourceRecord, recordId: String, occurrence: SourceOccurrence,
-        savedIssues: List<Map<String, Any?>>): Map<String, Any?> {
+        savedIssues: List<Map<String, Any?>>): MutableMap<String, Any?> {
         val values = (currentValues(record) + mapOf("record_id" to recordId, "source_type" to record.sourceType)).toMutableMap()
         return linkedMapOf(
             "transaction_id" to record.transactionId, "expected_revision" to integerValue(record.rowRevision),
@@ -284,7 +296,7 @@ class CashImportOperationRules(
         occurrence: SourceOccurrence, resolution: SourceBatchResolution, funding: CashFundingResolution,
         selections: Map<String, Map<String, Any?>>, choice: Map<String, Any?>, candidates: List<String>,
         categories: Set<String>, explanation: Map<String, Any?>?, accounts: Map<String, Map<String, Any?>>,
-        validate: (Map<*, *>) -> Unit): Map<String, Any?> {
+        validate: (Map<*, *>) -> Unit): MutableMap<String, Any?> {
         val isPosted = record != null && record.fields["state"] == "posted"
         val current = (if (record != null) currentValues(record) else linkedMapOf(
             "state" to "draft", "amount" to null, "currency" to null, "occurred_at" to null, "account_id" to null,

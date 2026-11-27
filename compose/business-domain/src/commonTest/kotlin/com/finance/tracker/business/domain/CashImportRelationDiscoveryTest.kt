@@ -20,6 +20,27 @@ class CashImportRelationDiscoveryTest {
         CashImportRelationDiscoveryRules(active, ::copyLocalCashValue, ::localCashImportOriginalExpense,
             { if (it is CashDecimalLiteral) it.text else it.toString() }, { localCashIntegerText(it)!!.toInt() }, needed, plan)
 
+    @Test fun localPlanningProjectionPreservesSourceFactsAndActualProposals() {
+        val (legacy, accounts) = preview()
+        val fixture = LocalCashImportBusinessPlanTest()
+        val source = fixture.source()
+        val files = fixture.files()
+        val input = fixture.input(files)
+        val preparation = prepareOwnedLocalCashImportOperations(files, source, input.getValue("account_selections"),
+            input.getValue("row_choices"), emptyMap())
+        val prepared = LocalCashImportPreviewPreparation(source) {}.prepareOwned(
+            preparation.operations, preparation.source.rows.rows, emptyList(), null)
+        val local = buildOwnedLocalCashImportPreviewSnapshot(source, prepared.context, preparation.operations, preparation.rows) {
+            Instant.parse("2026-10-01T00:00:00Z")
+        }
+        val facts = rules().matchingFacts(local, prepared.accounts)
+        assertEquals(listOf("原始商品", "原始商品"), facts.map { it.note })
+        assertEquals(rules().matchingFacts(legacy, accounts), facts)
+        val proposals = discoverLocalCashImportRelations(source, legacy, cashImportPreviewDiscoverySeeds(legacy), accounts) {}
+        assertEquals("refund_offset", proposals.single().kind)
+        assertEquals(proposals, discoverLocalCashImportRelations(source, local, cashImportPreviewDiscoverySeeds(local), prepared.accounts) {})
+    }
+
     @Test fun matchingUsesSourceNoteAndIndependentMetadataWithoutChangingThePreview() {
         val (preview, accounts) = preview()
         val before = localCashImportDigest(listOf(preview.values))

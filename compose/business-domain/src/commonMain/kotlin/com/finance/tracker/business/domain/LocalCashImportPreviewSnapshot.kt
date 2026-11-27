@@ -27,20 +27,18 @@ fun buildLocalCashImportPreviewSnapshot(
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
     @Suppress("UNCHECKED_CAST")
     fun copies(input: List<Map<String, Any?>>) = copyLocalCashValue(input) as MutableList<MutableMap<String, Any?>>
-    return localCashImportPreviewSnapshot(source, context, copies(operations), copies(rows), now)
+    return localCashImportPreviewSnapshot(source, context, copies(operations), copies(rows), now, fullValues = true)
 }
 
 /** The import planner owns these rows and values and publishes only the resulting plan. */
 internal fun buildOwnedLocalCashImportPreviewSnapshot(
     source: LedgerSnapshotDto,
     context: CashRelationReadContext<Long, Instant>,
-    operations: List<Map<String, Any?>>,
-    rows: List<Map<String, Any?>>,
+    operations: MutableList<MutableMap<String, Any?>>,
+    rows: MutableList<MutableMap<String, Any?>>,
     now: () -> Instant,
-): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> = localCashImportPreviewSnapshot(
-    source, context, operations.mapTo(arrayListOf()) { it.toMutableMap() },
-    rows.mapTo(arrayListOf()) { it.toMutableMap() }, now,
-)
+): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> =
+    localCashImportPreviewSnapshot(source, context, operations, rows, now, fullValues = false)
 
 private fun localCashImportPreviewSnapshot(
     source: LedgerSnapshotDto,
@@ -48,6 +46,7 @@ private fun localCashImportPreviewSnapshot(
     operations: MutableList<MutableMap<String, Any?>>,
     rows: MutableList<MutableMap<String, Any?>>,
     now: () -> Instant,
+    fullValues: Boolean,
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
     val projectionValues = CashProjectionValues<CashImportPreviewInteger, Instant>({ it.positive },
         { try { formatPythonCashTimestamp(it); true } catch (_: IllegalArgumentException) { false } }, ::pythonCashUpper)
@@ -81,8 +80,9 @@ private fun localCashImportPreviewSnapshot(
             recordOrigin = value["record_origin"]?.toString() ?: "legacy")
     for ((id, value) in values) if (value["state"] == "draft" && id.toLong() in graph.activeTransactionIds)
         result.facts[id] = fact(id, value, true)
-    CashImportPreviewOverlayRules(LocalCashRecordValues, now,
-        { kind, items -> CashImportPreviewInteger.parse(localCashImportVirtualId(kind, items)) }, ::fact).apply(result)
+    val overlay = CashImportPreviewOverlayRules(LocalCashRecordValues, now,
+        { kind, items -> CashImportPreviewInteger.parse(localCashImportVirtualId(kind, items)) }, ::fact)
+    if (fullValues) overlay.apply(result) else overlay.applyForLocalPlanning(result)
     val (members, entries) = readLocalPreviewEntries(source, current)
     applyCashImportPreviewEntryPublic(result, members, entries, ::decodeLocalCashValue)
     return result
