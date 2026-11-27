@@ -183,7 +183,7 @@ If you face any issues, please report them on [YouTrack](https://youtrack.jetbra
 
 ## 共享客户端性能门禁
 
-每次以 main 为目标的 PR 都运行普通操作和 19 文件导入，通过 `client-operations-performance` 汇总结果。预算、公共入口归属和场景定义维护在 [budgets.json](client-operations/perf/budgets.json)。GitHub Actions 为每种负载上传独立的环境、原始样本、判定和诊断。首次目标基线缺少共享模块或 CLI 时，报告会标明不可比，head 仍执行全部绝对预算。
+每次以 main 为目标的 PR 都在独立 runner 上运行普通共享入口、安装包冷命令和 19 文件导入，通过 `client-operations-performance` 汇总结果。预算、公共入口归属和场景定义维护在 [budgets.json](client-operations/perf/budgets.json)。GitHub Actions 为每组上传独立的环境、原始样本、判定和诊断。首次目标基线缺少共享模块或 CLI 时，报告会标明不可比，head 仍执行全部绝对预算。
 
 从仓库根目录运行以下命令。构建和打包会先于计时。最大场景使用显式指定、空的环回 PostgreSQL 测试库，库名以 `_test` 结尾，另需 Python 3、`qpdf`、`openssl`、`psql` 和系统 `time`。脚本生成合成数据及临时本地状态。
 
@@ -193,4 +193,4 @@ FT_TEST_POSTGRES_URL='postgresql://ft_test@127.0.0.1:5432/ft_perf_test' \
   node compose/client-operations/perf/run-gate.mjs maximum /tmp/ft-perf-maximum
 ```
 
-CI 基准固定 Ubuntu 26.04 x64、Node 26.13.1 和 JDK 21。候选提交正文中使用独立一行 `Performance-Calibration: five hosted runners` 时，同一 head 在五台独立主机上复测各负载。日常 PR 各执行一次。以 CI 报告为准，本机结果用于诊断。
+CI 基准固定 Ubuntu 26.04 x64、Node 26.13.1 和 JDK 21。候选提交正文中使用独立一行 `Performance-Calibration: five hosted runners` 时，同一 head 的每组负载在五台独立主机上运行。日常 PR 每组执行一次。本机可通过 `FT_PERF_ORDINARY_LANE=shared` 或 `FT_PERF_ORDINARY_LANE=cli` 单独核对一组。预算以 CI 报告为准，本机结果用于诊断。

@@ -4,11 +4,7 @@ import { createServer } from 'node:https';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 
-function forwardedHeaders(headers) {
-    const copy = { ...headers };
-    for (const name of ['connection', 'keep-alive', 'transfer-encoding']) delete copy[name];
-    return copy;
-}
+import { forwardedLoopbackHeaders } from './loopback-headers.mjs';
 
 export function observedTime() {
     return { utc: new Date().toISOString(), monotonicMs: performance.now() };
@@ -35,14 +31,14 @@ export function openProxy(cert, key, backendPort, observed) {
         const forwarded = request({
             hostname: '127.0.0.1', port: backendPort, path: incoming.url, method: incoming.method,
             agent: false,
-            headers: { ...forwardedHeaders(incoming.headers), host: '127.0.0.1' },
+            headers: { ...forwardedLoopbackHeaders(incoming.headers), host: '127.0.0.1' },
         }, response => {
             observation.status = response.statusCode;
             note('backend_headers', { status: response.statusCode, requestId: response.headers['x-request-id'] ?? null });
             response.on('end', () => note('backend_body_complete'));
             response.on('aborted', () => note('backend_response_aborted'));
             response.on('error', error => note('backend_response_error', { code: error.code ?? error.name }));
-            outgoing.writeHead(response.statusCode, forwardedHeaders(response.headers));
+            outgoing.writeHead(response.statusCode, forwardedLoopbackHeaders(response.headers));
             response.pipe(outgoing);
         });
         forwarded.on('finish', () => note('proxy_forwarded_body', { bytes: observation.bytes }));

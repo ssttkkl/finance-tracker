@@ -36,14 +36,15 @@ jobs:
           fi
 
   ordinary:
-    name: Ordinary operations (${{ matrix.replica }})
+    name: Ordinary operations (${{ matrix.lane }} / ${{ matrix.replica }})
     needs: plan
     strategy:
       fail-fast: false
       matrix:
         replica: ${{ fromJSON(needs.plan.outputs.repetitions) }}
+        lane: [shared, cli]
     runs-on: ubuntu-26.04
-    timeout-minutes: 55
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
@@ -70,12 +71,13 @@ jobs:
       - name: Measure ordinary operations and installed CLI commands
         env:
           FT_PERF_REPLICA: ${{ matrix.replica }}
+          FT_PERF_ORDINARY_LANE: ${{ matrix.lane }}
         run: node compose/client-operations/perf/run-gate.mjs ordinary "$RUNNER_TEMP/client-operations-performance"
       - name: Upload ordinary measurements
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ordinary-performance-${{ github.run_attempt }}-${{ matrix.replica }}
+          name: ordinary-${{ matrix.lane }}-performance-${{ github.run_attempt }}-${{ matrix.replica }}
           path: ${{ runner.temp }}/client-operations-performance
           if-no-files-found: error
           retention-days: 30

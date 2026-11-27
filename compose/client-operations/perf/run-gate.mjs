@@ -4,7 +4,7 @@ import { appendFileSync, closeSync, cpSync, mkdirSync, mkdtempSync, openSync, re
 import { arch, release, tmpdir, type } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compare, evaluate, inventory, readEvents, readSignatures, requireMaximumEvidence } from './gate.mjs';
+import { compare, evaluate, inventory, readEvents, readSignatures, requireMaximumEvidence, scenariosForJob } from './gate.mjs';
 
 const perf = fileURLToPath(new URL('./', import.meta.url));
 const root = resolve(perf, '../../..');
@@ -14,7 +14,8 @@ const report = resolve(reportPath);
 mkdirSync(report, { recursive: true });
 const manifestBytes = readFileSync(join(perf, 'budgets.json'));
 const manifest = JSON.parse(manifestBytes);
-const scenarios = manifest.scenarios.filter((scenario) => scenario.job === job);
+const lane = process.env.FT_PERF_ORDINARY_LANE ?? 'all';
+const scenarios = scenariosForJob(manifest, job, lane);
 const baseSha = process.env.FT_PERF_BASE_SHA;
 const ownedTemporary = [];
 function temporaryDirectory(label) {
@@ -25,6 +26,7 @@ function temporaryDirectory(label) {
 }
 const tested = {
   head: capture('git', ['rev-parse', 'HEAD']).trim(), base: baseSha ?? null,
+  job, lane,
   os: type(), release: release(), arch: arch(), node: process.version,
   image: process.env.ImageOS ?? null, imageVersion: process.env.ImageVersion ?? null,
   runId: process.env.GITHUB_RUN_ID ?? null, attempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
@@ -67,11 +69,15 @@ function prepare(checkout, name) {
   const output = temporaryDirectory(`ft-perf-${name}-`).path;
   const logfile = join(logs, 'build.log');
   const gradle = join(checkout, 'compose/gradlew');
-  const targets = [':backend:installDist', ':cli:stageNpm'];
-  if (job === 'ordinary') targets.push(':client-operations-perf:stageBenchmark');
-  if (job === 'ordinary' && name === 'head') targets.push(':client-operations:dumpPerformanceAbi');
+  const targets = [':backend:installDist'];
+  if (lane !== 'shared') targets.push(':cli:stageNpm');
+  if (job === 'ordinary' && lane !== 'cli') {
+    targets.push(':client-operations-perf:stageBenchmark');
+    if (name === 'head') targets.push(':client-operations:dumpPerformanceAbi');
+  }
   command(gradle, [...targets, '--no-configuration-cache'], { cwd: join(checkout, 'compose'), log: logfile });
   command(gradle, ['--stop'], { cwd: join(checkout, 'compose'), log: logfile });
+  if (lane === 'shared') return { checkout };
 
   const packages = JSON.parse(capture('npm', ['pack', '--json', '--pack-destination', output, join(checkout, 'compose/cli/build/npm')]));
   if (packages.length !== 1) throw new Error('Expected one staged npm archive');
@@ -141,8 +147,8 @@ function measure(prepared, phase, selected, enforceBudget) {
   mkdirSync(out, { recursive: true });
   const eventsPath = join(out, 'measurements.jsonl');
   writeFileSync(eventsPath, '');
-  const env = { ...process.env, FT_PERF_ARTIFACTS: out, FT_PERF_EVENTS: eventsPath, FT_PERF_FT: prepared.bin,
-    FT_PERF_CLI_PACKAGE: prepared.archive };
+  const env = { ...process.env, FT_PERF_ARTIFACTS: out, FT_PERF_EVENTS: eventsPath,
+    ...(prepared.archive ? { FT_PERF_FT: prepared.bin, FT_PERF_CLI_PACKAGE: prepared.archive } : {}) };
   for (const variable of ['NODE_OPTIONS', 'FT_PERF_DIAGNOSTIC', 'FT_PERF_WARMUPS', 'FT_PERF_SAMPLES', 'FT_PERF_ONLY', 'FT_PERF_SELECT']) {
     delete env[variable];
   }
@@ -193,7 +199,7 @@ function measure(prepared, phase, selected, enforceBudget) {
 function runGate() {
   const head = prepare(root, 'head');
   let inventoryError;
-  if (job === 'ordinary') {
+  if (job === 'ordinary' && lane !== 'cli') {
     try {
       inventory(manifest, readSignatures(join(root, 'compose/client-operations/build/performance/client-operations.abi')));
     } catch (error) {

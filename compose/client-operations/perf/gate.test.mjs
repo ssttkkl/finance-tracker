@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { evaluate, compare, inventory, readSignatures, requireMaximumEvidence } from './gate.mjs';
+import { evaluate, compare, inventory, readSignatures, requireMaximumEvidence, scenariosForJob } from './gate.mjs';
 
 const scenario = { id: 'cash.summary', job: 'ordinary', warmups: 5, samples: 30, budgetMs: 1000,
   workload: '3000 rows', checks: 'exact totals', mode: 'warm', relativeFloorMs: 100 };
@@ -12,6 +12,17 @@ const maximum = { id: 'large.review', job: 'maximum', warmups: 0, samples: 1, bu
 const latency = (ms, id = scenario.id) => ({ id, ms, asserted: true });
 const samples = (ms) => Array.from({ length: 30 }, () => latency(ms));
 const warmups = (id = scenario.id) => Array.from({ length: 5 }, () => ({ id, warmup: true, asserted: true }));
+
+test('parallel ordinary lanes partition the full ordinary suite without selecting the maximum', () => {
+  const cli = { ...scenario, id: 'cli.cash-summary' };
+  const manifest = { scenarios: [scenario, cli, maximum] };
+  assert.deepEqual(scenariosForJob(manifest, 'ordinary', 'shared'), [scenario]);
+  assert.deepEqual(scenariosForJob(manifest, 'ordinary', 'cli'), [cli]);
+  assert.deepEqual(scenariosForJob(manifest, 'ordinary'), [scenario, cli]);
+  assert.deepEqual(scenariosForJob(manifest, 'maximum'), [maximum]);
+  assert.throws(() => scenariosForJob(manifest, 'maximum', 'cli'), /invalid benchmark job and lane/);
+  assert.throws(() => scenariosForJob(manifest, 'ordinary', 'other'), /invalid benchmark job and lane/);
+});
 
 test('requires every measured case and its assertions, warmups and sample count', () => {
   const cases = [scenario, maximum];

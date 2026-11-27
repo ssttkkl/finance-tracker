@@ -1,6 +1,17 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+export function scenariosForJob(manifest, job, lane = 'all') {
+  if (!['ordinary', 'maximum'].includes(job) ||
+      (job === 'ordinary' ? !['all', 'shared', 'cli'].includes(lane) : lane !== 'all')) {
+    throw new Error(`invalid benchmark job and lane: ${job}/${lane}`);
+  }
+  const scenarios = manifest.scenarios.filter((scenario) => scenario.job === job &&
+    (lane === 'all' || scenario.id.startsWith('cli.') === (lane === 'cli')));
+  if (!scenarios.length) throw new Error(`no scenarios for ${job}/${lane}`);
+  return scenarios;
+}
+
 export function evaluate(scenarios, events, commandOk = true) {
   const expected = new Map(scenarios.map((scenario) => [scenario.id, { scenario, warmups: 0, samples: [] }]));
   const errors = commandOk ? [] : ['benchmark command failed'];

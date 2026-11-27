@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { seed, seedDeletion, deleteDeletionRemainder, restoreBalances, restoreMember, rowCount } from './regular-fixture.mjs';
+import { forwardedLoopbackHeaders } from './loopback-headers.mjs';
 
 async function listen(server) {
     server.listen(0, '127.0.0.1');
@@ -52,7 +53,7 @@ export async function startRegularHost() {
         const upstream = request({
             hostname: '127.0.0.1', port: backendPort, path: incoming.url, method: incoming.method,
             agent: false,
-            headers: { ...incoming.headers, host: `127.0.0.1:${backendPort}` },
+            headers: { ...forwardedLoopbackHeaders(incoming.headers), host: `127.0.0.1:${backendPort}` },
         }, (response) => {
             entry.status = response.statusCode;
             entry.requestId = response.headers['x-request-id'];
@@ -62,7 +63,7 @@ export async function startRegularHost() {
                 response.once('end', () => incoming.socket.destroy());
                 return;
             }
-            outgoing.writeHead(response.statusCode, response.headers);
+            outgoing.writeHead(response.statusCode, forwardedLoopbackHeaders(response.headers));
             response.pipe(outgoing);
         });
         upstream.on('error', (error) => outgoing.destroy(error));
