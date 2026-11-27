@@ -11,6 +11,7 @@ import com.finance.tracker.business.domain.cashWriteSetJson
 import com.finance.tracker.business.domain.isCashWriteSetKey
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import com.finance.tracker.business.domain.CASH_WRITE_SET_MAX_BYTES
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.CashImportPlanningStage
 import com.finance.tracker.business.domain.cashWriteSetFitsBudget
@@ -89,6 +90,8 @@ fun freezeCashImportConfirmation(
 private val cashImportJsonWithDefaultsOmitted = Json(cashWriteSetJson) { encodeDefaults = false }
 
 fun encodeCashImportRequest(request: CashWriteSetRequestDto): String {
+    if (requiredCashImportStringsExceed(request, CASH_WRITE_SET_MAX_BYTES))
+        throw CashImportPlanError("payload_too_large", "not_committed")
     val full = cashWriteSetJson.encodeToString(request)
     if (cashWriteSetFitsBudget(full)) return full
     val withoutDefaults = cashImportJsonWithDefaultsOmitted.encodeToString(request)
