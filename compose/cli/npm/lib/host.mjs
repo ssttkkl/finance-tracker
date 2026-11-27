@@ -184,6 +184,34 @@ function seal(key, aad, payload) {
     return Buffer.concat([nonce, cipher.getAuthTag(), value, tail]);
 }
 
+const storageTextBlockUnits = 64 * 1024;
+
+function sealStateText(key, aad, payload) {
+    if (payload.length <= storageTextBlockUnits) return seal(key, aad, Buffer.from(payload));
+    const nonce = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    cipher.setAAD(aad);
+    const encrypted = Buffer.allocUnsafe(28 + Buffer.byteLength(payload, 'utf8'));
+    nonce.copy(encrypted);
+    let written = 28;
+    let start = 0;
+    while (start < payload.length) {
+        let end = Math.min(start + storageTextBlockUnits, payload.length);
+        const last = payload.charCodeAt(end - 1);
+        if (end < payload.length && last >= 0xd800 && last <= 0xdbff) end--;
+        const ciphertext = cipher.update(payload.slice(start, end), 'utf8');
+        ciphertext.copy(encrypted, written);
+        written += ciphertext.length;
+        start = end;
+    }
+    const tail = cipher.final();
+    tail.copy(encrypted, written);
+    written += tail.length;
+    if (written !== encrypted.length) throw new Error('Invalid encrypted state length');
+    cipher.getAuthTag().copy(encrypted, nonce.length);
+    return encrypted;
+}
+
 function open(key, aad, encrypted) {
     const value = Buffer.from(encrypted.buffer, encrypted.byteOffset, encrypted.byteLength);
     if (value.length < 28) throw new Error('Unrecognized ciphertext');
@@ -246,7 +274,7 @@ export function openStore(origin, createKey) {
                 const dataKey = randomBytes(32);
                 try {
                     database.prepare('INSERT OR REPLACE INTO client_state VALUES (?, ?, ?, ?)').run(
-                        server, slot, seal(key, aad(slot), dataKey), seal(dataKey, aad(slot), Buffer.from(payload)),
+                        server, slot, seal(key, aad(slot), dataKey), sealStateText(dataKey, aad(slot), payload),
                     );
                 } finally {
                     dataKey.fill(0);

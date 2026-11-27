@@ -94,6 +94,44 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
     }
 });
 
+test('large state writes preserve UTF-8 boundaries without whole plaintext buffers', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ft-encrypted-text-'));
+    const previousRoot = process.env.FT_CLI_STATE_DIR;
+    const previousKey = process.env.FT_CLI_STORAGE_KEY;
+    process.env.FT_CLI_STATE_DIR = root;
+    process.env.FT_CLI_STORAGE_KEY = Buffer.alloc(32, 71).toString('base64');
+    const { openStore } = await import('../npm/lib/host.mjs');
+    const text = `${'a'.repeat(64 * 1024 - 1)}𐐷${'人民币'.repeat(128 * 1024)}`;
+    const from = Buffer.from;
+    const concat = Buffer.concat;
+    let fullCopies = 0;
+    const store = openStore('https://storage.test', true);
+    try {
+        Buffer.from = function (...args) {
+            if (typeof args[0] === 'string' && args[0].length >= text.length) fullCopies++;
+            return from.apply(this, args);
+        };
+        Buffer.concat = function (...args) {
+            const buffer = concat.apply(this, args);
+            if (buffer.byteLength >= Buffer.byteLength(text)) fullCopies++;
+            return buffer;
+        };
+        store.write('large', text);
+        assert.equal(store.read('large'), text);
+        assert.equal(fullCopies, 0);
+    } finally {
+        Buffer.from = from;
+        Buffer.concat = concat;
+        try { store.close(true); } finally {
+            if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
+            else process.env.FT_CLI_STATE_DIR = previousRoot;
+            if (previousKey === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+            else process.env.FT_CLI_STORAGE_KEY = previousKey;
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+});
+
 test('large import text round-trips through the old encrypted state JSON shape', async () => {
     const { splitLargeImportRequest, encodeFrozenImportBatch } = await import('../npm/lib/host.mjs');
     const request = JSON.stringify({ amount: '0.10', currency: 'USD', opaque: '说明😀"\\'.repeat(180_000) });
