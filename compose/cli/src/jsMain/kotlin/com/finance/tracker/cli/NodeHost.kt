@@ -137,6 +137,16 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
         ClientHttpResponse(status, result.body as String)
     }
 private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore {
+    private var observedReview: ObservedReview? = null
+    private var savedConfirmation: SavedConfirmation? = null
+    private var checkpointedConfirmation: SavedConfirmation? = null
+
+    private data class SavedConfirmation(val key: String, val stamp: String, val batch: ClientCashImportBatch)
+
+    private data class ObservedReview(
+        val key: String, val parentStamp: String?, val reviewedStamp: String?, val batch: dynamic,
+    )
+
     var accessInvalidated = false
         private set
 
@@ -198,12 +208,20 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     }
 
     override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? {
+        observedReview = null
         val key = "${slot(session, workspaceId)}.import.$batchId"
+        val checkpointed = checkpointedConfirmation
+        checkpointedConfirmation = null
+        if (checkpointed?.key == key && stateStamp(key) == checkpointed.stamp) return checkpointed.batch
         val batch = readPreviewBatch(key, batchId) ?: return null
         if (batch.planId == null || batch.submission != null || batch.result != null) return batch
-        val review = read<StoredReviewedCommand>("$key.file.reviewed")
-        return if (review != null && review.planId == batch.planId && review.revision == batch.revision &&
-            review.ledgerSeq == batch.ledgerSeq) batch.copy(reviewed = review.command) else batch
+        val reviewedSlot = "$key.file.reviewed"
+        val review = read<StoredReviewedCommand>(reviewedSlot)
+        if (review == null || review.planId != batch.planId || review.revision != batch.revision ||
+            review.ledgerSeq != batch.ledgerSeq) return batch
+        val reviewed = batch.copy(reviewed = review.command)
+        observedReview = ObservedReview(key, stateStamp(key), stateStamp(reviewedSlot), weakReference(reviewed))
+        return reviewed
     }
 
     override suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
@@ -212,11 +230,13 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     override suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? {
         val key = "${slot(session, workspaceId)}.import.$batchId"
         val indexed = read<PendingConfirmationIndex>("$key.file.confirmation") ?: return null
-        if (indexed.stamp != (database.stateStamp(key) as String?)) return null
+        if (indexed.stamp != stateStamp(key)) return null
         if (!com.finance.tracker.business.domain.isCashWriteSetKey(indexed.operationKey))
             throw ClientOperationFailure("local_state_unreadable")
         return indexed.operationKey
     }
+
+    private fun stateStamp(key: String): String? = database.stateStamp(key) as String?
 
     private fun readPreviewBatch(key: String, batchId: String): ClientCashImportBatch? =
         read<ClientCashImportBatch>(key)?.also {
@@ -232,11 +252,16 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         removedFileIds: List<String>,
     ): Boolean {
         if (!sameState(session, session())) return false
-        val current = read(session, workspaceId, batch.id)
+        savedConfirmation = null
+        val prefix = "${slot(session, workspaceId)}.import.${batch.id}"
+        val observed = observedReview
+        val current = if (batch.submission != null && observed != null && observed.batch.deref() === previous &&
+            observed.key == prefix && stateStamp(prefix) == observed.parentStamp &&
+            stateStamp("$prefix.file.reviewed") == observed.reviewedStamp) previous else read(session, workspaceId, batch.id)
+        observedReview = null
         if (current != previous) return false
         if (current?.submission == null && batch.submission != null && hasPendingImportAccountCommand(session, workspaceId, batch.id))
             throw ClientOperationFailure("account_result_unknown", commitState = "unknown")
-        val prefix = "${slot(session, workspaceId)}.import.${batch.id}"
         file?.let { database.write("$prefix.file.${it.storageId}", it.payload) }
         database.write(prefix, Json.encodeToString(batch.copy(reviewed = null)))
         val reviewed = batch.reviewed
@@ -251,9 +276,11 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         val confirmationSlot = "$prefix.file.confirmation"
         val pendingKey = batch.submission?.key?.takeIf { batch.result == null }
         if (pendingKey == null) database.remove(confirmationSlot)
-        else database.write(confirmationSlot, Json.encodeToString(
-            PendingConfirmationIndex(database.stateStamp(prefix) as String, pendingKey),
-        ))
+        else {
+            val stamp = checkNotNull(stateStamp(prefix))
+            database.write(confirmationSlot, Json.encodeToString(PendingConfirmationIndex(stamp, pendingKey)))
+            if (current?.submission == null && batch.reviewed == null) savedConfirmation = SavedConfirmation(prefix, stamp, batch)
+        }
         return true
     }
 
@@ -298,7 +325,13 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     }
 
     override suspend fun checkpoint() {
+        val saved = savedConfirmation
+        savedConfirmation = null
+        observedReview = null
+        checkpointedConfirmation = null
+        val version = if (saved != null) database.dataVersion() as Int else null
         database.checkpoint()
+        if (saved != null && version == database.dataVersion() as Int) checkpointedConfirmation = saved
     }
 
     private inline fun <reified T> read(slot: String): T? = try {
@@ -314,6 +347,8 @@ private data class PendingConfirmationIndex(val stamp: String, val operationKey:
 @Serializable
 private data class StoredReviewedCommand(val planId: String, val revision: Long, val ledgerSeq: String,
     val command: ClientCashImportReviewedCommand)
+
+private fun weakReference(value: Any): dynamic = js("new WeakRef(value)")
 
 private fun encodeUrlComponent(value: String): String = js("encodeURIComponent(value)")
 

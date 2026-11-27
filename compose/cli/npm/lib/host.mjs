@@ -212,6 +212,9 @@ export function openStore(origin, createKey) {
             clear() {
                 database.prepare('DELETE FROM client_state WHERE server = ?').run(server);
             },
+            dataVersion() {
+                return database.prepare('PRAGMA data_version').get().data_version;
+            },
             checkpoint() {
                 database.exec('COMMIT; BEGIN IMMEDIATE');
             },

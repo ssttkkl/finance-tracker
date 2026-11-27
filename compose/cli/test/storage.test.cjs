@@ -37,6 +37,31 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
             assert.equal(store.stateStamp('operation'), stamp);
             store.write('operation', data);
             assert.notEqual(store.stateStamp('operation'), stamp);
+            const version = store.dataVersion();
+            store.checkpoint();
+            assert.equal(store.dataVersion(), version);
+
+            const exec = DatabaseSync.prototype.exec;
+            DatabaseSync.prototype.exec = function (sql) {
+                if (sql !== 'COMMIT; BEGIN IMMEDIATE') return exec.call(this, sql);
+                exec.call(this, 'COMMIT');
+                const peer = new DatabaseSync(join(root, 'client.sqlite'));
+                try {
+                    peer.prepare('INSERT INTO client_state SELECT server, slot || ?, wrapped_key, payload FROM client_state WHERE slot = ?')
+                        .run('.other', 'operation');
+                } finally {
+                    peer.close();
+                    exec.call(this, 'BEGIN IMMEDIATE');
+                }
+            };
+            try {
+                const observed = store.stateStamp('operation');
+                store.checkpoint();
+                assert.notEqual(store.dataVersion(), version);
+                assert.equal(store.stateStamp('operation'), observed);
+            } finally {
+                DatabaseSync.prototype.exec = exec;
+            }
         } finally {
             Buffer.concat = concat;
             Buffer.from = from;
