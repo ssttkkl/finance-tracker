@@ -30,3 +30,27 @@ kotlin {
         jvmTest { resources.srcDir(rootProject.file("backend/src/test/resources/cash-import-slice")) }
     }
 }
+
+val compilerVersion = extensions.getByType<VersionCatalogsExtension>().named("libs").findVersion("kotlin").get().requiredVersion
+val abiReader by configurations.creating
+dependencies {
+    abiReader("org.jetbrains.kotlin:kotlin-compiler-embeddable:$compilerVersion")
+}
+
+tasks.register<Exec>("dumpPerformanceAbi") {
+    val compilation = tasks.named("compileKotlinJs")
+    val klib = layout.buildDirectory.dir("classes/kotlin/js/main")
+    val dumper = layout.projectDirectory.file("perf/DumpClientOperationsAbi.java")
+    val abi = layout.buildDirectory.file("performance/client-operations.abi")
+    dependsOn(compilation)
+    inputs.dir(klib)
+    inputs.file(dumper)
+    inputs.files(abiReader)
+    outputs.file(abi)
+    doFirst {
+        commandLine(
+            "java", "--class-path", abiReader.asPath, dumper.asFile.absolutePath,
+            klib.get().asFile.absolutePath, abi.get().asFile.absolutePath,
+        )
+    }
+}
