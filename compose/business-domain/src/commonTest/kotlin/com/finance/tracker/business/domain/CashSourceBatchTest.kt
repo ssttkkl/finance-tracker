@@ -49,6 +49,35 @@ class CashSourceBatchTest {
     private fun old(id: String, note: String = "original") = SourceRecord(id, "fixture-bank", "owner", row(note = note).fields,
         listOf(coverage))
 
+    @Test fun scopingLocalNormalizationPreservesEveryCandidateAndConflict() {
+        val ambiguous = file("a", row(note = "new"), row(2, "new")) + file("b", row(note = "another"), row(2, "another"))
+        val exact = file("a", row(provider = "same"), row(2)) + file("b", row(note = "updated", provider = "same"), row(2))
+        val invalid = exact + file("c", row().copy(fields = row().fields + ("note" to 1)))
+        for (rows in listOf(ambiguous, exact, invalid)) {
+            val metadata = rows.keys.map { it.substringBefore(':') }.distinct().mapIndexed { index, ref -> ref to (index to null) }.toMap()
+            val source = SourceBatchRows(LinkedHashMap(rows), emptyList(), emptyList(), metadata)
+            for (records in listOf(emptyList(), listOf(old("1"), old("2", "other")))) {
+                assertEquals(batch.resolve(source, records), batch.resolveWithoutRetainingNormalization(source, records))
+            }
+        }
+    }
+
+    @Test fun localAlipaySnapshotUsesLaterMutableFieldsButRejectsAFixedAmountChange() {
+        val first = row(provider = "same").copy(sourceType = "alipay")
+        val later = first.copy(fields = first.fields + ("note" to "updated"))
+        fun resolve(second: SourceOccurrence): SourceBatchPlan = resolveLocalCashSourceBatch(
+            SourceBatchRows(LinkedHashMap(file("a", first) + file("b", second)), emptyList(), emptyList(),
+                mapOf("a" to (0 to 100L), "b" to (1 to 200L))),
+            emptyList(),
+        )
+        val accepted = resolve(later)
+        assertEquals(listOf("batch_duplicate", "new"), accepted.rows.map { it.action })
+        assertEquals("b:r1", accepted.rows.first().duplicateOf)
+        val rejected = resolve(later.copy(fields = later.fields + ("amount" to "-21.00")))
+        assertEquals(listOf("conflict", "conflict"), rejected.rows.map { it.action })
+        assertTrue(rejected.rows.all { it.reason == "batch_identity_conflict" && !it.bind })
+    }
+
     @Test
     fun rereadFilePreservesLegitimateOccurrencesAndExactDuplicateBindings() {
         val original = file("a", row(), row(2))

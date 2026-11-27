@@ -29,15 +29,23 @@ class CashSourceBatch<Index>(
     private fun sourceDigest(vararg values: Any?): String = digestValues(values.toList())
     private val stringOrder = Comparator<String>(::pythonStringOrder)
     private inner class UnitRow(val ref: String, val refs: List<String>, val row: SourceOccurrence,
-        val normalized: Map<String, Any?>, val certain: Boolean, val targets: Set<String>, val files: Set<String>) {
-        val contentKey by lazy { sourceDigest(contentValue(normalized)) }
+        contentHash: () -> String, val certain: Boolean, val targets: Set<String>, val files: Set<String>) {
+        val contentKey by lazy(contentHash)
     }
     private data class Rejected(val refs: List<String>, val files: Set<String>, val row: SourceOccurrence,
         val targets: Set<String>)
     private data class Evaluation(val only: SourceResolution?, val failed: Boolean, val group: String?)
 
     fun resolve(input: SourceBatchRows, records: List<SourceRecord>,
-        knownDocumentEvidence: List<SourceDocumentEvidence> = emptyList()): SourceBatchPlan {
+        knownDocumentEvidence: List<SourceDocumentEvidence> = emptyList()): SourceBatchPlan =
+        resolve(input, records, knownDocumentEvidence, retainNormalizedPatches = true)
+
+    internal fun resolveWithoutRetainingNormalization(input: SourceBatchRows, records: List<SourceRecord>,
+        knownDocumentEvidence: List<SourceDocumentEvidence> = emptyList()): SourceBatchPlan =
+        resolve(input, records, knownDocumentEvidence, retainNormalizedPatches = false)
+
+    private fun resolve(input: SourceBatchRows, records: List<SourceRecord>,
+        knownDocumentEvidence: List<SourceDocumentEvidence>, retainNormalizedPatches: Boolean): SourceBatchPlan {
         val rows = input.rows
         require(rows.keys.all { it.isNotEmpty() }) { "invalid_source_row_ref" }
         val active = records.filter { !it.deleted }
@@ -56,7 +64,10 @@ class CashSourceBatch<Index>(
         val groupCache = mutableMapOf<List<String>, MutableMap<List<String>, String>>()
         val roots = linkedMapOf<String, String>()
         val proofOwner = mutableMapOf<String, String>()
-        val contents = mutableMapOf<String, Map<String, Any?>>()
+        val contents = if (retainNormalizedPatches) mutableMapOf<String, Map<String, Any?>>() else null
+        fun normalized(ref: String): Map<String, Any?> =
+            contents?.getValue(ref) ?: normalizePatch(resolver.patch(rows.getValue(ref)))
+        fun contentDigest(ref: String): String = sourceDigest(contentValue(normalized(ref)))
         val targets = mutableMapOf<String, Set<String>>()
         val rowOrder = rows.keys.withIndex().associate { it.value to it.index }
         val namespaces = rows.values.mapNotNull { row -> row.coverage.documentKey?.let {
@@ -116,7 +127,7 @@ class CashSourceBatch<Index>(
                 output[ref] = SourceBatchResolution(ref, "conflict", reason = failure.code)
                 continue
             }
-            contents[ref] = normalized
+            contents?.put(ref, normalized)
             roots[ref] = ref
             val keys = row.bindingKeys + listOfNotNull(row.stableEvidenceBindingKey)
             targets[ref] = keys.flatMap { byBinding[it].orEmpty() }.toSet()
@@ -137,12 +148,17 @@ class CashSourceBatch<Index>(
             val proofs = refs.mapNotNull { rows.getValue(it).stableEvidence }.toSet()
             val ids = refs.flatMap { targets.getValue(it) }.toSet()
             val sortedIds = ids.sortedWith(stringOrder)
-            val different = refs.size > 1 && refs.map { sourceDigest(contentValue(contents.getValue(it))) }.distinct().size > 1
+            val different = refs.size > 1 && refs.map(::contentDigest).distinct().size > 1
             val sameShape = refs.map { rows.getValue(it).fields.keys.toSet() }.distinct().size == 1
             val sameScope = refs.map { rows.getValue(it).let { row -> row.sourceType to row.sourceAccountKey } }.distinct().size == 1
-            val alipayFixedConflict = first.sourceType == "alipay" && providers.size == 1 &&
-                refs.drop(1).any { ref -> (financialCashFields + setOf("record_type", "record_subtype")).any { field ->
-                    contents.getValue(ref)[field] != contents.getValue(refs.first())[field] } }
+            val alipayFixedConflict = first.sourceType == "alipay" && providers.size == 1 && refs.size > 1 && run {
+                val fixed = financialCashFields + setOf("record_type", "record_subtype")
+                val comparison = normalized(refs.first())
+                refs.drop(1).any { ref ->
+                    val candidate = normalized(ref)
+                    fixed.any { field -> candidate[field] != comparison[field] }
+                }
+            }
             var reliable = different && !alipayFixedConflict && (providers.size == 1 || proofs.size == 1) && providers.size <= 1 &&
                 proofs.size <= 1 && ids.size <= 1 && sameShape && sameScope && refs.none { pageConflict(rows.getValue(it)) }
             if (reliable) {
@@ -165,7 +181,8 @@ class CashSourceBatch<Index>(
                 }
                 else -> {
                     val combined = first.copy(providerId = providers.firstOrNull(), stableEvidence = proofs.firstOrNull())
-                    val unit = UnitRow(refs.first(), refs, combined, contents.getValue(refs.first()),
+                    val ref = refs.first()
+                    val unit = UnitRow(ref, refs, combined, { contentDigest(ref) },
                         ids.isNotEmpty() || combined.providerBindingKey != null || combined.stableEvidenceBindingKey != null,
                         ids, refs.map { rows.getValue(it).observationScopeKey }.toSet())
                     units[unit.ref] = unit
