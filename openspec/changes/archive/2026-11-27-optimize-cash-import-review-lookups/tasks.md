@@ -17,7 +17,7 @@
 
 ## 6. 测试与 QA
 
-- [x] 2026-11-27，macOS arm64，Node 26.8.1。基线 `378e7f7e`，旧 npm 包的领域模块 SHA-256 与上一版已验收安装包一致。两版均用 `npm pack`、独立目录安装和真实 `ft import review` 子进程。每轮从相同加密批次、选择和专用 SQLite 测试库开始，核对 19 份合成账单。
+- [x] 2026-11-27，macOS arm64，Node 26.8.1。实现提交 `102adb2b`，基线 `378e7f7e`。旧 npm 包的领域模块 SHA-256 与上一版已验收安装包一致。两版均用 `npm pack`、独立目录安装和真实 `ft import review` 子进程。每轮从相同加密批次、选择和专用 SQLite 测试库开始，核对 19 份合成账单。
 - [x] 在编译和浏览器测试退出后顺序运行基线、新版各一次，耗时 125.013 秒和 93.198 秒（缩短 25.45%），最大 RSS 为 4,167,041,024 和 4,080,287,744 字节。均得到 12,724 笔正式流水、1,700 笔重复、2,995 条确认关联。该组耗时只覆盖整批核对，不含文件准备和在线提交。
 - [x] 自然生成 ID 的预跑中，逐字段差异仅为 3,010 个新生成的流水编号。对照轮在测试进程为 Kotlin 的随机 UUID 生成重放同一组 16 字节输入。解密后两版完整请求 SHA-256 均为 `0e910bb772d458a006ae2a2db266cf1d4a9409fd0e30015c964be88250817380`（65,403,765 字节），冻结核对上下文、结论及结果整理输入也逐字节相同。CLI JSON 仅归一化本次计划编号与分页游标内的同一编号后全文相等。运行日志和独立比较脚本位于本机临时目录 `/tmp/ft-serial.DIV20E`。
 - [x] 在 `compose/` 运行 `:business-domain:jvmTest`（918 项）、`:business-domain:jsNodeTest`、`:business-domain:testAndroidHostTest`、`:business-domain:iosSimulatorArm64Test`（各 870 项）、`:business-domain:compileKotlinWasmJs` 和 `:cli:stageNpm`。后端 `:backend:test --tests '*CashRelationPlanningTest' --tests '*CashRelationCoreTest'` 3 项通过。纯计算变更未涉及存储实现。
