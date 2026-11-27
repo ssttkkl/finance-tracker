@@ -4,14 +4,26 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Compare complete review results and writes. Choice recovery, discovery and retry authorization remain with the caller. */
-fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String {
+fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String =
+    calculateConclusion(source, plan, changes, includeKeys = false).first
+
+internal fun localCashImportConclusionAndChoiceKeys(source: LedgerSnapshotDto, plan: JsonObject,
+    changes: CashWriteSetDto): Pair<String, JsonObject> {
+    val (hash, keys) = calculateConclusion(source, plan, changes, includeKeys = true)
+    return hash to checkNotNull(keys)
+}
+
+private fun calculateConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto,
+    includeKeys: Boolean): Pair<String, JsonObject?> {
     val values = CashImportConclusionValues(source.facts, changes)
     val writes = fullConclusionJson.encodeToJsonElement(values.normalized())
-    val review = PlanConclusion(source.facts, plan, values).normalized()
-    return values.hash(buildJsonObject {
+    val conclusion = PlanConclusion(source.facts, plan, values)
+    val hash = values.hash(buildJsonObject {
         put("version", "cash-import-conclusion-v1"); put("workspace", source.workspaceId); put("rules", CASH_RULES_VERSION)
-        put("writes", writes); put("review", review)
+        put("writes", writes)
+        put("review", conclusion.normalized())
     })
+    return hash to if (includeKeys) conclusion.choiceKeys() else null
 }
 
 private val fullConclusionJson = Json { encodeDefaults = true }

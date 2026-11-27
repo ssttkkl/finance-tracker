@@ -27,6 +27,17 @@ class LocalCashImportConfirmedReviewTest {
             (recovered.previousPlan()["entry_targets"] as Map<*, *>)[selected.key])))
     }
 
+    @Test fun reusingConclusionIdentitiesKeepsTheIndependentRelationAndEntryChoiceKeys() {
+        val (source, plan, changes) = complete()
+        val frozen = freezeLocalCashImportPreviewPlan(plan)
+        val (hash, keys) = localCashImportConclusionAndChoiceKeys(source, frozen, changes)
+        assertEquals("c88ad314f7db6a1fe4f9e72aec07bb3dbe878759d3ee6a738d34c856ef87a90c", hash)
+        assertEquals(localCashImportConclusion(source, frozen, changes), hash)
+        assertTrue(keys.getValue("entries").jsonObject.isNotEmpty())
+        assertTrue(keys.getValue("relations").jsonObject.isNotEmpty())
+        assertEquals(localCashImportChoiceKeys(source, frozen, changes), keys)
+    }
+
     @Test fun originalCompleteConclusionSurvivesRecoveryWithoutRecomputingFromNewFacts() {
         val (source, plan, changes) = complete()
         val saved = LocalCashImportReview.freeze(input, plan, source, changes)

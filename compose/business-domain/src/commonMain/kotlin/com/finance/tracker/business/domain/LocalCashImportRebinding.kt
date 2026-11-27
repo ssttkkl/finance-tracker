@@ -13,9 +13,8 @@ class LocalCashImportReboundInput internal constructor(internal val owner: Local
     @Suppress("UNCHECKED_CAST") fun previousPlan(): Map<String, Any?> = copyLocalCashValue(previous) as Map<String, Any?>
 }
 
-internal fun freezeLocalCashImportChoiceBindings(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto,
+internal fun freezeLocalCashImportChoiceBindings(source: LedgerSnapshotDto, keys: JsonObject,
     input: JsonObject, context: JsonObject): JsonObject {
-    val keys = localCashImportChoiceKeys(source, plan, changes)
     val groups = context.objects("relation_groups").map { it.text("suggestion_id") }.toSet()
     val stale = context.getValue("invalidated_relation_choices").jsonObject
     val relations = linkedMapOf<String, JsonElement>()

@@ -68,8 +68,8 @@ class LocalCashImportReview private constructor(private val text: String) {
         fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto,
             frozenPlan: JsonObject = freezeLocalCashImportPreviewPlan(plan)): LocalCashImportReview {
             val original = freeze(input, plan).document()
-            val conclusion = localCashImportConclusion(source, frozenPlan, changes)
-            val bindings = freezeLocalCashImportChoiceBindings(source, frozenPlan, changes, input, original.getValue("context").jsonObject)
+            val (conclusion, keys) = localCashImportConclusionAndChoiceKeys(source, frozenPlan, changes)
+            val bindings = freezeLocalCashImportChoiceBindings(source, keys, input, original.getValue("context").jsonObject)
             return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion), "bindings" to bindings)).toString())
         }
 
