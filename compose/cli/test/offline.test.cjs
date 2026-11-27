@@ -1,11 +1,12 @@
 const assert = require('node:assert/strict');
 const { execFile, execFileSync } = require('node:child_process');
 const { createServer } = require('node:http');
-const { mkdtempSync, readFileSync, rmSync } = require('node:fs');
+const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { once } = require('node:events');
 const { test } = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const snapshot = require('../../client-operations/src/jvmTest/resources/cash-operation-snapshot.json');
 const expectedSummary = require('../../client-operations/src/jvmTest/resources/cash-operation-summary.json');
@@ -109,6 +110,33 @@ test('installed ft restores the original snapshot in a new process when disconne
         assert.equal(summary.filters.timezone, 'Asia/Shanghai');
         assert.deepEqual(summary.months, expectedSummary);
         assert.equal(downloads, 1);
+        const probe = join(directory, 'count-ledger-reads.mjs');
+        const readCount = join(directory, 'ledger-reads');
+        writeFileSync(probe, `
+            import { writeFileSync } from 'node:fs';
+            import { DatabaseSync } from 'node:sqlite';
+            let reads = 0;
+            const prepare = DatabaseSync.prototype.prepare;
+            DatabaseSync.prototype.prepare = function (sql) {
+                const statement = prepare.call(this, sql);
+                if (sql.startsWith('SELECT wrapped_key, payload FROM client_state')) {
+                    const get = statement.get;
+                    statement.get = function (server, slot) {
+                        if (/^[0-9a-f]{64}$/.test(slot)) reads++;
+                        return get.call(this, server, slot);
+                    };
+                }
+                return statement;
+            };
+            process.on('exit', () => writeFileSync(process.env.FT_TEST_READ_COUNT, String(reads)));
+        `);
+        const cached = await run(['cash', 'list', '--workspace', workspace.id], '', {
+            NODE_OPTIONS: `--import=${pathToFileURL(probe).href}`, FT_TEST_READ_COUNT: readCount,
+        });
+        assert.equal(cached.status, 0);
+        assert.deepEqual(cached.value, online);
+        assert.equal(downloads, 1);
+        assert.equal(readFileSync(readCount, 'utf8'), '1');
         const disk = readFileSync(join(state, 'client.sqlite'));
         for (const secret of ['synthetic-token', 'person@example.test', '合成-交易号']) assert.equal(disk.includes(secret), false);
 
