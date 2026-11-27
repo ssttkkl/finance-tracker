@@ -118,7 +118,14 @@ export async function request(origin, method, path, token, body, suppliedHeaders
     const signal = AbortSignal.timeout(bulk ? 90000 : 8000);
     let response;
     try {
-        response = await fetch(url, { method, headers, body, redirect: 'manual', signal });
+        const options = { method, headers, body, redirect: 'manual', signal };
+        if (method === 'POST' && url.pathname === '/api/v1/cash-import/write-set' &&
+            typeof body === 'string' && body.length > storageTextBlockUnits) {
+            headers['Content-Length'] = String(Buffer.byteLength(body, 'utf8'));
+            options.body = streamUtf8(body);
+            options.duplex = 'half';
+        }
+        response = await fetch(url, options);
         const readPages = response.headers.get('X-FT-Read-Pages');
         const text = maxResponseBytes > 0 ? await readPageBody(response, maxResponseBytes) : await response.text();
         return { status: response.status, body: text, readPages };
@@ -226,6 +233,18 @@ function* stateTextChunks(payload) {
         yield payload.slice(start, end);
         start = end;
     }
+}
+
+function streamUtf8(text) {
+    const chunks = stateTextChunks(text);
+    return new ReadableStream({
+        pull(controller) {
+            const next = chunks.next();
+            if (next.done) controller.close();
+            else controller.enqueue(Buffer.from(next.value, 'utf8'));
+        },
+        cancel() { chunks.return(); },
+    });
 }
 
 function sealStateChunks(key, aad, bytes, chunks) {

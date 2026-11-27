@@ -258,3 +258,62 @@ test('paged HTTP responses bound the body and decode split UTF-8 without treatin
         await new Promise((done) => server.close(done));
     }
 });
+
+test('a cash write set is uploaded in bounded chunks with unchanged UTF-8 and key', async () => {
+    const { createServer } = require('node:http');
+    const { once } = require('node:events');
+    const { request } = await import('../npm/lib/host.mjs');
+    const prefix = '{"text":"';
+    const boundary = 'a'.repeat(64 * 1024 - prefix.length - 1);
+    const body = prefix + boundary + '𐐷' + '测试😀'.repeat(240_000) + '"}';
+    const expected = Buffer.from(body, 'utf8');
+    const received = [];
+    let droppedHits = 0;
+    const server = createServer(async (incoming, response) => {
+        if (incoming.url.endsWith('=drop')) {
+            droppedHits++;
+            incoming.once('data', () => incoming.destroy());
+            return;
+        }
+        const bytes = Buffer.concat(await Array.fromAsync(incoming));
+        received.push({ header: incoming.headers['content-length'], key: incoming.headers['idempotency-key'], bytes });
+        response.writeHead(202, { 'Content-Type': 'application/json' }).end('{"status":"accepted"}');
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const headers = { 'Idempotency-Key': 'synthetic-original', 'Content-Type': 'application/json' };
+    const originalFetch = globalThis.fetch;
+    const streaming = [];
+    const chunkSizes = [];
+    globalThis.fetch = (url, options) => {
+        const stream = options.body instanceof ReadableStream;
+        streaming.push(stream);
+        if (stream) options = { ...options, body: options.body.pipeThrough(new TransformStream({
+            transform(chunk, controller) {
+                chunkSizes.push(chunk.byteLength);
+                controller.enqueue(chunk);
+            },
+        })) };
+        return originalFetch(url, options);
+    };
+    try {
+        const accepted = await request(origin, 'POST', '/api/v1/cash-import/write-set?workspace_id=test', null, body, headers);
+        assert.equal(accepted.status, 202);
+        assert.equal(received.length, 1);
+        assert.equal(Number(received[0].header), expected.length);
+        assert.equal(received[0].key, headers['Idempotency-Key']);
+        assert.equal(received[0].bytes.equals(expected), true);
+        const dropped = await request(origin, 'POST', '/api/v1/cash-import/write-set?workspace_id=drop', null, body, headers);
+        assert.ok(dropped.status === 0 || dropped.status === -1);
+        assert.equal(dropped.body, '');
+        assert.equal(droppedHits, 1);
+        assert.deepEqual(streaming, [true, true]);
+        assert.ok(chunkSizes.length > 2);
+        assert.ok(Math.max(...chunkSizes) <= 4 * 64 * 1024);
+    } finally {
+        globalThis.fetch = originalFetch;
+        server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
+    }
+});
