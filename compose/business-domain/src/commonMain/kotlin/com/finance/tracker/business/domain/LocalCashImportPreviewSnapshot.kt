@@ -25,6 +25,30 @@ fun buildLocalCashImportPreviewSnapshot(
     rows: List<Map<String, Any?>>,
     now: () -> Instant,
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
+    @Suppress("UNCHECKED_CAST")
+    fun copies(input: List<Map<String, Any?>>) = copyLocalCashValue(input) as MutableList<MutableMap<String, Any?>>
+    return localCashImportPreviewSnapshot(source, context, copies(operations), copies(rows), now)
+}
+
+/** The import planner owns these rows and values and publishes only the resulting plan. */
+internal fun buildOwnedLocalCashImportPreviewSnapshot(
+    source: LedgerSnapshotDto,
+    context: CashRelationReadContext<Long, Instant>,
+    operations: List<Map<String, Any?>>,
+    rows: List<Map<String, Any?>>,
+    now: () -> Instant,
+): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> = localCashImportPreviewSnapshot(
+    source, context, operations.mapTo(arrayListOf()) { it.toMutableMap() },
+    rows.mapTo(arrayListOf()) { it.toMutableMap() }, now,
+)
+
+private fun localCashImportPreviewSnapshot(
+    source: LedgerSnapshotDto,
+    context: CashRelationReadContext<Long, Instant>,
+    operations: MutableList<MutableMap<String, Any?>>,
+    rows: MutableList<MutableMap<String, Any?>>,
+    now: () -> Instant,
+): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
     val projectionValues = CashProjectionValues<CashImportPreviewInteger, Instant>({ it.positive },
         { try { formatPythonCashTimestamp(it); true } catch (_: IllegalArgumentException) { false } }, ::pythonCashUpper)
     val projections = CashProjectionRules(projectionValues, ::localCashInstantText)
@@ -38,14 +62,12 @@ fun buildLocalCashImportPreviewSnapshot(
         issueVersions, entryVersions, relationGroups, fundingVersions, fundingComponentIds, sourceOrderKeys) }
     val values = readLocalCashImportPreviewValues(source, context)
     val current = values.keys.map(String::toLong).toSet()
-    @Suppress("UNCHECKED_CAST")
-    fun copies(input: List<Map<String, Any?>>) = copyLocalCashValue(input) as MutableList<MutableMap<String, Any?>>
     val result = CashImportPreviewSnapshot(graph, values,
         graph.facts.associateByTo(linkedMapOf()) { it.id.toString() },
         graph.components.associateByTo(linkedMapOf()) { it.componentId as String },
         graph.relations.associateByTo(linkedMapOf()) { localCashPreviewInteger(it.id)!! },
         graph.fundingVersions.associateByTo(linkedMapOf()) { it.id }, linkedMapOf(), linkedMapOf(),
-        linkedSetOf(), linkedSetOf(), copies(operations), copies(rows), projectionValues, ::localCashPreviewInteger,
+        linkedSetOf(), linkedSetOf(), operations, rows, projectionValues, ::localCashPreviewInteger,
         relationGraph::build, { facts, relations -> projections.build(facts, relations) })
     fun fact(identifier: String, value: Map<String, Any?>, attention: Boolean): CashProjectionFact<CashImportPreviewInteger, Instant> =
         CashProjectionFact.create(projectionValues, CashImportPreviewInteger.parse(identifier),

@@ -4,6 +4,7 @@ import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.contracts.CashImportArchiveSummary
 import com.finance.tracker.business.contracts.StoredResult
+import com.finance.tracker.business.contracts.decodeArchivedCashMutationReceipt
 import kotlinx.serialization.json.*
 
 /** Raw authority and local omissions stay separate; the composed receipt is only a result view. */
@@ -17,7 +18,7 @@ class CashImportResultContent private constructor(
     val hasServerItems: Boolean get() = items != null
     fun serverItems(): List<CashMutationResultDto>? = items
     fun baseEncoding(): String = encodeCashImportArchiveBase(batchId, submissionKey, receiptBody, input.encode())
-    private val authority by lazy { cashWriteSetJson.decodeFromString<CashMutationReceiptDto>(receiptBody) }
+    private val authority by lazy { decodeArchivedCashMutationReceipt(receiptBody) }
     fun authoritativeReceipt(): CashMutationReceiptDto = authority
     fun archiveSummary(): CashImportArchiveSummary {
         val display = displayReceipt()

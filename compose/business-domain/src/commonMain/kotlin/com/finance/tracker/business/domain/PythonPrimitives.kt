@@ -37,14 +37,25 @@ fun String.pythonCodePointCount(): Int = pythonCodePoints().size
 
 /** Python 语义的字符串比较：按 Unicode 码点逐个比较。 */
 fun pythonStringOrder(first: String, second: String): Int {
-    val left = first.pythonCodePoints()
-    val right = second.pythonCodePoints()
-    val shared = minOf(left.size, right.size)
-    for (index in 0 until shared) {
-        val comparison = left[index].compareTo(right[index])
-        if (comparison != 0) return comparison
+    var leftIndex = 0
+    var rightIndex = 0
+    while (leftIndex < first.length && rightIndex < second.length) {
+        val left = first.pythonCodePointAt(leftIndex)
+        val right = second.pythonCodePointAt(rightIndex)
+        if (left != right) return left.compareTo(right)
+        val width = if (left >= 0x10000) 2 else 1
+        leftIndex += width
+        rightIndex += width
     }
-    return left.size.compareTo(right.size)
+    return (first.length - leftIndex).compareTo(second.length - rightIndex)
+}
+
+private fun String.pythonCodePointAt(index: Int): Int {
+    val high = this[index]
+    if (!high.isHighSurrogate() || index + 1 == length) return high.code
+    val low = this[index + 1]
+    if (!low.isLowSurrogate()) return high.code
+    return 0x10000 + ((high.code - 0xD800) shl 10) + (low.code - 0xDC00)
 }
 
 /** 与后端 `tokenDigest` 等价的十六进制 SHA-256。 */

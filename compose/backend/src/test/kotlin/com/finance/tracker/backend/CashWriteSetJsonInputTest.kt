@@ -6,6 +6,23 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 
 class CashWriteSetJsonInputTest {
+    @Test
+    fun canonicalDigestKeepsExactEscapesAndNumbersWithoutDependingOnObjectOrder() {
+        val canonical = """{"a":[1e+02,{"界":"值\n"}],"z":9007199254740993}"""
+        val reordered = """{"z":9007199254740993,"a":[1e+02,{"\u754c":"值\n"}]}"""
+        val left = CashImportProtocol.writeSetInput(canonical.encodeToByteArray())
+        val right = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        assertEquals(left, right)
+        val historical = cashWriteSetRequestBody(left)
+        val current = cashWriteSetRequestBody(right, canonicalTree = false)
+        assertEquals(historical.digest, current.digest)
+        assertEquals(com.finance.tracker.business.domain.sha256Hex(canonical), current.digest)
+        assertEquals(historical.payload.toString(), canonicalQueuedCashWriteSet(current.payload))
+        assertFailsWith<CashImportProtocolError> {
+            CashImportProtocol.writeSetInput("""{"a":1,"\u0061":2}""".encodeToByteArray())
+        }
+    }
+
     @Test fun standardJsonNumbersRemainExactTokensWithoutHostNumericConversion() {
         val numbers = listOf("1.2300", "-0", "0.0", "1E+003", "9007199254740993", "1e9999999999", "9".repeat(4301))
         for (number in numbers) {

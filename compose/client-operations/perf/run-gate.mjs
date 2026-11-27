@@ -158,6 +158,8 @@ function measure(prepared, phase, selected, enforceBudget) {
   for (const variable of ['NODE_OPTIONS', 'FT_PERF_DIAGNOSTIC', 'FT_PERF_WARMUPS', 'FT_PERF_SAMPLES', 'FT_PERF_ONLY', 'FT_PERF_SELECT']) {
     delete env[variable];
   }
+  delete env.FT_PERF_LIVE_MEMORY_FLOWS;
+  delete env.FT_PERF_LIVE_MEMORY_FORCE_GC;
   delete env.FT_PERF_ISOLATED_BACKEND;
   delete env.FT_PERF_LEGACY_COMPARISON;
   const legacyComparison = !enforceBudget && !existsSync(join(prepared.checkout,

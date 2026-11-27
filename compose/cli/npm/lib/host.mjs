@@ -75,12 +75,6 @@ export function splitLargeImportRequest(text, field, threshold) {
     }
 }
 
-export function encodeFrozenImportBatch(metadata, request) {
-    const envelope = parseImportEnvelope(metadata);
-    envelope.submission.request = request;
-    return JSON.stringify(envelope);
-}
-
 export async function request(origin, method, path, token, body, suppliedHeaders) {
     const url = new URL(path, origin);
     if (url.origin !== origin) throw new Error('Invalid request origin');
@@ -186,23 +180,28 @@ function seal(key, aad, payload) {
 
 const storageTextBlockUnits = 64 * 1024;
 
-function sealStateText(key, aad, payload) {
-    if (payload.length <= storageTextBlockUnits) return seal(key, aad, Buffer.from(payload));
-    const nonce = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, nonce);
-    cipher.setAAD(aad);
-    const encrypted = Buffer.allocUnsafe(28 + Buffer.byteLength(payload, 'utf8'));
-    nonce.copy(encrypted);
-    let written = 28;
+function* stateTextChunks(payload) {
     let start = 0;
     while (start < payload.length) {
         let end = Math.min(start + storageTextBlockUnits, payload.length);
         const last = payload.charCodeAt(end - 1);
         if (end < payload.length && last >= 0xd800 && last <= 0xdbff) end--;
-        const ciphertext = cipher.update(payload.slice(start, end), 'utf8');
+        yield payload.slice(start, end);
+        start = end;
+    }
+}
+
+function sealStateChunks(key, aad, bytes, chunks) {
+    const nonce = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    cipher.setAAD(aad);
+    const encrypted = Buffer.allocUnsafe(28 + bytes);
+    nonce.copy(encrypted);
+    let written = 28;
+    for (const text of chunks) {
+        const ciphertext = cipher.update(text, 'utf8');
         ciphertext.copy(encrypted, written);
         written += ciphertext.length;
-        start = end;
     }
     const tail = cipher.final();
     tail.copy(encrypted, written);
@@ -210,6 +209,49 @@ function sealStateText(key, aad, payload) {
     if (written !== encrypted.length) throw new Error('Invalid encrypted state length');
     cipher.getAuthTag().copy(encrypted, nonce.length);
     return encrypted;
+}
+
+function sealStateText(key, aad, payload) {
+    if (payload.length <= storageTextBlockUnits) return seal(key, aad, Buffer.from(payload));
+    return sealStateChunks(key, aad, Buffer.byteLength(payload, 'utf8'), stateTextChunks(payload));
+}
+
+function escapedJsonStringBytes(text) {
+    let bytes = Buffer.byteLength(text, 'utf8');
+    for (let index = 0; index < text.length; index++) {
+        const code = text.charCodeAt(index);
+        if (code === 34 || code === 92 || code === 8 || code === 9 || code === 10 || code === 12 || code === 13) {
+            bytes++;
+        } else if (code < 32) {
+            bytes += 5;
+        } else if (code >= 0xd800 && code <= 0xdfff) {
+            const next = text.charCodeAt(index + 1);
+            if (code < 0xdc00 && next >= 0xdc00 && next <= 0xdfff) index++;
+            else bytes += 3;
+        }
+    }
+    return bytes;
+}
+
+function sealFrozenImportBatch(key, aad, metadata, request) {
+    const envelope = parseImportEnvelope(metadata);
+    if (envelope?.submission?.request !== '') throw new Error('Invalid frozen import metadata');
+    const placeholder = '\u0000ft.import.request';
+    const token = JSON.stringify(placeholder);
+    envelope.submission.request = placeholder;
+    const canonical = JSON.stringify(envelope);
+    const position = canonical.indexOf(token);
+    if (position < 0 || position !== canonical.lastIndexOf(token)) {
+        envelope.submission.request = request;
+        return sealStateText(key, aad, JSON.stringify(envelope));
+    }
+    function* chunks() {
+        yield canonical.slice(0, position + 1);
+        for (const text of stateTextChunks(request)) yield JSON.stringify(text).slice(1, -1);
+        yield canonical.slice(position + token.length - 1);
+    }
+    const bytes = Buffer.byteLength(canonical, 'utf8') - token.length + 2 + escapedJsonStringBytes(request);
+    return sealStateChunks(key, aad, bytes, chunks());
 }
 
 function open(key, aad, encrypted) {
@@ -252,6 +294,17 @@ export function openStore(origin, createKey) {
             return { error: existing || createKey ? 'storage_key_unavailable' : 'authentication_required' };
         }
         const aad = (slot) => Buffer.from(`ft-client-v1\0${server}\0${slot}`);
+        const writeState = (slot, encode) => {
+            const dataKey = randomBytes(32);
+            const associated = aad(slot);
+            try {
+                database.prepare('INSERT OR REPLACE INTO client_state VALUES (?, ?, ?, ?)').run(
+                    server, slot, seal(key, associated, dataKey), encode(dataKey, associated),
+                );
+            } finally {
+                dataKey.fill(0);
+            }
+        };
         return {
             workspaceSlot(token, email, workspace) {
                 return createHmac('sha256', key).update(JSON.stringify([server, token, email, workspace])).digest('hex');
@@ -271,14 +324,10 @@ export function openStore(origin, createKey) {
                 }
             },
             write(slot, payload) {
-                const dataKey = randomBytes(32);
-                try {
-                    database.prepare('INSERT OR REPLACE INTO client_state VALUES (?, ?, ?, ?)').run(
-                        server, slot, seal(key, aad(slot), dataKey), sealStateText(dataKey, aad(slot), payload),
-                    );
-                } finally {
-                    dataKey.fill(0);
-                }
+                writeState(slot, (key, aad) => sealStateText(key, aad, payload));
+            },
+            writeFrozenImportBatch(slot, metadata, request) {
+                writeState(slot, (key, aad) => sealFrozenImportBatch(key, aad, metadata, request));
             },
             remove(slot) {
                 database.prepare('DELETE FROM client_state WHERE server = ? AND slot = ?').run(server, slot);

@@ -44,6 +44,37 @@ class LocalCashImportRecalculationTest {
         assertEquals(frozen, review.encode())
     }
 
+    @Test fun aReviewWithIdenticalInputsAndNoChoicesReusesTheSameCalculation() {
+        val f = fixture()
+        val starting = f.calculate(discover = false)
+        val review = LocalCashImportReview.decode(LocalCashImportReview.freeze(f.input, starting.plan, f.source, starting.writes).encode())
+        val current = f.source.copy(ledgerSeq = (f.source.ledgerSeq.toLong() + 1).toString())
+        var calls = 0
+        val result = review.recalculate(current) { source, input, previous, ids ->
+            calls++
+            f.calculate(input, previous, ids, source, discover = false).let { it.plan to it.writes }
+        }
+        assertTrue(result.conclusionUnchanged)
+        assertEquals(starting.writes, result.changes)
+        assertEquals(f.input, result.input)
+        assertEquals(1, calls)
+    }
+
+    @Test fun aNewRelationHistoryIsCalculatedAndChangesTheOriginalConclusion() {
+        val f = fixture()
+        val starting = f.calculate(discover = false)
+        val review = LocalCashImportReview.decode(LocalCashImportReview.freeze(f.input, starting.plan, f.source, starting.writes).encode())
+        val current = f.source.copy(ledgerSeq = (f.source.ledgerSeq.toLong() + 1).toString())
+        var calls = 0
+        val result = review.recalculate(current) { source, input, previous, ids ->
+            calls++
+            f.calculate(input, previous, ids, source).let { it.plan to it.writes }
+        }
+        assertEquals(2, calls)
+        assertFalse(result.conclusionUnchanged)
+        assertTrue((result.plan.getValue("relation_groups") as List<*>).isNotEmpty())
+    }
+
     @Test fun noOriginalConfirmationCannotBeReplacedByTheLatestCalculation() {
         val f = fixture(); val (confirmed, final) = f.confirmed()
         val old = LocalCashImportReview.freeze(confirmed.inputJson(), final.plan)

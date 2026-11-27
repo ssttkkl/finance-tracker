@@ -48,7 +48,7 @@ function seconds(value) {
 }
 
 /** Measure the installed client only. Diagnostic timestamps use the same clock as the TLS proxy. */
-export async function measureCommand(bin, args, { env, input, timeoutMs, outputDir, label, collectGc = false }) {
+export async function measureCommand(bin, args, { env, input, timeoutMs, outputDir, label, collectGc = false, collectLiveMemory = false }) {
     const platform = process.platform;
     if (platform !== 'linux' && platform !== 'darwin') throw new Error('Unsupported process measurement platform');
     const stdoutPath = join(outputDir, label + '.json');
@@ -66,13 +66,19 @@ export async function measureCommand(bin, args, { env, input, timeoutMs, outputD
     const start = performance.now();
     try {
         const timeOptions = platform === 'darwin' ? ['-l'] : ['-f', gnuFields, '-o', reportPath];
-        const gcEnv = collectGc ? {
-            NODE_OPTIONS: [env.NODE_OPTIONS, `--import=${new URL('./large-gc-observer.mjs', import.meta.url).href}`]
-                .filter(Boolean).join(' '),
-            FT_PERF_GC_EVIDENCE: gcPath,
+        const liveMemoryPath = join(outputDir, label + '.live-memory.jsonl');
+        const probeOptions = [
+            ...(collectGc ? [`--import=${new URL('./large-gc-observer.mjs', import.meta.url).href}`] : []),
+            ...(collectLiveMemory ? [`--import=${new URL('./live-memory-probe.mjs', import.meta.url).href}`] : []),
+            ...(collectLiveMemory && env.FT_PERF_LIVE_MEMORY_FORCE_GC === '1' ? ['--expose-gc'] : []),
+        ];
+        const probeEnv = probeOptions.length ? {
+            NODE_OPTIONS: [env.NODE_OPTIONS, ...probeOptions].filter(Boolean).join(' '),
+            ...(collectGc ? { FT_PERF_GC_EVIDENCE: gcPath } : {}),
+            ...(collectLiveMemory ? { FT_PERF_LIVE_MEMORY_FILE: liveMemoryPath } : {}),
         } : {};
         const child = spawn('/usr/bin/time', [...timeOptions, bin, ...args], {
-            env: { ...env, LC_ALL: 'C', ...gcEnv }, detached: true, stdio: ['pipe', stdout, 'pipe'],
+            env: { ...env, LC_ALL: 'C', ...probeEnv }, detached: true, stdio: ['pipe', stdout, 'pipe'],
         });
         const decoder = new StringDecoder('utf8');
         let pending = '';
@@ -111,6 +117,7 @@ export async function measureCommand(bin, args, { env, input, timeoutMs, outputD
     const stdoutText = readFileSync(stdoutPath, 'utf8');
     const report = platform === 'darwin' ? diagnostics : existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : '';
     const measurement = { label, startedAt, endedAt, before, after, phases, timedOut, ...childResult };
+    if (collectLiveMemory) measurement.liveMemoryFile = label + '.live-memory.jsonl';
     if (collectGc) {
         measurement.gc = existsSync(gcPath)
             ? JSON.parse(readFileSync(gcPath, 'utf8'))

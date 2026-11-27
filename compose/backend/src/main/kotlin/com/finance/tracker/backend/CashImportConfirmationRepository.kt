@@ -86,10 +86,16 @@ internal class CashImportConfirmationRepository(connection: Connection, private 
                 grant to CashWriteSetRequestBody(body, it[jobs.REQUEST_DIGEST]!!)
             }
 
+    private fun running(claim: CashImportClaim) =
+        scope(claim.identity).and(jobs.GENERATION.eq(claim.generation)).and(jobs.STATE.eq("running"))
+
     fun verify(claim: CashImportClaim, now: Long) {
-        val active = sql.fetchExists(sql.selectOne().from(jobs).where(scope(claim.identity))
-            .and(jobs.GENERATION.eq(claim.generation)).and(jobs.STATE.eq("running")).and(jobs.LEASE_UNTIL_MS.gt(now)))
-        if (!active) throw CashImportClaimLost()
+        if (!sql.fetchExists(sql.selectOne().from(jobs).where(running(claim).and(jobs.LEASE_UNTIL_MS.gt(now)))))
+            throw CashImportClaimLost()
+    }
+
+    fun verifyRunning(claim: CashImportClaim) {
+        if (!sql.fetchExists(sql.selectOne().from(jobs).where(running(claim)))) throw CashImportClaimLost()
     }
 
     fun finish(claim: CashImportClaim, state: String, expected: String = "running", rejection: CashImportConfirmationRejection? = null): Boolean =

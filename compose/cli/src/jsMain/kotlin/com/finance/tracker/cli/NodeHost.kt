@@ -45,7 +45,6 @@ private external object NodeHost {
     fun startOfDay(date: String, zone: String): String
     fun openStore(origin: String, createKey: Boolean): dynamic
     fun splitLargeImportRequest(text: String, field: String, threshold: Int): dynamic
-    fun encodeFrozenImportBatch(metadata: String, request: String): String
     fun readStatement(path: String, limit: Int): dynamic
 }
 
@@ -271,7 +270,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         if (current?.submission == null && batch.submission != null && hasPendingImportAccountCommand(session, workspaceId, batch.id))
             throw ClientOperationFailure("account_result_unknown", commitState = "unknown")
         file?.let { database.write("$prefix.file.${it.storageId}", it.payload) }
-        database.write(prefix, encodeImportBatch(batch))
+        writeImportBatch(prefix, batch)
         val reviewed = batch.reviewed
         if (reviewed == null) database.remove("$prefix.file.reviewed")
         else if (reviewed != current?.reviewed || batch.planId != current.planId || batch.revision != current.revision ||
@@ -342,12 +341,14 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         if (saved != null && version == database.dataVersion() as Int) checkpointedConfirmation = saved
     }
 
-    private fun encodeImportBatch(batch: ClientCashImportBatch): String {
+    private fun writeImportBatch(slot: String, batch: ClientCashImportBatch) {
         val submission = batch.submission
-        if (submission == null || submission.request.length < largeImportRequestLength)
-            return Json.encodeToString(batch.copy(reviewed = null))
-        val metadata = Json.encodeToString(batch.copy(reviewed = null, submission = submission.copy(request = "")))
-        return NodeHost.encodeFrozenImportBatch(metadata, submission.request)
+        if (submission == null || submission.request.length < largeImportRequestLength) {
+            database.write(slot, Json.encodeToString(batch.copy(reviewed = null)))
+        } else {
+            val metadata = Json.encodeToString(batch.copy(reviewed = null, submission = submission.copy(request = "")))
+            database.writeFrozenImportBatch(slot, metadata, submission.request)
+        }
     }
 
     private inline fun <reified T> readImportRequest(slot: String, field: String, withRequest: (T, String) -> T): T? =
