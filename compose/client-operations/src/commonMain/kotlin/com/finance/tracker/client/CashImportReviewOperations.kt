@@ -20,7 +20,7 @@ import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.ParsedImportFile
 import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
-import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
+import com.finance.tracker.business.domain.prepareLocalCashImportReview
 import com.finance.tracker.business.domain.identifyCashImportPreview
 import com.finance.tracker.business.domain.parsePythonCashTimestamp
 import com.finance.tracker.business.domain.summarizeLocalCashImportMonths
@@ -51,21 +51,14 @@ fun calculateCashImportReview(
     requireActive: () -> Unit,
 ): CashImportCalculation {
     val choices = freezeCashImportChoices(input)
-    val (plan, changes) = calculateLocalCashImportBusinessPlan(
+    val prepared = prepareLocalCashImportReview(
         files, snapshot, choices, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(),
-        requireActive, progress, Clock.System::now,
+        includePreviewContext, requireActive, progress, Clock.System::now,
     )
-    val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, changes)
-    val body = if (plan["can_commit"] == true) encodeCashImportRequest(request) else null
-    val frozenPlan = freezeLocalCashImportPreviewPlan(plan)
-    return CashImportCalculation(
-        frozenPlan,
-        LocalCashImportReview.freeze(choices, plan, snapshot, changes, frozenPlan),
-        request,
-        LocalCashImportReview.forPreview(plan),
-        if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
-        body,
-    )
+    val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, prepared.changes)
+    val body = if (prepared.canCommit) encodeCashImportRequest(request) else null
+    return CashImportCalculation(prepared.plan, prepared.confirmedReview(), request,
+        prepared.previousReviewFor, prepared.previewContext, body)
 }
 
 fun rebaseCashImportReview(

@@ -18,11 +18,48 @@ fun calculateLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: 
     previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
     progress: (CashImportPlanningStage) -> Unit = {},
     now: () -> Instant): Pair<Map<String, Any?>, CashWriteSetDto> {
+    val calculated = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    return calculated.plan to calculated.changes
+}
+
+class PreparedCashImportReview internal constructor(
+    val plan: JsonObject,
+    val changes: CashWriteSetDto,
+    val canCommit: Boolean,
+    val previousReviewFor: (JsonObject) -> LocalCashImportReview,
+    val previewContext: JsonElement?,
+    private val source: LedgerSnapshotDto,
+    private val retainedReview: LocalCashImportReview,
+) {
+    fun confirmedReview(): LocalCashImportReview = retainedReview.withConclusion(source, changes, plan)
+}
+
+/** Snapshot the choice history while the typed plan is still in scope. */
+fun prepareLocalCashImportReview(
+    files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
+    previous: Map<String, Any?>?, recordIds: Map<String, String>, includePreviewContext: Boolean,
+    requireActive: () -> Unit, progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
+): PreparedCashImportReview {
+    val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    return PreparedCashImportReview(frozen, changes, plan["can_commit"] == true, LocalCashImportReview.forPreview(plan),
+        if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
+        source, LocalCashImportReview.freeze(input, plan))
+}
+
+private data class CalculatedImportPlan(val plan: Map<String, Any?>, val frozen: JsonObject, val changes: CashWriteSetDto)
+
+private fun calculateImportPlan(
+    files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
+    previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
+    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
+): CalculatedImportPlan {
     val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
-    return plan to buildLocalCashImportWriteSet(source, files, sources, freezeLocalCashImportPreviewPlan(plan),
+    val frozen = freezeLocalCashImportPreviewPlan(plan)
+    val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
+    return CalculatedImportPlan(plan, frozen, changes)
 }
 
 private data class LocalPreparedImportPlan(val plan: MutableMap<String, Any?>, val sources: PreparedCashSourcePlan)

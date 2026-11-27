@@ -39,6 +39,15 @@ class LocalCashImportReview private constructor(private val text: String) {
         operation["occurrence_key"] as String to (operation["values"] as Map<*, *>)["record_id"] as String
     }
 
+    internal fun withConclusion(source: LedgerSnapshotDto, changes: CashWriteSetDto,
+        frozenPlan: JsonObject): LocalCashImportReview {
+        val original = document()
+        val conclusion = localCashImportConclusion(source, frozenPlan, changes)
+        val bindings = freezeLocalCashImportChoiceBindings(source, frozenPlan, changes, original.getValue("input").jsonObject,
+            original.getValue("context").jsonObject)
+        return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion), "bindings" to bindings)).toString())
+    }
+
     private fun document(): JsonObject = Json.parseToJsonElement(text).jsonObject
 
     companion object {
@@ -66,12 +75,8 @@ class LocalCashImportReview private constructor(private val text: String) {
 
         /** Freeze the complete result at confirmation; recovery never substitutes facts from a later snapshot. */
         fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto,
-            frozenPlan: JsonObject = freezeLocalCashImportPreviewPlan(plan)): LocalCashImportReview {
-            val original = freeze(input, plan).document()
-            val conclusion = localCashImportConclusion(source, frozenPlan, changes)
-            val bindings = freezeLocalCashImportChoiceBindings(source, frozenPlan, changes, input, original.getValue("context").jsonObject)
-            return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion), "bindings" to bindings)).toString())
-        }
+            frozenPlan: JsonObject = freezeLocalCashImportPreviewPlan(plan)): LocalCashImportReview =
+            freeze(input, plan).withConclusion(source, changes, frozenPlan)
 
         fun freeze(input: JsonObject, plan: Map<String, Any?>): LocalCashImportReview {
             val decisions = reviewInput(input)

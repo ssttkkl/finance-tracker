@@ -2,6 +2,7 @@ package com.finance.tracker.business.domain
 
 import kotlinx.serialization.json.*
 import kotlin.test.*
+import kotlin.time.Instant
 
 class LocalCashImportRecalculationTest {
     private fun fixture(strong: Boolean = false) = LocalCashImportRebindingTest().Fixture(strong)
@@ -58,6 +59,27 @@ class LocalCashImportRecalculationTest {
             }
         }
         assertEquals(sha256Hex(previous), hashCashImportConclusion(workspace, normalized, review))
+    }
+
+    @Test fun oneFrozenPlanPreservesTheLegacyCommandConclusionAndPreviewHistory() {
+        val fixture = fixture()
+        val evaluatedAt = Instant.parse("2026-10-03T09:00:00Z")
+        val (plan, changes) = calculateLocalCashImportBusinessPlan(fixture.files, fixture.source, fixture.input,
+            requireActive = {}, now = { evaluatedAt })
+        val frozen = freezeLocalCashImportPreviewPlan(plan)
+        val expected = LocalCashImportReview.freeze(fixture.input, plan, fixture.source, changes, frozen)
+        val previousReview = LocalCashImportReview.forPreview(plan)
+        val observed = mutableListOf<CashImportPlanningStage>()
+        val mutableInput = fixture.input.toMutableMap()
+        val current = prepareLocalCashImportReview(fixture.files, fixture.source, JsonObject(mutableInput), null, emptyMap(),
+            includePreviewContext = true, requireActive = {}, progress = { observed += it }, now = { evaluatedAt })
+        mutableInput.clear()
+        assertEquals(CashImportPlanningStage.entries.toList(), observed)
+        assertEquals(frozen.toString(), current.plan.toString())
+        assertEquals(cashWriteSetJson.encodeToString(changes), cashWriteSetJson.encodeToString(current.changes))
+        assertEquals(expected.encode(), current.confirmedReview().encode())
+        assertEquals(previousReview(fixture.input).encode(), current.previousReviewFor(fixture.input).encode())
+        assertEquals(LocalCashImportReview.encodePreviewContext(plan), current.previewContext)
     }
 
     @Test fun changedBusinessFactsRequireAnotherReviewEvenWhenBothBindingsStillMatch() {

@@ -54,6 +54,22 @@ class LocalCashImportPlanEncodingTest {
     }
 
     @Test
+    fun frozenNestedValuesCannotBeChangedThroughCollectionEntries() {
+        val plan = freezeLocalCashImportPreviewPlan(mapOf("payload" to mapOf("item" to listOf("original"))))
+        val original = plan.toString()
+        val objectValue = plan.getValue("payload").jsonObject
+        val entry = objectValue.entries.single()
+        runCatching { (entry as? MutableMap.MutableEntry<String, JsonElement>)?.setValue(JsonPrimitive("changed")) }
+
+        val array = objectValue.getValue("item").jsonArray
+        val iterator = array.listIterator()
+        iterator.next()
+        runCatching { (iterator as? MutableListIterator<JsonElement>)?.set(JsonPrimitive("changed")) }
+
+        assertEquals(original, plan.toString())
+    }
+
+    @Test
     fun malformedKeysAreRejectedWithoutInvokingTheirConversion() {
         val badKey = object {
             override fun toString(): String = error("unexpected key conversion")

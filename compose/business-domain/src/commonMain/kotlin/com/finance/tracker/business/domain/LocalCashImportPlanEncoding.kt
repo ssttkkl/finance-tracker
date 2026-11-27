@@ -30,7 +30,7 @@ fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
         }
         is List<*> -> {
             val itemPath = path + "[]"
-            JsonArray(value.map { encode(it, itemPath) })
+            JsonArray(buildList(value.size) { for (item in value) add(encode(item, itemPath)) })
         }
         is Map<*, *> -> encodeLocalCashObject(value) { name, item ->
             val normalized = when {
