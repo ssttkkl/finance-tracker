@@ -316,8 +316,12 @@ async function main() {
         assert.equal(selected.value.active_workspace_id, workspace);
         const scope = ['--workspace', workspace];
         if (isolated) {
-            // Authenticate and read representative ledger headers before measuring the isolated server.
-            for (let i = 0; i < 5; i++) await run(['account', 'list', ...scope]);
+            const prewarmState = join(work, 'state-prewarm');
+            const prewarm = { state: prewarmState };
+            const session = await run(['auth', 'login', '--email', email, '--password-stdin'],
+                { ...prewarm, input: testPassword });
+            assert.equal(session.value.active_workspace_id, workspace);
+            for (let i = 0; i < 5; i++) await run(['account', 'list', ...scope], prewarm);
             beginRequestRss = openSerialRssWindows(() => serviceMemory.start());
         }
         const snapshotPath = '/api/v1/ledger/snapshot';
