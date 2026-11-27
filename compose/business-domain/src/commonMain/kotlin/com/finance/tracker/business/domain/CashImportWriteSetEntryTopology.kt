@@ -6,6 +6,19 @@ import com.finance.tracker.business.contracts.*
 fun validateCashImportWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()) {
     validateCashImportWriteSetScope(changes, facts, aliases)
     val affected = validateCashWriteSetEntryTopology(changes, facts, aliases)
+    validateWholeCashImportEntries(changes, facts, aliases, affected)
+}
+
+internal fun validateLocalCashImportWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto,
+    topology: CashWriteEntryTopology) {
+    val aliases = CashWriteSetSourceAliases()
+    validateCashImportWriteSetScope(changes, facts, aliases)
+    val affected = validateCashWriteSetEntryTopology(changes, topology, aliases)
+    validateWholeCashImportEntries(changes, facts, aliases, affected)
+}
+
+private fun validateWholeCashImportEntries(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases,
+    affected: List<LedgerCashEntryFactDto>) {
     val parents = facts.cashTransactions.associateBy { it.id }
     val members = facts.cashEntryMembers.groupBy { it.entryId }
     val finalGroupByMember = changes.entries.flatMapIndexed { index, entry ->

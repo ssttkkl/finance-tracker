@@ -99,8 +99,9 @@ private class LocalEntryWrites(private val facts: LedgerFactsDto, private val pl
                     CashEntryMemberWriteDto(target(reference), member.standaloneValues, member.standaloneManualFields)
                 } }, edited[index].orEmpty().sortedWith(::pythonStringOrder))
         }
+        // Added entry results only refer to groups already selected by this topology.
         return prepared.copy(entries = results, entryDependencies = topology.affected.map { version(it.id, it.revision) }).also {
-            validateCashImportWriteSetEntryTopology(it, facts)
+            validateLocalCashImportWriteSetEntryTopology(it, facts, topology)
         }
     }
 

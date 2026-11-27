@@ -10,8 +10,11 @@ internal data class CashWriteEntryTopology(val groups: List<CashWriteEntryGroup>
 private fun invalidWriteEntry(path: String): Nothing = throw CashPolicyError("entry_result_invalid", listOf(path))
 
 /** Affected business groups and old-entry dependencies only; stored identities, values and authorization remain caller-owned. */
-internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<LedgerCashEntryFactDto> {
-    val topology = prepareCashWriteSetEntryTopology(changes, facts, aliases)
+internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<LedgerCashEntryFactDto> =
+    validateCashWriteSetEntryTopology(changes, prepareCashWriteSetEntryTopology(changes, facts, aliases), aliases)
+
+internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, topology: CashWriteEntryTopology,
+    aliases: CashWriteSetSourceAliases): List<LedgerCashEntryFactDto> {
     val requested = changes.entries.mapIndexed { index, row ->
         val group = row.members.mapTo(linkedSetOf()) { aliases.transaction(it.transaction.reference) }
         val path = "entries[$index]"
