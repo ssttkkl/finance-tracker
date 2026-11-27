@@ -61,6 +61,22 @@ class LocalCashImportBusinessPlanTest {
         assertEquals(frozen, freezeLocalCashImportPreviewPlan(build(files)))
     }
 
+    @Test fun completedPlanOwnsSourceMetadataAfterItsInputIsChanged() {
+        val file = files(refund = false).single()
+        val document = checkNotNull(file.document)
+        val row = document.rows.single()
+        val fields = checkNotNull(row.fields)
+        val payload = (fields.getValue("source_payload") as Map<*, *>).entries
+            .associate { (key, value) -> checkNotNull(key as? String) to value }.toMutableMap()
+        val explanation = row.sourceExplanation.toMutableMap()
+        val input = row.copy(fields = fields + ("source_payload" to payload), sourceExplanation = explanation)
+        val plan = build(listOf(file.copy(document = document.copy(rows = listOf(input)))))
+        val original = freezeLocalCashImportPreviewPlan(plan)
+        payload["商品说明"] = "new source description"
+        explanation["payment_method"] = "new payment method"
+        assertEquals(original, freezeLocalCashImportPreviewPlan(plan))
+    }
+
     @Test fun completePlanRetainsTypedFieldsAndAppliesEntryChoices() {
         val files = files(refund = false); val first = build(files)
         val edit = (first["entry_targets"] as Map<*, *>).keys.single() as String
