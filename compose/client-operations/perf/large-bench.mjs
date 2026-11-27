@@ -366,6 +366,8 @@ async function main() {
             const exclusive = await holdCashWriteLock(psqlArgs);
             const memory = !isolated ? serviceMemory?.start() : undefined;
             let cancelledId;
+            let cancelStart;
+            let cancelPeak;
             try {
                 const accepted = await run(cancellable.args, { flow: 'confirm-no-wait' });
                 assert.ok(['accepted', 'running'].includes(accepted.value.status));
@@ -378,12 +380,13 @@ async function main() {
                 assert.equal(current.value.status, 'running');
                 assert.equal(current.value.operation_id, cancellable.key);
                 await record('large.confirmation-status', current, { status: current.value.status, writerBlocked: true });
+                cancelStart = performance.now();
                 const cancel = await run(['import', 'cancel-confirmation', cancellable.key, ...cancellable.controlScope],
                     { flow: 'cancel', concurrent: true });
                 assert.equal(cancel.value.status, 'cancel_requested');
                 assert.equal(cancel.value.operation_id, cancellable.key);
                 cancelledId = cancel.value.operation_id;
-                await record('large.cancel-confirmation', cancel, { status: cancel.value.status, sameOperation: true });
+                cancelPeak = cancel.rssBytes;
                 checks.controls = { accepted: true, active: true, cancellationRecorded: true };
             } finally {
                 await exclusive.release();
@@ -395,6 +398,7 @@ async function main() {
                 const read = await run(['import', 'status', cancellable.key, ...cancellable.controlScope], { flow: 'status' });
                 assert.equal(read.value.operation_id, cancelledId);
                 terminal = read.value.status;
+                cancelPeak = Math.max(cancelPeak, read.rssBytes);
                 if (terminal === 'cancelled') break;
                 assert.equal(terminal, 'cancel_requested');
                 await pause(300);
@@ -409,6 +413,8 @@ async function main() {
             assert.equal(cancelled.originalReceipt, null);
             assert.equal(writeRequests(cancellable.key).length, 1);
             checks.controls.cancelled = true;
+            await record('large.cancel-confirmation', { ms: performance.now() - cancelStart, rssBytes: cancelPeak },
+                { status: terminal, sameOperation: true, receiptAbsent: true, unchangedLedger: true });
 
             const recoverable = await prepareControl('resume');
             const accepted = await run(recoverable.args, { flow: 'confirm-no-wait' });

@@ -1,12 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export function scenariosForJob(manifest, job, lane = 'all') {
+export function scenariosForJob(manifest, job, lane = 'all', includeAsync = false) {
   if (!['ordinary', 'maximum'].includes(job) ||
       (job === 'ordinary' ? !['all', 'shared', 'cli'].includes(lane) : lane !== 'all')) {
     throw new Error(`invalid benchmark job and lane: ${job}/${lane}`);
   }
   const scenarios = manifest.scenarios.filter((scenario) => scenario.job === job &&
+    (includeAsync || !scenario.requiresAsync) &&
     (lane === 'all' || scenario.id.startsWith('cli.') === (lane === 'cli')));
   if (!scenarios.length) throw new Error(`no scenarios for ${job}/${lane}`);
   return scenarios;
@@ -44,14 +45,11 @@ export function evaluate(scenarios, events, commandOk = true) {
     const sorted = samples.map((sample) => sample.ms).sort((a, b) => a - b);
     const ms = sorted[Math.ceil(0.95 * sorted.length) - 1] ?? null;
     const rssBytes = Math.max(0, ...samples.map((sample) => sample.rssBytes ?? 0)) || null;
-    if (scenario.budgetMs === null) absoluteErrors.push(`${scenario.id}: uncalibrated operation latency budget`);
-    else if (ms > scenario.budgetMs) absoluteErrors.push(`${scenario.id}: ${ms} ms exceeds ${scenario.budgetMs} ms`);
-    if (scenario.maxRssBytes !== null &&
-        (!Number.isSafeInteger(scenario.maxRssBytes) || scenario.maxRssBytes <= 0)) {
+    if (ms > scenario.budgetMs) absoluteErrors.push(`${scenario.id}: ${ms} ms exceeds ${scenario.budgetMs} ms`);
+    if (!Number.isSafeInteger(scenario.maxRssBytes) || scenario.maxRssBytes <= 0) {
       errors.push(`${scenario.id}: invalid client RSS budget`);
     }
-    if (scenario.maxRssBytes === null) absoluteErrors.push(`${scenario.id}: uncalibrated client RSS budget`);
-    else if (rssBytes > scenario.maxRssBytes) absoluteErrors.push(`${scenario.id}: ${rssBytes} B exceeds ${scenario.maxRssBytes} B`);
+    if (rssBytes > scenario.maxRssBytes) absoluteErrors.push(`${scenario.id}: ${rssBytes} B exceeds ${scenario.maxRssBytes} B`);
     results.push({ id: scenario.id, ms, rssBytes, warmups, sampleCount: samples.length });
   }
   const valid = errors.length === 0;
@@ -75,10 +73,9 @@ export function inventory(manifest, signatures) {
     const expectedSampling = s.job === 'maximum' ? [0, 1] : [5, 30];
     if (!/^[a-z][a-z.-]+$/.test(s.id) || !['ordinary', 'maximum'].includes(s.job) ||
         !['warm', 'cold', 'warm-remote'].includes(s.mode) ||
-        !s.workload?.trim() || !s.checks?.trim() || (s.budgetMs !== null && (!Number.isFinite(s.budgetMs) || s.budgetMs <= 0)) ||
+        !s.workload?.trim() || !s.checks?.trim() || !Number.isFinite(s.budgetMs) || s.budgetMs <= 0 ||
         s.warmups !== expectedSampling[0] || s.samples !== expectedSampling[1] ||
-        (s.maxRssBytes !== null &&
-          (!Number.isSafeInteger(s.maxRssBytes) || s.maxRssBytes <= 0)) ||
+        !Number.isSafeInteger(s.maxRssBytes) || s.maxRssBytes <= 0 ||
         (s.relativeFloorMs !== undefined && ![100, 2000].includes(s.relativeFloorMs))) {
       throw new Error(`invalid scenario metadata: ${s.id}`);
     }

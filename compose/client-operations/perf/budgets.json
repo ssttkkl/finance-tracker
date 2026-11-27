@@ -2,6 +2,90 @@
   "version": 1,
   "latencyUnit": "ms",
   "peakRssUnit": "bytes",
+  "http": {
+    "maxPeakServiceBytes": 536870912,
+    "maxConcurrentServiceBytes": 805306368,
+    "routes": {
+      "session": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "version": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "status": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "accountReceipt": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "createAccount": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 65536,
+        "maxResponseBytes": 262144
+      },
+      "cancel": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 65536,
+        "maxResponseBytes": 262144
+      },
+      "receipt": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "receiptRows": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "receiptRelations": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "snapshot": {
+        "maxServerMs": 2000,
+        "maxServiceIncreaseBytes": 67108864,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 33554432
+      },
+      "pdf": {
+        "maxServerMs": 5000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 8388608,
+        "maxResponseBytes": 8388608
+      },
+      "xls": {
+        "maxServerMs": 5000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 8388608,
+        "maxResponseBytes": 8388608
+      },
+      "submit": {
+        "maxServerMs": 8000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 67108864,
+        "maxResponseBytes": 262144
+      }
+    }
+  },
   "scenarios": [
     {
       "id": "session.register",
@@ -12,7 +96,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.login",
@@ -23,7 +107,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.status",
@@ -34,7 +118,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.logout",
@@ -45,7 +129,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.current",
@@ -56,7 +140,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.workspace-create",
@@ -67,7 +151,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.workspace-switch",
@@ -78,7 +162,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.workspace-rename",
@@ -89,7 +173,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.invitation-preview",
@@ -100,7 +184,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.invitation-create",
@@ -111,7 +195,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.invitation-accept",
@@ -122,7 +206,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.members",
@@ -133,7 +217,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.member-role",
@@ -144,7 +228,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.member-remove",
@@ -155,7 +239,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 750,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.workspace-delete",
@@ -166,7 +250,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "session.workspace-delete-server",
@@ -177,7 +261,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.directory",
@@ -188,7 +272,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.selection",
@@ -199,7 +283,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.detail",
@@ -210,7 +294,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.balances",
@@ -221,7 +305,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.receipt",
@@ -232,7 +316,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.receipt-key",
@@ -243,7 +327,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.create",
@@ -254,7 +338,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.edit",
@@ -265,7 +349,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.currencies",
@@ -276,7 +360,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "account.currencies-noop",
@@ -287,7 +371,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 100,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "cash.first-page",
@@ -297,8 +381,8 @@
       "checks": "first 20 stable entries and correct version",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 2000,
-      "maxRssBytes": null,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -310,7 +394,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 150,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.filter",
@@ -320,8 +404,8 @@
       "checks": "correct filter, total and ordered rows",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 1000,
-      "maxRssBytes": null
+      "budgetMs": 500,
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.summary",
@@ -331,8 +415,8 @@
       "checks": "exact monthly and per-currency totals",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 1000,
-      "maxRssBytes": null,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -344,7 +428,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 150,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.current-group",
@@ -355,7 +439,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 150,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.evidence",
@@ -366,7 +450,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 150,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.locate",
@@ -377,7 +461,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.add",
@@ -388,7 +472,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.transfer",
@@ -399,7 +483,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.pending",
@@ -410,7 +494,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.maintenance-preview",
@@ -421,7 +505,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.maintenance-plan",
@@ -432,7 +516,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.maintenance-confirm",
@@ -443,7 +527,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.maintenance-resume",
@@ -454,7 +538,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.resume",
@@ -465,7 +549,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "cash.association-candidates",
@@ -476,7 +560,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 500,
-      "maxRssBytes": null
+      "maxRssBytes": 201326592
     },
     {
       "id": "category.directory",
@@ -487,7 +571,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.create",
@@ -498,7 +582,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.edit",
@@ -509,7 +593,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.reorder",
@@ -520,7 +604,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.delete-impact",
@@ -531,7 +615,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.delete",
@@ -542,7 +626,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.batch-classify",
@@ -553,7 +637,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.batch-delete",
@@ -564,7 +648,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "category.cash-delete-impact",
@@ -575,7 +659,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1500,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.batches",
@@ -586,7 +670,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 300,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.prepare",
@@ -597,7 +681,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 5000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.add-file",
@@ -608,7 +692,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 3000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.replace-file",
@@ -619,7 +703,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 3000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.remove-file",
@@ -630,7 +714,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 3000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.map-accounts",
@@ -640,8 +724,8 @@
       "checks": "correct account mapping and original workspace",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 2000,
-      "maxRssBytes": null
+      "budgetMs": 1000,
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.create-account",
@@ -652,7 +736,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.extend-account",
@@ -663,7 +747,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.undo-account",
@@ -674,7 +758,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.cancel",
@@ -685,7 +769,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.cancel-keep-accounts",
@@ -696,7 +780,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 2000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.review",
@@ -706,8 +790,8 @@
       "checks": "can commit and exact 1000-row counts",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 10000,
-      "maxRssBytes": null,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
       "relativeFloorMs": 100
     },
     {
@@ -718,8 +802,8 @@
       "checks": "same conclusion and strictly newer base",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 10000,
-      "maxRssBytes": null
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.confirm",
@@ -729,8 +813,8 @@
       "checks": "one atomic write-set and complete receipt",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 8000,
-      "maxRssBytes": null
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.resume",
@@ -741,7 +825,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 3000,
-      "maxRssBytes": null
+      "maxRssBytes": 268435456
     },
     {
       "id": "import.result",
@@ -752,7 +836,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 1000,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.items",
@@ -763,7 +847,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.item",
@@ -774,7 +858,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.processing",
@@ -785,7 +869,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "import.result-input",
@@ -796,7 +880,7 @@
       "warmups": 5,
       "samples": 30,
       "budgetMs": 250,
-      "maxRssBytes": null
+      "maxRssBytes": 134217728
     },
     {
       "id": "cli.help",
@@ -806,8 +890,8 @@
       "checks": "installed ft help contains production operation commands",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 500,
-      "maxRssBytes": null,
+      "budgetMs": 300,
+      "maxRssBytes": 100663296,
       "relativeFloorMs": 100
     },
     {
@@ -818,8 +902,8 @@
       "checks": "20 real projection entries, expected version and source",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 2000,
-      "maxRssBytes": null,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -830,8 +914,8 @@
       "checks": "12 accurate month totals across selected currencies",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 2000,
-      "maxRssBytes": null,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -842,8 +926,8 @@
       "checks": "actual updated review and page, expected IDs and totals",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 12000,
-      "maxRssBytes": null,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -854,8 +938,8 @@
       "checks": "actual updated review and stable source content",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 12000,
-      "maxRssBytes": null,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -866,8 +950,8 @@
       "checks": "actual updated review and status details",
       "warmups": 5,
       "samples": 30,
-      "budgetMs": 12000,
-      "maxRssBytes": null,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
       "relativeFloorMs": 100
     },
     {
@@ -878,8 +962,8 @@
       "checks": "19 files parsed; three PDF passwords via stdin",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 30000,
-      "maxRssBytes": 1073741824
+      "budgetMs": 15000,
+      "maxRssBytes": 268435456
     },
     {
       "id": "large.review",
@@ -889,8 +973,8 @@
       "checks": "12724 posted, 1700 duplicate, 2995 accepted",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 150000,
-      "maxRssBytes": 5368709120,
+      "budgetMs": 30000,
+      "maxRssBytes": 536870912,
       "relativeFloorMs": 2000
     },
     {
@@ -901,8 +985,8 @@
       "checks": "one write-set POST and complete original receipt",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 120000,
-      "maxRssBytes": 4831838208
+      "budgetMs": 60000,
+      "maxRssBytes": 536870912
     },
     {
       "id": "large.result",
@@ -912,8 +996,8 @@
       "checks": "same receipt and its exact item page",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 6000,
-      "maxRssBytes": 2684354560
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
     },
     {
       "id": "large.cash-online",
@@ -923,8 +1007,8 @@
       "checks": "online same-version cached read",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 8000,
-      "maxRssBytes": 2147483648,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
       "relativeFloorMs": 2000
     },
     {
@@ -935,8 +1019,8 @@
       "checks": "new offline process, same version and rows",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 6000,
-      "maxRssBytes": 1610612736,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
       "relativeFloorMs": 2000
     },
     {
@@ -947,8 +1031,8 @@
       "checks": "first authoritative snapshot in fresh local state",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 8000,
-      "maxRssBytes": 2147483648,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
       "relativeFloorMs": 2000
     },
     {
@@ -959,8 +1043,8 @@
       "checks": "changed-version refreshed snapshot with new data",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": 8000,
-      "maxRssBytes": 2147483648,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
       "relativeFloorMs": 2000
     },
     {
@@ -971,8 +1055,9 @@
       "checks": "持久受理同一操作，首条提交仅一次",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": null,
-      "maxRssBytes": null
+      "budgetMs": 8000,
+      "maxRssBytes": 268435456,
+      "requiresAsync": true
     },
     {
       "id": "large.confirmation-status",
@@ -982,8 +1067,9 @@
       "checks": "后台工作已进入写事务且返回原键运行状态",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": null,
-      "maxRssBytes": null
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
+      "requiresAsync": true
     },
     {
       "id": "large.cancel-confirmation",
@@ -993,8 +1079,9 @@
       "checks": "后台运行时请求取消，核实终态零入账",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": null,
-      "maxRssBytes": null
+      "budgetMs": 3000,
+      "maxRssBytes": 134217728,
+      "requiresAsync": true
     },
     {
       "id": "large.resume",
@@ -1004,8 +1091,9 @@
       "checks": "另起安装包进程按原键取得唯一完整收据",
       "warmups": 0,
       "samples": 1,
-      "budgetMs": null,
-      "maxRssBytes": null
+      "budgetMs": 5000,
+      "maxRssBytes": 268435456,
+      "requiresAsync": true
     }
   ],
   "entrypoints": [

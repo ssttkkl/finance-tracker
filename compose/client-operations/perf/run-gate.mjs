@@ -16,7 +16,7 @@ mkdirSync(report, { recursive: true });
 const manifestBytes = readFileSync(join(perf, 'budgets.json'));
 const manifest = JSON.parse(manifestBytes);
 const lane = process.env.FT_PERF_ORDINARY_LANE ?? 'all';
-const scenarios = scenariosForJob(manifest, job, lane);
+const scenarios = scenariosForJob(manifest, job, lane, true);
 const baseSha = process.env.FT_PERF_BASE_SHA;
 const ownedTemporary = [];
 function temporaryDirectory(label) {
@@ -218,7 +218,7 @@ function measure(prepared, phase, selected, enforceBudget) {
     if (job === 'maximum') {
       const details = JSON.parse(readFileSync(join(out, 'large-details.json')));
       if (enforceBudget) {
-        const http = evaluateMaximumHttpGate(details, replayDetails);
+        const http = evaluateMaximumHttpGate(details, replayDetails, manifest.http);
         writeReport(`${phase}-http.json`, http);
         if (!http.ok || !replayOk) {
           console.error(`HTTP performance: ${http.errors.length} errors (see ${phase}-http.json)`);

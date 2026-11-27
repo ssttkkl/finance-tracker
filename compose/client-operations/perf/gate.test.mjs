@@ -50,22 +50,13 @@ test('an ordinary operation requires a measured peak even during calibration', (
   const withoutPeak = events.map((event, index) => index === 10 ? { ...event, rssBytes: undefined } : event);
   assert.equal(evaluate([{ ...scenario, maxRssBytes: undefined }], withoutPeak).valid, false);
   const candidate = { ...scenario, maxRssBytes: null };
-  assert.equal(evaluate([candidate], events).valid, true);
+  assert.equal(evaluate([candidate], events).valid, false);
   assert.equal(evaluate([candidate], events).ok, false);
   for (const invalid of [undefined, 0, -1, Infinity]) {
     const changed = events.map((event, index) => index === 10 ? { ...event, rssBytes: invalid } : event);
     assert.equal(evaluate([candidate], changed).valid, false);
   }
   assert.equal(evaluate([scenario], [...events.slice(0, -1), { ...latency(200), rssBytes: 2049 }]).ok, false);
-});
-
-test('candidate operation latency is measured but cannot count as passed', () => {
-  const events = [...warmups(), ...samples(200)];
-  const output = evaluate([{ ...scenario, budgetMs: null }], events);
-  assert.equal(output.valid, true);
-  assert.equal(output.ok, false);
-  assert.match(output.errors.join('\n'), /uncalibrated operation latency/);
-  assert.equal(output.results[0].ms, 200);
 });
 
 test('relative trigger requires both thresholds and verifies all declared hotspots', () => {
