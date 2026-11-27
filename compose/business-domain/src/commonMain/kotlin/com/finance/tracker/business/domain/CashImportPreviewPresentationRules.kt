@@ -1,5 +1,25 @@
 package com.finance.tracker.business.domain
 
+internal class CashImportParentIndex(
+    private val rows: List<Map<String, Any?>>,
+    parents: (Map<String, Any?>) -> Set<String>,
+) {
+    private val positionsByParent = buildMap<String, MutableList<Int>> {
+        rows.forEachIndexed { position, entry ->
+            for (parent in parents(entry)) getOrPut(parent) { mutableListOf() }.add(position)
+        }
+    }
+    val parentIds: Set<String> get() = positionsByParent.keys
+
+    fun matching(parents: Set<String>): List<Map<String, Any?>> {
+        if (positionsByParent.isEmpty() || parents.isEmpty()) return emptyList()
+        if (parents.size == 1) return positionsByParent[parents.first()].orEmpty().map(rows::get)
+        val positions = mutableSetOf<Int>()
+        for (parent in parents) positions.addAll(positionsByParent[parent].orEmpty())
+        return positions.sorted().map(rows::get)
+    }
+}
+
 /** Render one frozen preview graph without reading or mutating ledger facts. */
 class CashImportPreviewPresentationRules<I : Comparable<I>, T : Comparable<T>>(
     private val recordValues: CashRecordValues, private val integer: (Any?) -> I?,
@@ -53,8 +73,10 @@ class CashImportPreviewPresentationRules<I : Comparable<I>, T : Comparable<T>>(
         val changed = snapshot.parentOps.filterValues { it["planned_action"] != "duplicate" }.keys
         val touched = (changed + entryParentIds).toMutableSet()
         if (includeUnchanged) touched += snapshot.parentOps.keys
+        val groupIndex = CashImportParentIndex(groups, ::parents)
+        val failureIndex = CashImportParentIndex(failures, ::parents)
+        touched += groupIndex.parentIds
         for (group in groups) {
-            touched += parents(group)
             if (group["changed"] == true) touched += (group["old_parent_ids"] as? List<*>).orEmpty().map { it.toString() }
         }
         touched += affectedCashRelationClosure(changed, snapshot.context.relations.map { cashImportLink(it) },
@@ -88,11 +110,11 @@ class CashImportPreviewPresentationRules<I : Comparable<I>, T : Comparable<T>>(
             val identifier = "pi_${index + 1}"
             val parents = projection.memberIds.map { it.toString() }.toSet()
             val ordered = parents.sortedWith(cashRelationStringOrder)
-            val relevant = groups.filter { parents.intersect(parents(it)).isNotEmpty() }
+            val relevant = groupIndex.matching(parents)
             val issues = parents.flatMap { parent -> listOf("issues", "display_retained_issues")
                 .flatMap { maps(snapshot.parentOps[parent]?.get(it)) } }.toMutableList()
             if (relevant.any { it["action"] == "defer" }) issues += pending("relation_pending")
-            issues += failures.filter { parents.intersect(parents(it)).isNotEmpty() }.map { pending(it["code"].toString()) }
+            issues += failureIndex.matching(parents).map { pending(it["code"].toString()) }
             val root = projection.primaryRecord
             val public = snapshot.entryPublic[root.id.toString()]?.get("values") as? Map<*, *>
             val display = linkedMapOf<String, Any?>("occurred_at" to projection.occurredAt, "amount" to projection.netAmount,

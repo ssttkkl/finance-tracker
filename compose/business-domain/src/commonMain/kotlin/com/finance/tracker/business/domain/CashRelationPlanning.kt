@@ -16,7 +16,6 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
         }
         return 0
     }
-    private fun factKey(fact: RelationFact<A>): List<String> = core.stableFactOrderKey(fact)
     private fun refundAmount(proposal:RelationProposal):A=absolute(parseAmount(proposal.evidence.extras["refund_amount"].toString()))
 
     /** 把持久化行里的结构化来源元数据暴露给 Phase A；返回副本，不修改调用方行。 */
@@ -97,6 +96,7 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
         acceptedRelations: List<Map<String, Any?>>, aliasesByTail: Map<String, List<String>>?, accountIdentifiers: Map<String, List<String>>?,
         remainingByExpense: Map<String, A>?, workspaceId: String, requireUniqueMirrors: Boolean,
         result: (List<RelationFact<A>>, List<Map<String, Any?>>, List<RelationProposal>) -> R): R {
+        val factKey = core.planFactOrderKey()
         val normalized = facts.filter { !it.deleted }.sortedWith(Comparator { left, right ->
             compareKeys(factKey(left), factKey(right))
         })

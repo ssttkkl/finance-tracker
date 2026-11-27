@@ -42,6 +42,24 @@ class CashRelationCoreTest {
         for(text in listOf("0001-01-01T00:00:00Z","1600-02-29T23:59:59.123456Z","1900-03-01T00:00:00Z","1969-12-31T23:59:59.999999Z","2000-02-29T00:00:00Z","9999-12-31T23:59:59.999999Z"))
             assertEquals(text.removeSuffix("Z")+"+00:00",formatPythonCashTimestamp(Instant.parse(text)))
     }
+    @Test fun planOrderingFormatsRepeatedTimesOnceAndKeepsFactsWithTheSameIdDistinct() {
+        var calls = 0
+        val rules = CashRelationCoreRules<CashAmount>({ 0 }) { value ->
+            calls++
+            stableCashRelationTimestamp(value)
+        }
+        val first = fact("a").copy(occurredAt = Instant.parse("1969-12-31T23:59:59.123456789Z"))
+        val other = first.copy(recordId = "another")
+        val orderKey = rules.planFactOrderKey()
+        assertEquals(cashRelationCore.stableFactOrderKey(first), orderKey(first))
+        assertEquals(cashRelationCore.stableFactOrderKey(other), orderKey(other))
+        val invalid = first.copy(occurredAt = " badZ ")
+        repeat(2) { assertEquals(cashRelationCore.stableFactOrderKey(invalid), orderKey(invalid)) }
+        assertEquals(2, calls)
+        rules.planFactOrderKey()(first)
+        assertEquals(3, calls)
+    }
+
     @Test fun factOrderingUsesCanonicalTimestampAndCodePointOrder() {
         val a=fact("a").copy(occurredAt="2026-10-01T18:00:00+08:00")
         val b=fact("b")

@@ -34,7 +34,10 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
     fun hash(value: JsonElement): String = conclusionHash(value)
     fun ordered(values: List<JsonElement>): JsonArray = JsonArray(ordered<JsonElement>(values))
     fun decimal(text: String): String = amount(text)
-    fun timestamp(text: String): String = formatPythonCashTimestamp(parsePythonCashTimestamp(text))
+    private val timestamps = mutableMapOf<String, String>()
+    fun timestamp(text: String): String = timestamps.getOrPut(text) {
+        formatPythonCashTimestamp(parsePythonCashTimestamp(text))
+    }
     private fun CashWriteReferenceDto.key(): String = when (this) {
         is ExistingCashWriteReferenceDto -> id
         is NewCashWriteReferenceDto -> ref
@@ -49,9 +52,7 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
             relations.size == changes.relations.size && relations.values.toSet().size == relations.size) { "cash_import_conclusion_identity_collision" }
         return changes.copy(
             transactions = ordered(changes.transactions.map { row -> row.copy(target = transaction(row.target),
-                values = row.values.copy(amount = row.values.amount?.let(::amount), occurredAt = row.values.occurredAt?.let {
-                    formatPythonCashTimestamp(parsePythonCashTimestamp(it))
-                }), components = ordered(row.components.map { it.copy(reference = componentRef(it.reference), amount = it.amount?.let(::amount), ordinal = integer(it.ordinal)) }),
+                values = row.values.copy(amount = row.values.amount?.let(::amount), occurredAt = row.values.occurredAt?.let(::timestamp)), components = ordered(row.components.map { it.copy(reference = componentRef(it.reference), amount = it.amount?.let(::amount), ordinal = integer(it.ordinal)) }),
                 editedFields = row.editedFields.sorted(), entryEdit = row.entryEdit?.let { it.copy(entry = it.entry?.let(::entry)) }) }),
             relations = ordered(changes.relations.map { relation -> relation.copy(target = CashWriteVersionedReferenceDto(relations.getValue(relation.target.reference), null),
                 primaryTransaction = transaction(relation.primaryTransaction), secondaryTransaction = relation.secondaryTransaction?.let(::transaction),
