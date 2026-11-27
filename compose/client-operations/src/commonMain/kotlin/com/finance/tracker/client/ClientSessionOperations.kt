@@ -487,19 +487,43 @@ class ClientSessionOperations(
     internal suspend fun refreshLedger(previous: ClientLedgerRead): ClientLedgerRead =
         ledger(previous.binding, previous.ledger.snapshot.workspaceId)
 
+    internal suspend fun localImportWorkspace(expectedWorkspaceId: String?): Pair<ClientStoredSession, String> {
+        val original = requireSession()
+        requireCurrent(original)
+        val expected = initialLedgerWorkspace(original, expectedWorkspaceId)
+        val binding = try {
+            onlineSession(original)
+        } catch (failure: ClientNetworkUnavailable) {
+            requireCurrent(original)
+            val workspace = original.session.activeWorkspaceId
+            if (expectedWorkspaceId != null && expectedWorkspaceId != workspace) throw ClientOperationFailure("workspace_conflict")
+            return original to (workspace ?: throw ClientOperationFailure("offline_sync_required", cause = failure))
+        }
+        return binding to verifiedLedgerWorkspace(binding, expected)
+    }
+
+    private fun initialLedgerWorkspace(binding: ClientStoredSession, expected: String?): String? {
+        val lastKnown = binding.session.activeWorkspaceId
+        if (expected != null && lastKnown != null && expected != lastKnown)
+            throw ClientOperationFailure("workspace_conflict")
+        return expected ?: lastKnown
+    }
+
+    private fun verifiedLedgerWorkspace(binding: ClientStoredSession, expected: String?): String {
+        if (expected != null && binding.session.workspaces.none { it.id == expected })
+            throw ClientOperationFailure("workspace_forbidden", 403)
+        val workspace = binding.session.activeWorkspaceId ?: throw ClientOperationFailure("workspace_required")
+        if (expected != null && workspace != expected) throw ClientOperationFailure("workspace_conflict")
+        return workspace
+    }
+
     private suspend fun ledger(original: ClientStoredSession, expectedWorkspaceId: String?): ClientLedgerRead {
         requireCurrent(original)
-        val initialWorkspace = expectedWorkspaceId ?: original.session.activeWorkspaceId
-        val lastKnown = original.session.activeWorkspaceId
-        if (expectedWorkspaceId != null && lastKnown != null && expectedWorkspaceId != lastKnown)
-            throw ClientOperationFailure("workspace_conflict")
+        val initialWorkspace = initialLedgerWorkspace(original, expectedWorkspaceId)
         var binding = original
         return try {
             binding = onlineSession(original)
-            if (initialWorkspace != null && binding.session.workspaces.none { it.id == initialWorkspace })
-                throw ClientOperationFailure("workspace_forbidden", 403)
-            val workspace = binding.session.activeWorkspaceId ?: throw ClientOperationFailure("workspace_required")
-            if (initialWorkspace != null && workspace != initialWorkspace) throw ClientOperationFailure("workspace_conflict")
+            val workspace = verifiedLedgerWorkspace(binding, initialWorkspace)
             val state = store.ledgerState(binding, workspace)
             val cached = state.ledger
             val suffix = "?workspace_id=${encodeComponent(workspace)}"

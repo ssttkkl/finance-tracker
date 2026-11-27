@@ -140,9 +140,9 @@ class ClientCashImportOperations(
     private val progress: (String) -> Unit = {},
 ) {
     suspend fun batches(workspaceId: String?): List<ClientCashImportListing> {
-        val ledger = session.ledger(workspaceId)
-        val batches = store.batches(ledger.binding, ledger.ledger.snapshot.workspaceId)
-        session.requireCurrent(ledger.binding)
+        val (binding, workspace) = session.localImportWorkspace(workspaceId)
+        val batches = store.batches(binding, workspace)
+        session.requireCurrent(binding)
         return batches
     }
 
@@ -416,8 +416,8 @@ class ClientCashImportOperations(
     }
 
     suspend fun result(workspaceId: String?, batchId: String): CashImportResultContent {
-        val ledger = session.ledger(workspaceId)
-        val batch = batch(ledger, batchId)
+        val (binding, workspace) = session.localImportWorkspace(workspaceId)
+        val batch = batch(binding, workspace, batchId)
         return result(batch) ?: batch.submission?.receipt?.let { provisionalResult(batch) }
             ?: throw ClientOperationFailure("result_not_available")
     }

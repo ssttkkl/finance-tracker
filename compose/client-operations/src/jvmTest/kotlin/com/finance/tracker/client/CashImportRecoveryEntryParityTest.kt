@@ -101,8 +101,12 @@ class CashImportRecoveryEntryParityTest {
                 emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(),
             ))
         val item = CashMutationResultDto("1", "row", "row:0", "created", transactionId = "9007199254740992")
+        val readPaths = mutableListOf<String>()
+        var offline = false
         val transport = ClientHttp { call ->
             assertEquals(session.token, call.token)
+            readPaths += call.path.substringBefore('?')
+            if (offline) throw ClientNetworkUnavailable()
             when (call.path.substringBefore('?')) {
                 "/api/v1/auth/session" -> ClientHttpResponse(200, Json.encodeToString(session.session))
                 "/api/v1/ledger/version" -> ClientHttpResponse(200, """{"ledger_seq":"${snapshot.ledgerSeq}"}""")
@@ -161,7 +165,20 @@ class CashImportRecoveryEntryParityTest {
         assertEquals(receipt, recovered.result.authoritativeReceipt())
         assertEquals(listOf(item), recovered.result.page("row", 0, 50).items)
         assertEquals(1, posts)
-        assertEquals(receipt, reopened.result(workspace.id, prepared.batchId).authoritativeReceipt())
+        val initialReads = store.ledgerStateReads
+        for (disconnected in listOf(false, true)) {
+            offline = disconnected
+            readPaths.clear()
+            val archived = operations().result(workspace.id, prepared.batchId)
+            assertEquals(receipt, archived.authoritativeReceipt())
+            assertEquals(listOf(item), archived.page("row", 0, 50).items)
+            assertEquals(listOf("/api/v1/auth/session"), readPaths)
+            assertEquals(initialReads, store.ledgerStateReads)
+            readPaths.clear()
+            assertEquals(listOf(prepared.batchId), operations().batches(workspace.id).map { it.batchId })
+            assertEquals(listOf("/api/v1/auth/session"), readPaths)
+            assertEquals(initialReads, store.ledgerStateReads)
+        }
         assertEquals(emptyMap(), store.files)
     }
 
@@ -173,13 +190,17 @@ class CashImportRecoveryEntryParityTest {
         var batch: ClientCashImportBatch? = null
         val files = mutableMapOf<String, String>()
         var state = ClientLedgerState()
+        var ledgerStateReads = 0
 
         override suspend fun session(): ClientStoredSession = binding
         override suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean = error("Unused")
         override suspend fun verify(previous: ClientStoredSession, session: ClientStoredSession): Boolean =
             previous.token == binding.token && session.session == binding.session
 
-        override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState = state
+        override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState {
+            ledgerStateReads++
+            return state
+        }
         override suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean {
             if (state.generation != expectedGeneration) return false
             state = ClientLedgerState(ledger.snapshot.ledgerSeq, ledger)
