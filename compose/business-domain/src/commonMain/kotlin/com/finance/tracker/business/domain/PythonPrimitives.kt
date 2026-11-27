@@ -62,8 +62,9 @@ private fun String.pythonCodePointAt(index: Int): Int {
 fun sha256Hex(value: String): String = sha256Hex(value.encodeToByteArray())
 
 /** 与后端 `tokenDigest` 等价的十六进制 SHA-256。 */
-fun sha256Hex(bytes: ByteArray): String {
-    val digest = sha256(bytes)
+fun sha256Hex(bytes: ByteArray): String = sha256HexDigest(sha256(bytes))
+
+private fun sha256HexDigest(digest: ByteArray): String {
     val digits = "0123456789abcdef"
     val hex = CharArray(digest.size * 2)
     for (index in digest.indices) {
@@ -92,19 +93,33 @@ private val sha256RoundConstants = intArrayOf(
 
 /** 多平台 SHA-256（FIPS 180-4）。 */
 fun sha256(bytes: ByteArray): ByteArray {
-    val bitLength = bytes.size.toLong() * 8
-    val paddedLength = ((bytes.size + 8) / 64 + 1) * 64
-    val message = ByteArray(paddedLength)
-    bytes.copyInto(message)
-    message[bytes.size] = 0x80.toByte()
-    for (index in 0 until 8) {
-        message[paddedLength - 1 - index] = ((bitLength ushr (8 * index)) and 0xFF).toByte()
-    }
+    val digest = Sha256Blocks()
+    val complete = bytes.size - bytes.size % 64
+    for (offset in 0 until complete step 64) digest.compress(bytes, offset)
+    return digest.finish(bytes, complete, bytes.size - complete, bytes.size.toLong())
+}
 
-    val state = sha256InitialState.copyOf()
-    val schedule = IntArray(64)
-    for (chunk in 0 until paddedLength / 64) {
-        val offset = chunk * 64
+internal fun sha256HexAscii(write: ((Int) -> Unit) -> Unit): String {
+    val digest = Sha256Blocks()
+    val block = ByteArray(64)
+    var position = 0
+    var complete = 0L
+    write { character ->
+        block[position++] = character.toByte()
+        if (position == block.size) {
+            digest.compress(block, 0)
+            complete += block.size
+            position = 0
+        }
+    }
+    return sha256HexDigest(digest.finish(block, 0, position, complete + position))
+}
+
+private class Sha256Blocks {
+    private val state = sha256InitialState.copyOf()
+    private val schedule = IntArray(64)
+
+    fun compress(message: ByteArray, offset: Int) {
         for (index in 0 until 16) {
             var word = 0
             for (byteIndex in 0 until 4) {
@@ -154,12 +169,22 @@ fun sha256(bytes: ByteArray): ByteArray {
         state[7] = state[7] + h
     }
 
-    val result = ByteArray(32)
-    for (index in 0 until 8) {
-        val word = state[index]
-        for (byteIndex in 0 until 4) {
-            result[index * 4 + byteIndex] = ((word ushr (24 - 8 * byteIndex)) and 0xFF).toByte()
+    fun finish(bytes: ByteArray, offset: Int, count: Int, messageBytes: Long): ByteArray {
+        val padding = ByteArray(if (count < 56) 64 else 128)
+        bytes.copyInto(padding, startIndex = offset, endIndex = offset + count)
+        padding[count] = 0x80.toByte()
+        val bitLength = messageBytes * 8
+        for (index in 0 until 8) {
+            padding[padding.lastIndex - index] = (bitLength ushr (8 * index)).toByte()
         }
+        for (start in padding.indices step 64) compress(padding, start)
+        val result = ByteArray(32)
+        for (index in 0 until 8) {
+            val word = state[index]
+            for (byteIndex in 0 until 4) {
+                result[index * 4 + byteIndex] = (word ushr (24 - 8 * byteIndex)).toByte()
+            }
+        }
+        return result
     }
-    return result
 }

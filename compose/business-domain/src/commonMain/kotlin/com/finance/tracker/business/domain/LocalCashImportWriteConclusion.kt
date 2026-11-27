@@ -133,23 +133,11 @@ private fun conclusionHash(value: JsonElement): String {
     val text = canonicalConclusion(value).toString()
     val size = text.length + 5 * text.count { it.code >= 128 }
     val bytes = ByteArray(size)
-    val digits = "0123456789abcdef"
     var index = 0
-    for (char in text) {
-        if (char.code < 128) {
-            bytes[index++] = char.code.toByte()
-        } else {
-            bytes[index++] = '\\'.code.toByte()
-            bytes[index++] = 'u'.code.toByte()
-            for (shift in 12 downTo 0 step 4) bytes[index++] = digits[(char.code ushr shift) and 15].code.toByte()
-        }
-    }
+    writeConclusionText(text) { bytes[index++] = it.toByte() }
     return sha256Hex(bytes)
 }
 
-private fun conclusionText(value: JsonElement): String {
-    // ASCII escapes preserve every UTF-16 code unit, including isolated surrogate source text.
-    return buildString { for (char in canonicalConclusion(value).toString()) {
-        if (char.code >= 128) append("\\u" + char.code.toString(16).padStart(4, '0')) else append(char)
-    } }
+private fun conclusionText(value: JsonElement): String = buildString {
+    writeConclusionText(canonicalConclusion(value).toString()) { append(it.toChar()) }
 }

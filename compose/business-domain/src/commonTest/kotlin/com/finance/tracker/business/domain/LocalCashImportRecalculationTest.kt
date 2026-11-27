@@ -29,6 +29,37 @@ class LocalCashImportRecalculationTest {
         assertEquals(frozen, review.encode())
     }
 
+    @Test fun streamingNormalizedWritesKeepsThePreviousCanonicalConclusionBytes() {
+        val fixture = fixture()
+        val (_, batch) = fixture.confirmed()
+        val normalized = CashImportConclusionValues(fixture.source.facts, batch.writes).normalized()
+        val review = buildJsonObject {
+            put("𐐷", JsonArray(listOf(JsonPrimitive("\uD800"), JsonPrimitive("\uDC00"), JsonNull)))
+            put("\uE000", JsonPrimitive(Long.MAX_VALUE))
+            put("range", JsonPrimitive("quoted \"\\\t\u0000"))
+        }
+        val workspace = "账本𐐷"
+        val legacy = Json { encodeDefaults = true }
+        val envelope = buildJsonObject {
+            put("version", "cash-import-conclusion-v1")
+            put("workspace", workspace)
+            put("rules", CASH_RULES_VERSION)
+            put("writes", legacy.encodeToJsonElement(normalized))
+            put("review", review)
+        }
+        fun canonical(value: JsonElement): JsonElement = when (value) {
+            is JsonObject -> JsonObject(value.keys.sortedWith(::pythonStringOrder).associateWith { canonical(value.getValue(it)) })
+            is JsonArray -> JsonArray(value.map(::canonical))
+            else -> value
+        }
+        val previous = buildString {
+            for (char in canonical(envelope).toString()) {
+                if (char.code < 128) append(char) else append("\\u" + char.code.toString(16).padStart(4, '0'))
+            }
+        }
+        assertEquals(sha256Hex(previous), hashCashImportConclusion(workspace, normalized, review))
+    }
+
     @Test fun changedBusinessFactsRequireAnotherReviewEvenWhenBothBindingsStillMatch() {
         val f = fixture(strong = true); val (review, _) = f.confirmed(); val frozen = review.encode()
         val observed = f.observed()

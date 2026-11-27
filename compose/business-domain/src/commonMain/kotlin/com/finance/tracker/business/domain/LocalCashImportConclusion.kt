@@ -6,15 +6,12 @@ import kotlinx.serialization.json.*
 /** Compare complete review results and writes. Choice recovery, discovery and retry authorization remain with the caller. */
 fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String {
     val values = CashImportConclusionValues(source.facts, changes)
-    val writes = fullConclusionJson.encodeToJsonElement(values.normalized())
+    val writes = values.normalized()
     val review = PlanConclusion(source.facts, plan, values).normalized()
-    return values.hash(buildJsonObject {
-        put("version", "cash-import-conclusion-v1"); put("workspace", source.workspaceId); put("rules", CASH_RULES_VERSION)
-        put("writes", writes); put("review", review)
-    })
+    return hashCashImportConclusion(source.workspaceId, writes, review)
 }
 
-private val fullConclusionJson = Json { encodeDefaults = true }
+internal val fullConclusionJson = Json { encodeDefaults = true }
 
 internal fun localCashImportChoiceKeys(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): JsonObject =
     PlanConclusion(source.facts, plan, CashImportConclusionValues(source.facts, changes)).choiceKeys()

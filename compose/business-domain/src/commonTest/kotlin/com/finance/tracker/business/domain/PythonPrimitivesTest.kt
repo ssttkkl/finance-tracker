@@ -51,4 +51,18 @@ class PythonPrimitivesTest {
             sha256Hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
         )
     }
+
+    @Test fun sha256PaddingMatchesTheByteAndStreamingInputs() {
+        for ((count, expected) in listOf(
+            55 to "d5e285683cd4efc02d021a5c62014694958901005d6f71e89e0989fac77e4072",
+            56 to "04c26261370ee7541549d16dee320c723e3fd14671e66a099afe0a377c16888e",
+            63 to "75220b47218278e656f2013bb8f0c455a25eaf01e86c64924e9d48d89776d6f2",
+            64 to "7ce100971f64e7001e8fe5a51973ecdfe1ced42befe7ee8d5fd6219506b5393c",
+            65 to "9537c5fdf120482f7d58d25e9ed583f52c02b4e304ea814db1633ad565aed7e9",
+            129 to "0ec9eb33e74510bcdd1f2ea55206e82f21649c5c2becbf2b433eb475b34c01bd",
+        )) {
+            assertEquals(expected, sha256Hex("x".repeat(count)))
+            assertEquals(expected, sha256HexAscii { append -> repeat(count) { append('x'.code) } })
+        }
+    }
 }
