@@ -37,12 +37,20 @@ test('phase and GC evidence is observable on a real Node subprocess', async () =
             'process.stderr.write("ft import: read_files\\n");',
             'global.gc();',
             'setImmediate(() => console.log("{}"));',
-        ].join('')], { outputDir, label: 'phases', timeoutMs: 5_000, collectGc: true, env: process.env });
+        ].join('')], { outputDir, label: 'phases', timeoutMs: 5_000, collectGc: true, collectLiveMemory: true, env: process.env });
         assert.equal(outcome.process.phases[0].phase, 'read_files');
         assert.ok(outcome.process.userCpuMs >= 0);
         assert.ok(outcome.process.phases[0].pressure.utc);
         assert.equal(outcome.process.gc.available, true);
         assert.ok(outcome.process.gc.samples.some(event => event.durationMs > 0));
+        const live = readFileSync(join(outputDir, outcome.process.liveMemoryFile), 'utf8')
+            .trim().split('\n').map(line => JSON.parse(line));
+        const phase = live.find(sample => sample.event === 'import-phase');
+        assert.equal(phase.phase, 'read_files');
+        assert.ok(phase.rss > 0 && phase.heapUsed > 0);
+        assert.ok(phase.external >= phase.arrayBuffers);
+        if (process.platform === 'linux') assert.ok(phase.kernel.VmHWM > 0);
+        assert.ok(live.some(sample => sample.event === 'exit'));
     } finally {
         rmSync(outputDir, { recursive: true, force: true });
     }

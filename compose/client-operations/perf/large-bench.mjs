@@ -3,7 +3,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
-import { appendFile, mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, cp, mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer as reserveServer } from 'node:net';
 import { availableParallelism, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -255,6 +255,7 @@ async function main() {
         const proxyPort = await listen(proxy);
         const primaryState = join(work, 'state-primary');
         const coldState = join(work, 'state-cold');
+        const liveMemoryFlows = new Set((process.env.FT_PERF_LIVE_MEMORY_FLOWS ?? '').split(',').filter(Boolean));
         const cliEnv = {
             ...process.env, NODE_EXTRA_CA_CERTS: certPath,
             FT_CLI_SERVER: `https://127.0.0.1:${proxyPort}`,
@@ -274,6 +275,7 @@ async function main() {
             try {
                 const measured = await measureCommand(ft, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
+                    collectLiveMemory: liveMemoryFlows.has(flow),
                     collectGc: args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
                         NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
@@ -629,6 +631,13 @@ async function main() {
     } finally {
         try {
             evidence.runnerFactsAfter = collectRunnerFacts();
+            for (const process of processes) if (process.liveMemoryFile) {
+                try {
+                    await cp(join(outputDir, process.liveMemoryFile), join(evidenceDir, process.liveMemoryFile));
+                } catch (error) {
+                    process.liveMemoryArtifactError = error.code ?? 'copy_failed';
+                }
+            }
             await writeFile(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
         } finally {
             await closeServer(proxy);
