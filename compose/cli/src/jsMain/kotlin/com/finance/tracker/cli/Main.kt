@@ -164,16 +164,30 @@ private val exactReadIdentifiers = setOf("id", "account_id", "revision", "row_re
     "plan_revision", "session_revision", "category_revision", "expected_account_revision")
 
 internal fun exactReadIdentifiers(value: JsonElement): JsonElement = when (value) {
-    is JsonArray -> JsonArray(value.map(::exactReadIdentifiers))
-    is JsonObject -> buildJsonObject {
+    is JsonArray -> {
+        var changed: MutableList<JsonElement>? = null
+        for ((index, item) in value.withIndex()) {
+            val exact = exactReadIdentifiers(item)
+            if (exact === item) continue
+            if (changed == null) changed = value.toMutableList()
+            changed[index] = exact
+        }
+        changed?.let(::JsonArray) ?: value
+    }
+    is JsonObject -> {
+        var changed: MutableMap<String, JsonElement>? = null
         for ((key, field) in value) {
-            put(key, when {
+            val exact = when {
                 key == "evidence" -> field
                 key in exactReadIdentifiers && field is JsonPrimitive && !field.isString && field.content.toLongOrNull() != null ->
                     JsonPrimitive(field.content)
                 else -> exactReadIdentifiers(field)
-            })
+            }
+            if (exact === field) continue
+            if (changed == null) changed = value.toMutableMap()
+            changed[key] = exact
         }
+        changed?.let(::JsonObject) ?: value
     }
     else -> value
 }

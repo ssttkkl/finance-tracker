@@ -82,8 +82,19 @@ internal object ReceiptWriteSetResultSerializer : KSerializer<CashWriteSetResult
     override val descriptor = CashWriteSetResultDto.serializer().descriptor.nullable
     override fun deserialize(decoder: Decoder): CashWriteSetResultDto {
         if (decoder !is JsonDecoder) throw SerializationException("mutation_receipt_invalid")
-        return Json.decodeFromJsonElement(CashWriteSetResultDto.serializer(), decoder.decodeJsonElement())
+        val serializer = CashWriteSetResultDto.serializer()
+        return if (decoder.json === archiveReceiptJson) decoder.decodeSerializableValue(serializer)
+        else Json.decodeFromJsonElement(serializer, decoder.decodeJsonElement())
     }
     override fun serialize(encoder: Encoder, value: CashWriteSetResultDto?) =
         encoder.encodeSerializableValue(CashWriteSetResultDto.serializer(), value ?: throw SerializationException("mutation_receipt_invalid"))
+}
+
+private val archiveReceiptJson = Json { }
+
+/** Archived receipts normally come from our serializer; retain the original decoder for historical envelopes. */
+fun decodeArchivedCashMutationReceipt(body: String): CashMutationReceiptDto = try {
+    archiveReceiptJson.decodeFromString(body)
+} catch (_: SerializationException) {
+    Json.decodeFromString(body)
 }

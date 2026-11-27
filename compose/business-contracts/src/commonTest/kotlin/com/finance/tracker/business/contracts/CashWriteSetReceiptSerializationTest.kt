@@ -20,6 +20,17 @@ class CashWriteSetReceiptSerializationTest {
         val decoded = Json.decodeFromJsonElement<CashMutationReceiptDto>(receipt())
         assertEquals(result, Json.encodeToJsonElement(decoded).jsonObject["write_set_result"])
     }
+    @Test fun strictTextReceiptValidatesResultAndPreservesLongStrings() {
+        val expected = Json.decodeFromJsonElement<CashMutationReceiptDto>(receipt())
+        assertEquals(expected, decodeArchivedCashMutationReceipt(receipt().toString()))
+        val historical = receipt().toString().replace("\"entries\":[", "\"entries\":false,\"entries\":[")
+        assertEquals(expected, decodeArchivedCashMutationReceipt(historical))
+        for (invalid in listOf(JsonNull, JsonObject(result - "entries"),
+            JsonObject(result + ("unknown" to JsonPrimitive(true))))) {
+            assertFailsWith<SerializationException> { decodeArchivedCashMutationReceipt(receipt(invalid).toString()) }
+        }
+    }
+
     @Test fun oldReceiptsDoNotAcquireAnEmptyResultEvenWhenEncodingDefaults() {
         val json = Json { encodeDefaults = true }
         val old = JsonObject(receipt().filterKeys { it != "write_set_result" })
