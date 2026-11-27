@@ -63,10 +63,12 @@ test('compiled declarations with generated-looking names are classified by exact
     'final fun copy(kotlin/String) // com.finance.tracker.client/Operations.copy|copy(kotlin.String){}[0]',
     '    final fun copy(kotlin/Long) // com.finance.tracker.client/Operations.copy|copy(kotlin.Long){}[0]',
     'final fun transfer() // com.finance.tracker.client.cash/transfer|transfer(){}[0]',
+    'final fun query() // com.finance.tracker.账本/query|query(){}[0]',
   ].join('\n'));
   const signatures = readSignatures(file);
-  assert.equal(signatures.length, 3);
+  assert.equal(signatures.length, 4);
   assert.ok(signatures.includes('com.finance.tracker.client.cash/transfer|transfer(){}'));
+  assert.ok(signatures.includes('com.finance.tracker.账本/query|query(){}'));
   const manifest = {
     scenarios: [scenario], entrypoints: [],
     nonOperations: [{ disposition: 'data-model', reason: 'Structural copy', signatures: [signatures[1]] }],

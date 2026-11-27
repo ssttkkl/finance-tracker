@@ -101,7 +101,7 @@ export function readEvents(path) {
 export function readSignatures(path) {
   // Kotlin's KLib ABI renderer provides signatures after the declaration separator.
   return readFileSync(path, 'utf8').split('\n').flatMap((line) => {
-    const match = /^[^/]*?\b(?:fun|constructor)\s+[^/].* \/\/ ([\w.]*)\/(.+?)(?:\[\d+\])$/.exec(line);
+    const match = /^[^/]*?\b(?:fun|constructor)\s+[^/].* \/\/ ([^\s/]*)\/(.+?)(?:\[\d+\])$/.exec(line);
     if (!match) return [];
     const [, packageName, signature] = match;
     return [packageName === 'com.finance.tracker.client' ? signature : `${packageName}/${signature}`];
