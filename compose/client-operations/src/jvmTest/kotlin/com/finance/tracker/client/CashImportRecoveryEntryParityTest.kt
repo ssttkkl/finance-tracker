@@ -85,7 +85,9 @@ class CashImportRecoveryEntryParityTest {
     fun directKotlinCallerResumesTheOriginalCashImportAfterResponseLoss() = runBlocking {
         val snapshot = Json.decodeFromString<LedgerSnapshotDto>(resource("cash-operation-snapshot.json").decodeToString())
         val workspace = WorkspaceDto(snapshot.workspaceId, "Synthetic", Role.EDITOR)
-        val session = ClientStoredSession("test-token", SessionDto(UserDto("synthetic@example.test"), workspace.id, listOf(workspace)))
+        val other = WorkspaceDto("other-workspace", "Other", Role.EDITOR)
+        val session = ClientStoredSession("test-token",
+            SessionDto(UserDto("synthetic@example.test"), workspace.id, listOf(workspace, other)))
         val store = MemoryStore(session)
         val lines = resource("alipay-01.csv").toString(Charset.forName("GB18030")).split(Regex("\\r?\\n"))
         val bytes = (lines.take(7) + lines[9] + "").joinToString("\r\n").encodeToByteArray()
@@ -104,12 +106,21 @@ class CashImportRecoveryEntryParityTest {
         val item = CashMutationResultDto("1", "row", "row:0", "created", transactionId = "9007199254740992")
         val readPaths = mutableListOf<String>()
         var offline = false
+        var liveSession = session.session
+        var denyRead: Pair<String, SessionDto>? = null
         val transport = ClientHttp { call ->
             assertEquals(session.token, call.token)
-            readPaths += call.path.substringBefore('?')
+            val path = call.path.substringBefore('?')
+            readPaths += path
             if (offline) throw ClientNetworkUnavailable()
-            when (call.path.substringBefore('?')) {
-                "/api/v1/auth/session" -> ClientHttpResponse(200, Json.encodeToString(session.session))
+            denyRead?.let { (deniedPath, newSession) ->
+                if (deniedPath == path) {
+                    liveSession = newSession
+                    return@ClientHttp ClientHttpResponse(403, """{"error":{"code":"workspace_forbidden"}}""")
+                }
+            }
+            when (path) {
+                "/api/v1/auth/session" -> ClientHttpResponse(200, Json.encodeToString(liveSession))
                 "/api/v1/ledger/version" -> ClientHttpResponse(200, """{"ledger_seq":"${snapshot.ledgerSeq}"}""")
                 "/api/v1/ledger/snapshot" -> ClientHttpResponse(200, Json.encodeToString(snapshot))
                 "/api/v1/cash-import/write-set/receipt" -> {
@@ -185,7 +196,18 @@ class CashImportRecoveryEntryParityTest {
         store.useConfirmationIndex = false
         assertEquals(status, reopened.confirmationStatus(workspace.id, prepared.batchId))
         assertEquals(priorReads + 1, store.batchReads)
+        readPaths.clear()
+        val ledgerReadsBeforeRecovery = store.ledgerStateReads
+        val frozen = checkNotNull(store.batch)
         val recovered = assertIs<ClientCashImportResume.Committed>(reopened.resume(workspace.id, prepared.batchId))
+        assertEquals(listOf(
+            "/api/v1/auth/session",
+            "/api/v1/cash-import/write-set/status",
+            "/api/v1/cash-import/write-set/receipt",
+            "/api/v1/cash-import/write-set/receipt/synthetic-receipt/rows",
+            "/api/v1/cash-import/write-set/receipt/synthetic-receipt/relations",
+        ), readPaths)
+        assertEquals(ledgerReadsBeforeRecovery, store.ledgerStateReads)
         assertEquals(receipt, recovered.result.authoritativeReceipt())
         assertEquals(listOf(item), recovered.result.page("row", 0, 50).items)
         assertEquals(1, posts)
@@ -204,12 +226,35 @@ class CashImportRecoveryEntryParityTest {
             assertEquals(initialReads, store.ledgerStateReads)
         }
         assertEquals(emptyMap(), store.files)
+        offline = false
+        for (path in listOf(
+            "/api/v1/cash-import/write-set/status",
+            "/api/v1/cash-import/write-set/receipt",
+            "/api/v1/cash-import/write-set/receipt/synthetic-receipt/rows",
+            "/api/v1/cash-import/write-set/receipt/synthetic-receipt/relations",
+        )) {
+            for (revoked in listOf(false, true)) {
+                liveSession = session.session
+                store.binding = session
+                store.batch = frozen
+                store.removedWorkspaces.clear()
+                denyRead = path to liveSession.copy(activeWorkspaceId = other.id,
+                    workspaces = if (revoked) listOf(other) else liveSession.workspaces)
+                readPaths.clear()
+                val denied = assertFailsWith<ClientOperationFailure> { reopened.resume(workspace.id, prepared.batchId) }
+                assertEquals(if (revoked) "workspace_forbidden" else "workspace_conflict", denied.code, path)
+                assertEquals(listOf(path, "/api/v1/auth/session"), readPaths.takeLast(2))
+                assertEquals(if (revoked) setOf(workspace.id) else emptySet(), store.removedWorkspaces)
+                assertEquals(!revoked, store.batch != null)
+            }
+        }
+        assertEquals(1, posts)
     }
 
     private fun resource(name: String): ByteArray =
         checkNotNull(javaClass.getResourceAsStream("/$name")).use { it.readBytes() }
 
-    private class MemoryStore(private val binding: ClientStoredSession) : ClientSessionStore, ClientCashImportStore {
+    private class MemoryStore(var binding: ClientStoredSession) : ClientSessionStore, ClientCashImportStore {
         var checkpoints = 0
         var batch: ClientCashImportBatch? = null
         val files = mutableMapOf<String, String>()
@@ -217,11 +262,17 @@ class CashImportRecoveryEntryParityTest {
         var ledgerStateReads = 0
         var batchReads = 0
         var useConfirmationIndex = true
+        val removedWorkspaces = mutableSetOf<String>()
 
         override suspend fun session(): ClientStoredSession = binding
         override suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean = error("Unused")
-        override suspend fun verify(previous: ClientStoredSession, session: ClientStoredSession): Boolean =
-            previous.token == binding.token && session.session == binding.session
+        override suspend fun verify(previous: ClientStoredSession, session: ClientStoredSession): Boolean {
+            if (previous.token != binding.token || previous.session != binding.session) return false
+            previous.session.workspaces.filter { it.id !in session.session.workspaces.map(WorkspaceDto::id) }
+                .forEach { forgetWorkspace(previous, it.id) }
+            binding = session
+            return true
+        }
 
         override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState {
             ledgerStateReads++
@@ -233,7 +284,11 @@ class CashImportRecoveryEntryParityTest {
             return true
         }
 
-        override suspend fun forgetWorkspace(session: ClientStoredSession, workspaceId: String): Unit = error("Unused")
+        override suspend fun forgetWorkspace(session: ClientStoredSession, workspaceId: String) {
+            removedWorkspaces += workspaceId
+            batch = null
+            state = ClientLedgerState()
+        }
         override suspend fun clear(session: ClientStoredSession): Unit = error("Unused")
 
         override suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportListing> =

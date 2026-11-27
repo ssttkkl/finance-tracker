@@ -107,6 +107,11 @@ class ClientLedgerRead internal constructor(
 
 internal val clientJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+internal val ClientLedgerRead.importWorkspace: ClientImportWorkspace
+    get() = ClientImportWorkspace(binding, ledger.snapshot.workspaceId, offline)
+
+internal data class ClientImportWorkspace(val binding: ClientStoredSession, val id: String, val offline: Boolean)
+
 class ClientSessionOperations(
     private val http: ClientHttp,
     private val store: ClientSessionStore,
@@ -353,10 +358,12 @@ class ClientSessionOperations(
         }
     }
 
-    internal suspend fun requireOnlineWriter(ledger: ClientLedgerRead) {
-        requireCurrent(ledger.binding)
-        if (ledger.offline) throw ClientOperationFailure("online_required")
-        if (ledger.binding.session.workspaces.none { it.id == ledger.ledger.snapshot.workspaceId && it.role.canWrite })
+    internal suspend fun requireOnlineWriter(ledger: ClientLedgerRead) = requireOnlineWriter(ledger.importWorkspace)
+
+    private suspend fun requireOnlineWriter(scope: ClientImportWorkspace) {
+        requireCurrent(scope.binding)
+        if (scope.offline) throw ClientOperationFailure("online_required")
+        if (scope.binding.session.workspaces.none { it.id == scope.id && it.role.canWrite })
             throw ClientOperationFailure("workspace_forbidden", 403)
     }
 
@@ -366,12 +373,12 @@ class ClientSessionOperations(
             request("GET", "/api/v1/cash-mutations/receipts/by-key?workspace_id=$workspace&key=${encodeComponent(key)}", ledger.binding.token)
         }
 
-    internal suspend fun cashImportReceipt(ledger: ClientLedgerRead, key: String): CashMutationReceiptDto? =
-        cashImportReceipt(ledger.binding, ledger.ledger.snapshot.workspaceId, key)
-
     internal suspend fun cashImportReceipt(binding: ClientStoredSession, workspace: String, key: String): CashMutationReceiptDto? =
         readCashReceipt(binding) {
-            scopedRequest("GET", "/api/v1/cash-import/write-set/receipt", binding, workspace, headers = mapOf("Idempotency-Key" to key))
+            withWorkspaceRead(binding, workspace) {
+                scopedRequest("GET", "/api/v1/cash-import/write-set/receipt", binding, workspace,
+                    headers = mapOf("Idempotency-Key" to key))
+            }
         }
 
     private suspend fun readCashReceipt(binding: ClientStoredSession, read: suspend () -> CashMutationReceiptDto): CashMutationReceiptDto? {
@@ -385,18 +392,21 @@ class ClientSessionOperations(
         }
     }
 
-    internal suspend fun cashImportResultItems(ledger: ClientLedgerRead, receiptId: String): List<CashMutationResultDto> {
-        if (ledger.offline) throw ClientNetworkUnavailable()
-        val workspace = encodeComponent(ledger.ledger.snapshot.workspaceId)
+    internal suspend fun cashImportResultItems(scope: ClientImportWorkspace, receiptId: String): List<CashMutationResultDto> {
+        if (scope.offline) throw ClientNetworkUnavailable()
+        val workspace = encodeComponent(scope.id)
         val id = encodeComponent(receiptId)
         return buildList {
             for (kind in listOf("rows", "relations")) {
                 var after = "0"
                 while (true) {
-                    requireCurrent(ledger.binding)
-                    val page: CashMutationResultPageDto = authenticated(ledger.binding) {
-                        request("GET", "/api/v1/cash-import/write-set/receipt/$id/$kind?workspace_id=$workspace&after=$after&limit=200",
-                            ledger.binding.token)
+                    requireCurrent(scope.binding)
+                    val page: CashMutationResultPageDto = authenticated(scope.binding) {
+                        withWorkspaceRead(scope.binding, scope.id) {
+                            request("GET",
+                                "/api/v1/cash-import/write-set/receipt/$id/$kind?workspace_id=$workspace&after=$after&limit=200",
+                                scope.binding.token)
+                        }
                     }
                     addAll(page.items)
                     val next = page.nextAfter ?: break
@@ -407,10 +417,10 @@ class ClientSessionOperations(
         }
     }
 
-    internal suspend fun submitCashImport(ledger: ClientLedgerRead, key: String, body: String): CashImportConfirmation {
-        requireOnlineWriter(ledger)
-        return authenticated(ledger.binding) {
-            scopedRequest("POST", "/api/v1/cash-import/write-set", ledger.binding, ledger.ledger.snapshot.workspaceId,
+    internal suspend fun submitCashImport(scope: ClientImportWorkspace, key: String, body: String): CashImportConfirmation {
+        requireOnlineWriter(scope)
+        return authenticated(scope.binding) {
+            scopedRequest("POST", "/api/v1/cash-import/write-set", scope.binding, scope.id,
                 body, mapOf("Idempotency-Key" to key))
         }
     }
@@ -427,9 +437,9 @@ class ClientSessionOperations(
         return binding to workspace(binding, workspace)
     }
 
-    internal suspend fun cashImportConfirmation(ledger: ClientLedgerRead, key: String): CashImportConfirmation? {
-        if (ledger.offline) throw ClientNetworkUnavailable()
-        return cashImportConfirmation(ledger.binding, ledger.ledger.snapshot.workspaceId, key, cancel = false)
+    internal suspend fun cashImportConfirmation(scope: ClientImportWorkspace, key: String): CashImportConfirmation? {
+        if (scope.offline) throw ClientNetworkUnavailable()
+        return cashImportConfirmation(scope.binding, scope.id, key, cancel = false)
     }
 
     internal suspend fun cashImportConfirmation(binding: ClientStoredSession, workspace: String, key: String,
@@ -437,11 +447,18 @@ class ClientSessionOperations(
         requireCurrent(binding)
         if (cancel && binding.session.workspaces.none { it.id == workspace && it.role.canWrite })
             throw ClientOperationFailure("workspace_forbidden", 403)
-        val action = if (cancel) "cancel" else "status"
+        val headers = mapOf("Idempotency-Key" to key)
         return try {
             authenticated(binding) {
-                scopedRequest<CashImportConfirmation>(if (cancel) "POST" else "GET", "/api/v1/cash-import/write-set/$action",
-                    binding, workspace, null, mapOf("Idempotency-Key" to key))
+                if (cancel) {
+                    scopedRequest<CashImportConfirmation>("POST", "/api/v1/cash-import/write-set/cancel", binding, workspace,
+                        headers = headers)
+                } else {
+                    withWorkspaceRead(binding, workspace) {
+                        scopedRequest<CashImportConfirmation>("GET", "/api/v1/cash-import/write-set/status", binding, workspace,
+                            headers = headers)
+                    }
+                }
             }.let { operation ->
                 requireCurrent(binding)
                 requireCashImportConfirmation(key, operation)
@@ -487,7 +504,10 @@ class ClientSessionOperations(
     internal suspend fun refreshLedger(previous: ClientLedgerRead): ClientLedgerRead =
         ledger(previous.binding, previous.ledger.snapshot.workspaceId)
 
-    internal suspend fun localImportWorkspace(expectedWorkspaceId: String?): Pair<ClientStoredSession, String> {
+    internal suspend fun refreshLedger(scope: ClientImportWorkspace): ClientLedgerRead =
+        ledger(scope.binding, scope.id)
+
+    internal suspend fun localImportWorkspace(expectedWorkspaceId: String?): ClientImportWorkspace {
         val original = requireSession()
         requireCurrent(original)
         val expected = initialLedgerWorkspace(original, expectedWorkspaceId)
@@ -497,9 +517,10 @@ class ClientSessionOperations(
             requireCurrent(original)
             val workspace = original.session.activeWorkspaceId
             if (expectedWorkspaceId != null && expectedWorkspaceId != workspace) throw ClientOperationFailure("workspace_conflict")
-            return original to (workspace ?: throw ClientOperationFailure("offline_sync_required", cause = failure))
+            return ClientImportWorkspace(original,
+                workspace ?: throw ClientOperationFailure("offline_sync_required", cause = failure), offline = true)
         }
-        return binding to verifiedLedgerWorkspace(binding, expected)
+        return ClientImportWorkspace(binding, verifiedLedgerWorkspace(binding, expected), offline = false)
     }
 
     private fun initialLedgerWorkspace(binding: ClientStoredSession, expected: String?): String? {
@@ -583,26 +604,28 @@ class ClientSessionOperations(
         value.toLongOrNull()?.takeIf { it >= 0 && it.toString() == value } ?: throw ClientOperationFailure("protocol_error")
 
     private suspend inline fun <reified T> ledgerRequest(path: String, session: ClientStoredSession, workspace: String): T =
-        authenticated(session) {
-            try {
-                request("GET", path, session.token)
-            } catch (failure: ClientOperationFailure) {
-                if (failure.status == 403 && failure.code == "workspace_forbidden") {
-                    // A concurrent selection can cause the same rejection. Recheck to distinguish loss of access.
-                    val fresh = try {
-                        onlineSession(session)
-                    } catch (recheck: Exception) {
-                        withContext(NonCancellable) { store.forgetWorkspace(session, workspace) }
-                        if (recheck is ClientNetworkUnavailable) throw failure
-                        throw recheck
-                    }
-                    if (fresh.session.workspaces.any { it.id == workspace } && fresh.session.activeWorkspaceId != workspace)
-                        throw ClientOperationFailure("workspace_conflict")
-                    withContext(NonCancellable) { store.forgetWorkspace(session, workspace) }
-                }
-                throw failure
+        authenticated(session) { withWorkspaceRead(session, workspace) { request("GET", path, session.token) } }
+
+    private suspend inline fun <T> withWorkspaceRead(
+        session: ClientStoredSession, workspace: String, read: () -> T,
+    ): T {
+        try {
+            return read()
+        } catch (failure: ClientOperationFailure) {
+            if (failure.status != 403 || failure.code != "workspace_forbidden") throw failure
+            val fresh = try {
+                onlineSession(session)
+            } catch (recheck: Exception) {
+                withContext(NonCancellable) { store.forgetWorkspace(session, workspace) }
+                if (recheck is ClientNetworkUnavailable) throw failure
+                throw recheck
             }
+            if (fresh.session.workspaces.any { it.id == workspace } && fresh.session.activeWorkspaceId != workspace)
+                throw ClientOperationFailure("workspace_conflict")
+            withContext(NonCancellable) { store.forgetWorkspace(session, workspace) }
+            throw failure
         }
+    }
 
     private suspend fun <T> authenticated(session: ClientStoredSession, action: suspend () -> T): T {
         return try {
