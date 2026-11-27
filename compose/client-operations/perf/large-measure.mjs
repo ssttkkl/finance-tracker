@@ -67,7 +67,8 @@ export async function measureCommand(bin, args, { env, input, timeoutMs, outputD
     try {
         const timeOptions = platform === 'darwin' ? ['-l'] : ['-f', gnuFields, '-o', reportPath];
         const gcEnv = collectGc ? {
-            NODE_OPTIONS: `--import=${new URL('./large-gc-observer.mjs', import.meta.url).href}`,
+            NODE_OPTIONS: [env.NODE_OPTIONS, `--import=${new URL('./large-gc-observer.mjs', import.meta.url).href}`]
+                .filter(Boolean).join(' '),
             FT_PERF_GC_EVIDENCE: gcPath,
         } : {};
         const child = spawn('/usr/bin/time', [...timeOptions, bin, ...args], {
@@ -123,8 +124,15 @@ export async function measureCommand(bin, args, { env, input, timeoutMs, outputD
     try {
         if (timedOut) throw new Error(`${label} timed out after ${timeoutMs} ms`);
         if (childResult.code !== 0 || childResult.signal !== null) {
-            throw new Error(`${label} failed (code=${childResult.code}, signal=${childResult.signal})\n` +
-                diagnostics.slice(-1800) + stdoutText.slice(0, 600));
+            let cliCode;
+            try {
+                const code = JSON.parse(stdoutText)?.error?.code;
+                if (typeof code === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(code)) cliCode = code;
+            } catch {
+                // The subprocess may exit without a JSON envelope.
+            }
+            throw new Error(`${label} failed (code=${childResult.code}, signal=${childResult.signal})` +
+                (cliCode ? `: ${cliCode}` : ''));
         }
         if (measurement.resourceError) throw new Error(measurement.resourceError);
         let value;

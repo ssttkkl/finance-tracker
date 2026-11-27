@@ -70,7 +70,7 @@ internal suspend fun Suite.sessionBenchmarks() {
             val mark = markRequests()
             val name = "Perf deletion workspace"
             val value = if (id == "session.workspace-delete-server") {
-                val result = withClient(origin) { it.deleteWorkspace(target, name) }
+                val result = withClient(origin) { measure { it.deleteWorkspace(target, name) } }
                 val elapsed = host.backendDuration(mark, "DELETE", "/api/v1/auth/workspace").unsafeCast<kotlin.js.Promise<Double>>().value()
                 recordBackendDuration(elapsed)
                 result

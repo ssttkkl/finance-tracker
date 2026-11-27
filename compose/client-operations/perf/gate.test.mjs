@@ -5,11 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { evaluate, compare, inventory, readSignatures, requireMaximumEvidence, scenariosForJob } from './gate.mjs';
 
-const scenario = { id: 'cash.summary', job: 'ordinary', warmups: 5, samples: 30, budgetMs: 1000,
+const scenario = { id: 'cash.summary', job: 'ordinary', warmups: 5, samples: 30, budgetMs: 1000, maxRssBytes: 2048,
   workload: '3000 rows', checks: 'exact totals', mode: 'warm', relativeFloorMs: 100 };
 const maximum = { id: 'large.review', job: 'maximum', warmups: 0, samples: 1, budgetMs: 150000,
   maxRssBytes: 5 * 1024 ** 3, workload: '19 files', checks: 'exact rows', mode: 'cold' };
-const latency = (ms, id = scenario.id) => ({ id, ms, asserted: true });
+const latency = (ms, id = scenario.id) => ({ id, ms, rssBytes: 1024, asserted: true });
 const samples = (ms) => Array.from({ length: 30 }, () => latency(ms));
 const warmups = (id = scenario.id) => Array.from({ length: 5 }, () => ({ id, warmup: true, asserted: true }));
 
@@ -33,7 +33,7 @@ test('requires every measured case and its assertions, warmups and sample count'
     ok.slice(0, -1), ok.slice(1), [...ok, latency(1, 'unlisted')], [...ok, latency(1)], [...ok, null],
     ok.map((v, i) => i === 6 ? { ...v, asserted: false } : v),
     ok.map((v, i) => i === 6 ? { ...v, ms: -1 } : v),
-    ok.map((v, i) => i === ok.length - 1 ? latency(50, maximum.id) : v),
+    ok.map((v, i) => i === ok.length - 1 ? { id: maximum.id, ms: 50, asserted: true } : v),
   ]) assert.equal(evaluate(cases, invalid).ok, false);
 });
 
@@ -43,6 +43,20 @@ test('individual p95 applies nearest rank and memory is independently enforced',
   assert.equal(evaluate([scenario], [...clean.slice(0, -1), tail[0]]).ok, true);
   assert.equal(evaluate([scenario], [...clean.slice(0, -2), ...tail]).ok, false);
   assert.equal(evaluate([maximum], [{ ...latency(1, maximum.id), rssBytes: maximum.maxRssBytes + 1 }]).ok, false);
+});
+
+test('an ordinary operation requires a measured peak even during calibration', () => {
+  const events = [...warmups(), ...samples(200)];
+  const withoutPeak = events.map((event, index) => index === 10 ? { ...event, rssBytes: undefined } : event);
+  assert.equal(evaluate([{ ...scenario, maxRssBytes: undefined }], withoutPeak).valid, false);
+  const candidate = { ...scenario, maxRssBytes: null };
+  assert.equal(evaluate([candidate], events).valid, true);
+  assert.equal(evaluate([candidate], events).ok, false);
+  for (const invalid of [undefined, 0, -1, Infinity]) {
+    const changed = events.map((event, index) => index === 10 ? { ...event, rssBytes: invalid } : event);
+    assert.equal(evaluate([candidate], changed).valid, false);
+  }
+  assert.equal(evaluate([scenario], [...events.slice(0, -1), { ...latency(200), rssBytes: 2049 }]).ok, false);
 });
 
 test('relative trigger requires both thresholds and verifies all declared hotspots', () => {

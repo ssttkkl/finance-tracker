@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { seed, seedDeletion, deleteDeletionRemainder, restoreBalances, restoreMember, rowCount } from './regular-fixture.mjs';
+import { startPeakRss } from './peak-rss.mjs';
 import { forwardedLoopbackHeaders } from './loopback-headers.mjs';
 
 async function listen(server) {
@@ -252,6 +253,20 @@ export async function startRegularHost() {
         if (backend.exitCode === null && backend.signalCode === null) backend.kill();
         throw error;
     }
+}
+
+let operationMemory;
+
+export function beginOperationMemory() {
+    if (operationMemory) throw new Error('overlapping client RSS windows');
+    operationMemory = startPeakRss();
+}
+
+export function endOperationMemory() {
+    if (!operationMemory) throw new Error('missing client RSS window');
+    const recording = operationMemory;
+    operationMemory = undefined;
+    return recording.readPeakBytes();
 }
 
 export function nowMs() { return performance.now(); }

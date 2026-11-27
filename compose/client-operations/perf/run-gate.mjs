@@ -5,6 +5,7 @@ import { arch, release, tmpdir, type } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compare, evaluate, inventory, readEvents, readSignatures, requireMaximumEvidence, scenariosForJob } from './gate.mjs';
+import { evaluateMaximumHttpGate } from './maximum-http-gate.mjs';
 
 const perf = fileURLToPath(new URL('./', import.meta.url));
 const root = resolve(perf, '../../..');
@@ -30,6 +31,10 @@ const tested = {
   os: type(), release: release(), arch: arch(), node: process.version,
   image: process.env.ImageOS ?? null, imageVersion: process.env.ImageVersion ?? null,
   runId: process.env.GITHUB_RUN_ID ?? null, attempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
+  clientPeakRss: {
+    shared: type() === 'Linux' ? 'linux-vmhwm (operation window, kernel page accounting)' : 'darwin-process-lifetime-diagnostic',
+    cold: 'OS child process high-water mark',
+  },
   runner: process.env.RUNNER_NAME ?? null, replica: process.env.FT_PERF_REPLICA ?? null,
   budgetsSha256: createHash('sha256').update(manifestBytes).digest('hex'),
   java: capture('java', ['-version'], root, true).trim(),
@@ -180,16 +185,30 @@ function measure(prepared, phase, selected, enforceBudget) {
   }));
   let events = [];
   let reportError;
+  let httpOk = true;
   try {
     events = readEvents(eventsPath);
     if (job === 'maximum') {
-      requireMaximumEvidence(JSON.parse(readFileSync(join(out, 'large-details.json'))), events);
+      const details = JSON.parse(readFileSync(join(out, 'large-details.json')));
+      if (enforceBudget) {
+        const http = evaluateMaximumHttpGate(details);
+        writeReport(`${phase}-http.json`, http);
+        if (!http.ok) {
+          console.error(`HTTP performance: ${http.errors.length} errors (see ${phase}-http.json)`);
+          httpOk = false;
+        }
+      }
+      requireMaximumEvidence(details, events);
     }
   } catch (error) {
     reportError = error.message;
   }
   const result = evaluate(budgets, events, ok && !reportError);
   if (reportError) result.errors.unshift(reportError);
+  if (!httpOk) {
+    result.ok = false;
+    result.errors.push('HTTP performance failed');
+  }
   writeReport(`${phase}.json`, result);
   console.log(`${phase}: ${result.results.length} scenarios, ${result.errors.length} errors`);
   result.errors.forEach((error) => console.error(error));

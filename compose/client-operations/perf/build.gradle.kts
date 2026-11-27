@@ -36,6 +36,7 @@ tasks.register<Sync>("stageBenchmark") {
     }
     from("regular-cli-host.mjs") { rename("regular-cli-host.mjs", "host.mjs") }
     from("regular-host.mjs")
+    from("peak-rss.mjs")
     from("loopback-headers.mjs")
     from("regular-fixture.mjs")
     from("cli-fixture.mjs")

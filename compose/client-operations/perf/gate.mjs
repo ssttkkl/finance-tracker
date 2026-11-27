@@ -30,8 +30,7 @@ export function evaluate(scenarios, events, commandOk = true) {
     } else if (event.warmup === true) {
       group.warmups += 1;
     } else if (!Number.isFinite(event.ms) || event.ms <= 0 ||
-        ((group.scenario.maxRssBytes !== undefined || event.rssBytes !== undefined) &&
-          (!Number.isSafeInteger(event.rssBytes) || event.rssBytes <= 0))) {
+        (!Number.isSafeInteger(event.rssBytes) || event.rssBytes <= 0)) {
       errors.push(`${event.id}: invalid measurement`);
     } else {
       group.samples.push(event);
@@ -46,7 +45,12 @@ export function evaluate(scenarios, events, commandOk = true) {
     const ms = sorted[Math.ceil(0.95 * sorted.length) - 1] ?? null;
     const rssBytes = Math.max(0, ...samples.map((sample) => sample.rssBytes ?? 0)) || null;
     if (ms > scenario.budgetMs) absoluteErrors.push(`${scenario.id}: ${ms} ms exceeds ${scenario.budgetMs} ms`);
-    if (rssBytes > scenario.maxRssBytes) absoluteErrors.push(`${scenario.id}: ${rssBytes} B exceeds ${scenario.maxRssBytes} B`);
+    if (scenario.maxRssBytes !== null &&
+        (!Number.isSafeInteger(scenario.maxRssBytes) || scenario.maxRssBytes <= 0)) {
+      errors.push(`${scenario.id}: invalid client RSS budget`);
+    }
+    if (scenario.maxRssBytes === null) absoluteErrors.push(`${scenario.id}: uncalibrated client RSS budget`);
+    else if (rssBytes > scenario.maxRssBytes) absoluteErrors.push(`${scenario.id}: ${rssBytes} B exceeds ${scenario.maxRssBytes} B`);
     results.push({ id: scenario.id, ms, rssBytes, warmups, sampleCount: samples.length });
   }
   const valid = errors.length === 0;
@@ -72,7 +76,8 @@ export function inventory(manifest, signatures) {
         !['warm', 'cold', 'warm-remote'].includes(s.mode) ||
         !s.workload?.trim() || !s.checks?.trim() || !Number.isFinite(s.budgetMs) || s.budgetMs <= 0 ||
         s.warmups !== expectedSampling[0] || s.samples !== expectedSampling[1] ||
-        (s.job === 'maximum' && (!Number.isSafeInteger(s.maxRssBytes) || s.maxRssBytes <= 0)) ||
+        ((s.job === 'maximum' || s.maxRssBytes !== null) &&
+          (!Number.isSafeInteger(s.maxRssBytes) || s.maxRssBytes <= 0)) ||
         (s.relativeFloorMs !== undefined && ![100, 2000].includes(s.relativeFloorMs))) {
       throw new Error(`invalid scenario metadata: ${s.id}`);
     }

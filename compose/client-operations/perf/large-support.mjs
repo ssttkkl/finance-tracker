@@ -4,17 +4,30 @@ import { createServer } from 'node:https';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 
+import { requestSequenceHeader } from './client-request-clock.mjs';
+import { importRequestRoute } from './import-request-routes.mjs';
+import { observeProxyRequest } from './request-observation.mjs';
 import { forwardedLoopbackHeaders } from './loopback-headers.mjs';
 
 export function observedTime() {
     return { utc: new Date().toISOString(), monotonicMs: performance.now() };
 }
 
-export function openProxy(cert, key, backendPort, observed) {
+export function openProxy(cert, key, backendPort, observed, requestFlow = () => undefined) {
     // The CLI may spend several seconds parsing local files between two remote parser calls.
     // The temporary TLS front end owns that idle window separately from Ktor connections.
     const proxy = createServer({ cert, key }, (incoming, outgoing) => {
         const path = new URL(incoming.url, 'https://127.0.0.1').pathname.replace(/\/$/, '');
+        const flow = requestFlow();
+        let tracker;
+        if (flow) {
+            flow.started += 1;
+            try {
+                tracker = observeProxyRequest(incoming, { flow: flow.id, route: importRequestRoute(incoming.method, path) });
+            } catch (error) {
+                flow.errors.push(error.message);
+            }
+        }
         const observation = { method: incoming.method, path, bytes: 0, status: null };
         const confirm = path === '/api/v1/cash-import/write-set' && incoming.method === 'POST';
         if (confirm) {
@@ -28,12 +41,21 @@ export function openProxy(cert, key, backendPort, observed) {
         incoming.on('data', chunk => { observation.bytes += chunk.length; });
         incoming.on('end', () => note('client_body_complete', { bytes: observation.bytes }));
         incoming.on('aborted', () => note('client_body_aborted', { bytes: observation.bytes }));
+        const headers = forwardedLoopbackHeaders(incoming.headers);
+        delete headers[requestSequenceHeader];
+        tracker?.startServerWindow();
         const forwarded = request({
             hostname: '127.0.0.1', port: backendPort, path: incoming.url, method: incoming.method,
             agent: false,
-            headers: { ...forwardedLoopbackHeaders(incoming.headers), host: '127.0.0.1' },
+            headers: { ...headers, host: '127.0.0.1' },
         }, response => {
             observation.status = response.statusCode;
+            if (tracker) {
+                flow.pending.push(tracker.response(response).catch(error => {
+                    flow.errors.push(error.message);
+                    return null;
+                }));
+            }
             note('backend_headers', { status: response.statusCode, requestId: response.headers['x-request-id'] ?? null });
             response.on('end', () => note('backend_body_complete'));
             response.on('aborted', () => note('backend_response_aborted'));

@@ -14,6 +14,8 @@ import { measureCommand } from './large-measure.mjs';
 import {
     collectConfirmObservations, inspectLostConfirmation, observedTime, openProxy, sampleConfirmDatabase, verifyPreparedFiles,
 } from './large-support.mjs';
+import { readEvents } from './gate.mjs';
+import { joinClientRequestClocks } from './request-observation.mjs';
 import { collectRunnerFacts } from './large-telemetry.mjs';
 
 const perfDirectory = dirname(fileURLToPath(import.meta.url));
@@ -120,6 +122,8 @@ async function main() {
     let server;
     let proxy;
     const observed = [];
+    let requestFlow;
+    const requestReports = [];
     const raw = [];
     const processes = [];
     const checks = {};
@@ -133,7 +137,7 @@ async function main() {
             git: tool('git', ['-C', checkout, 'rev-parse', 'HEAD']).trim(),
             dirty: tool('git', ['-C', checkout, 'status', '--porcelain']).trim() !== '',
         },
-        runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks,
+        runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks, requestReports,
     };
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
@@ -211,7 +215,7 @@ async function main() {
                 throw new Error('Loopback Ktor backend did not become healthy; see large-backend.log');
             await pause(200);
         }
-        proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed);
+        proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed, () => requestFlow);
         const proxyPort = await listen(proxy);
         const primaryState = join(work, 'state-primary');
         const coldState = join(work, 'state-cold');
@@ -223,19 +227,43 @@ async function main() {
         delete cliEnv.NODE_OPTIONS;
         delete cliEnv.NODE_TLS_REJECT_UNAUTHORIZED;
         let sequence = 0;
-        const run = async (args, { input, state = primaryState } = {}) => {
+        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
+            const clocksPath = join(work, `${label}-http.jsonl`);
+            if (flow) {
+                assert.equal(requestFlow, undefined);
+                requestFlow = { id: flow, started: 0, pending: [], errors: [] };
+                await writeFile(clocksPath, '');
+            }
             try {
                 const measured = await measureCommand(ft, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
                     collectGc: args[0] === 'import' && args[1] === 'review',
-                    env: { ...cliEnv, FT_CLI_STATE_DIR: state },
+                    env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
+                        NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
+                        FT_PERF_CLIENT_REQUEST_CLOCK: clocksPath,
+                    } : {}) },
                 });
                 processes.push({ label, ...measured.process });
                 return measured;
             } catch (error) {
                 processes.push({ label, error: error.message, ...error.measurement });
                 throw error;
+            } finally {
+                if (flow) {
+                    const { started, pending, errors } = requestFlow;
+                    requestFlow = undefined;
+                    const observedRequests = (await Promise.all(pending)).filter(Boolean);
+                    const clocks = readEvents(clocksPath);
+                    if (observedRequests.length !== started) errors.push('missing a complete proxy request observation');
+                    const requestReport = { label, flow, started, requests: observedRequests, errors };
+                    requestReports.push(requestReport);
+                    try {
+                        requestReport.requests = joinClientRequestClocks(observedRequests, clocks);
+                    } catch (error) {
+                        errors.push(error.message);
+                    }
+                }
             }
         };
 
@@ -403,13 +431,13 @@ async function main() {
         assert.equal(signedIn.value.active_workspace_id, workspace);
         assert.equal(snapshots(firstStart), 0, 'Fresh login must not seed the cash cache');
         const listArgs = ['cash', 'list', '--limit', '20', ...scope];
-        const first = await run(listArgs, { state: coldState });
+        const first = await run(listArgs, { state: coldState, flow: 'cold-snapshot' });
         const expectedPage = readCashList(first.value, workspace, '2', false);
         assert.equal(snapshots(firstStart), 1);
         await record('large.cash-first', first, { ledgerSeq: '2', snapshotDownloads: 1, rows: expectedPage.length });
 
         const onlineStart = observed.length;
-        const online = await run(listArgs, { state: coldState });
+        const online = await run(listArgs, { state: coldState, flow: 'revalidated' });
         assert.deepEqual(readCashList(online.value, workspace, '2', false), expectedPage);
         assert.equal(online.value.synced_at, first.value.synced_at);
         assert.equal(snapshots(onlineStart), 0);
@@ -430,7 +458,7 @@ async function main() {
         assert.equal(change.value.receipt.committed, true);
         assert.equal(change.value.account.name, marker);
         const refreshStart = observed.length;
-        const refresh = await run(listArgs, { state: coldState });
+        const refresh = await run(listArgs, { state: coldState, flow: 'refreshed-snapshot' });
         assert.deepEqual(readCashList(refresh.value, workspace, '3', false), expectedPage);
         assert.notEqual(refresh.value.synced_at, first.value.synced_at);
         const accountList = await run(['account', 'list', ...scope], { state: coldState });

@@ -19,6 +19,8 @@ import kotlin.js.Promise
 private external object BenchmarkRuntime {
     fun startRegularHost(): Promise<dynamic>
     fun nowMs(): Double
+    fun beginOperationMemory()
+    fun endOperationMemory(): Double
     fun recordSample(encoded: String)
 }
 
@@ -57,6 +59,10 @@ internal fun realHttp(origin: String): ClientHttp = ClientHttp { call ->
 internal class Sample(val index: Int) {
     internal var elapsed: Double? = null
         private set
+    internal var peakRss: Double? = null
+        private set
+    internal var serverElapsed: Double? = null
+        private set
     internal var fixtureSummary: JsonObject? = null
         private set
 
@@ -67,15 +73,19 @@ internal class Sample(val index: Int) {
 
     suspend fun <T> measure(block: suspend () -> T): T {
         check(elapsed == null) { "A single sample must measure exactly one operation" }
+        BenchmarkRuntime.beginOperationMemory()
         val start = BenchmarkRuntime.nowMs()
-        val result = block()
-        elapsed = BenchmarkRuntime.nowMs() - start
-        return result
+        try {
+            return block()
+        } finally {
+            elapsed = BenchmarkRuntime.nowMs() - start
+            peakRss = BenchmarkRuntime.endOperationMemory()
+        }
     }
 
     fun recordBackendDuration(ms: Double) {
-        check(elapsed == null && ms.isFinite() && ms > 0.0)
-        elapsed = ms
+        check(serverElapsed == null && elapsed != null && ms.isFinite() && ms > 0.0)
+        serverElapsed = ms
     }
 }
 
@@ -133,7 +143,13 @@ internal class Suite(
                 BenchmarkRuntime.recordSample(buildJsonObject {
                     put("id", id)
                     put("asserted", true)
-                    if (iteration < warmups) put("warmup", true) else put("ms", elapsed)
+                    if (iteration < warmups) {
+                        put("warmup", true)
+                    } else {
+                        put("ms", sample.serverElapsed ?: elapsed)
+                        put("rssBytes", checkNotNull(sample.peakRss))
+                        sample.serverElapsed?.let { put("clientMs", elapsed) }
+                    }
                     sample.fixtureSummary?.let { put("fixture", it) }
                 }.toString())
             } catch (failure: Throwable) {

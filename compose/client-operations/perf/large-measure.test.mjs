@@ -127,6 +127,13 @@ test('the command timer requires a successful child, JSON, and a measurement', a
         await assert.rejects(measureCommand(process.execPath, ['-e', 'process.exit(7)'], {
             ...options, label: 'exit',
         }), /code=7/);
+        await assert.rejects(measureCommand(process.execPath, ['-e', `
+            console.log(JSON.stringify({ error: { code: "result_unknown", message: "private-body" } }));
+            console.error("private-diagnostics");
+            process.exit(1);
+        `], { ...options, label: 'error-envelope' }), (error) =>
+            error.message.endsWith(': result_unknown') &&
+            !error.message.includes('private-body') && !error.message.includes('private-diagnostics'));
         await assert.rejects(measureCommand(process.execPath, ['-e', 'console.log("invalid JSON")'], {
             ...options, label: 'invalid-json',
         }), /JSON/);

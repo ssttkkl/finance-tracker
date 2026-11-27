@@ -1,0 +1,113 @@
+const sizeMetrics = {
+    requestWireBytes: 'maxRequestWireBytes',
+    requestDecodedBytes: 'maxRequestDecodedBytes',
+    responseWireBytes: 'maxResponseWireBytes',
+    responseDecodedBytes: 'maxResponseDecodedBytes',
+};
+
+const size = (value) => Number.isSafeInteger(value) && value >= 0;
+const time = (value) => Number.isFinite(value) && value > 0;
+const peak = (value) => size(value) && value > 0;
+
+export function evaluateImportRequests(routes, flows, report) {
+    const errors = [];
+    const budgetErrors = [];
+    const routeUsage = new Set();
+    const expected = new Map();
+    const maxByRoute = Object.create(null);
+
+    function metric(label, route, name, limitName, value, validate) {
+        if (!validate(value)) {
+            errors.push(`${label}: missing or invalid ${name}`);
+            return;
+        }
+        const maxima = maxByRoute[route] ??= {};
+        maxima[name] = Math.max(maxima[name] ?? 0, value);
+        const limit = routes[route][limitName];
+        if (limit === null) {
+            budgetErrors.push(`${route}: uncalibrated ${limitName}`);
+        } else if (!validate(limit)) {
+            errors.push(`${route}: missing or invalid ${limitName}`);
+        } else if (value > limit) {
+            budgetErrors.push(`${label}: ${name} ${value} exceeds ${limit}`);
+        }
+    }
+
+    function commonMetrics(label, row) {
+        metric(label, row.route, 'serverMs', 'maxServerMs', row.serverMs, time);
+        for (const [name, limitName] of Object.entries(sizeMetrics)) {
+            metric(label, row.route, name, limitName, row[name], size);
+        }
+    }
+
+    for (const [flow, requirements] of Object.entries(flows)) {
+        const entries = new Map();
+        expected.set(flow, entries);
+        for (const [route, requirement] of Object.entries(requirements)) {
+            if (!Object.hasOwn(routes, route)) errors.push(`${flow}/${route}: unregistered route`);
+            routeUsage.add(route);
+            entries.set(route, { ...requirement, count: 0, sawConcurrent: false });
+        }
+    }
+    for (const route of Object.keys(routes)) {
+        if (!routeUsage.has(route)) errors.push(`${route}: no request coverage`);
+    }
+
+    const originals = new Map();
+    for (const [index, row] of (report?.requests ?? []).entries()) {
+        const label = `${row.flow}/${row.route} #${index + 1}`;
+        if (row.sequence !== index + 1) errors.push(`${label}: unexpected request sequence`);
+        const requirement = expected.get(row.flow)?.get(row.route);
+        if (!requirement || !Object.hasOwn(routes, row.route)) {
+            errors.push(`${label}: unexpected request`);
+            continue;
+        }
+        originals.set(index + 1, row);
+        requirement.count += 1;
+        requirement.sawConcurrent ||= row.concurrent === true;
+        if (!requirement.statuses.includes(row.status)) errors.push(`${label}: unexpected HTTP status`);
+        if (typeof row.concurrent !== 'boolean') errors.push(`${label}: missing concurrency observation`);
+        if (!time(row.clientMs)) errors.push(`${label}: missing or invalid clientMs`);
+        commonMetrics(label, row);
+    }
+
+    for (const [flow, entries] of expected) {
+        for (const [route, requirement] of entries) {
+            const { count, minimum, maximum = Infinity, concurrent, sawConcurrent } = requirement;
+            if (count < minimum || count > maximum || (concurrent && !sawConcurrent)) {
+                errors.push(`${flow}/${route}: missing or unexpected request coverage (${count})`);
+            }
+        }
+    }
+    if ([...originals.values()].some((row) => row.concurrent) &&
+        (!peak(report.concurrentProcessPeakRssBytes) || report.concurrentSamplingMethod !== 'linux-vmhwm')) {
+        errors.push('missing concurrent backend process peak RSS');
+    }
+
+    const replayed = new Set();
+    for (const row of report?.replays ?? []) {
+        const original = originals.get(row.sequence);
+        const label = `isolated ${original?.flow}/${row.route} #${row.sequence}`;
+        if (!original || replayed.has(row.sequence) || row.route !== original.route ||
+            row.status !== original.status || row.requestWireBytes !== original.requestWireBytes || row.requestDecodedBytes !== original.requestDecodedBytes ||
+            row.isolated !== true || row.prewarmed !== true || row.method !== 'linux-vmhwm') {
+            errors.push(`${label}: invalid or non-equivalent isolated replay`);
+            continue;
+        }
+        replayed.add(row.sequence);
+        // The replay must complete the same business request in its independently prepared state.
+        if (row.asserted !== true) errors.push(`${label}: replay result was not verified`);
+        commonMetrics(label, row);
+        if (!peak(row.baselineRssBytes) || row.peakRssBytes < row.baselineRssBytes) {
+            errors.push(`${label}: invalid baseline RSS`);
+        }
+        metric(label, row.route, 'peakRssBytes', 'maxPeakRssBytes', row.peakRssBytes, peak);
+        metric(label, row.route, 'rssIncreaseBytes', 'maxRssIncreaseBytes',
+            row.peakRssBytes - row.baselineRssBytes, size);
+    }
+    for (const [sequence, row] of originals) {
+        if (!replayed.has(sequence)) errors.push(`${row.flow}/${row.route} #${sequence}: isolated replay missing`);
+    }
+    const valid = errors.length === 0;
+    return { ok: valid && budgetErrors.length === 0, valid, errors: [...errors, ...new Set(budgetErrors)], maxByRoute };
+}
