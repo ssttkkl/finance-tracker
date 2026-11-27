@@ -6,6 +6,7 @@ import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.CashImportReceiptSection
 import com.finance.tracker.business.contracts.LedgerSnapshotSection
 import com.finance.tracker.business.contracts.ReadPageChunk
+import com.finance.tracker.business.contracts.ReadPagePosition
 import java.util.Base64
 import java.util.zip.GZIPInputStream
 import io.ktor.client.request.*
@@ -362,6 +363,24 @@ class CashWriteSetReceiptTest(private val backend: String) {
             assertFailsWith<ReceiptUnavailable> { service.receiptByKey(token, "original") }
             db.read { c -> assertFailsWith<IllegalArgumentException> { ReceiptRepository(c, ws, db.sqlite).replay(user, "original", "a".repeat(64), "cash_write_set") } }
         }
+    }
+    @Test fun receiptPageRejectsAnExplicitNullPendingListButAllowsAnAbsentPendingList() = authenticated { db, ws, token, user ->
+        val saved = save(db, ws, user)
+        val page = ReadPageRequest(ws, null, ReadPagePosition(CashImportReceiptSection.HEADER.wireName, 0))
+        val service = ReceiptReadService(db)
+        val encoding = ReadPageEncoding(0.0, 1.0)
+        service.importReceiptPage(token, "original", page, encoding)
+        db.write { connection ->
+            val summary = buildJsonObject {
+                put("status", "completed")
+                put("ledger_seq", "9007199254740993")
+                put("write_set_result", result())
+                put("pending_transaction_ids", JsonNull)
+            }
+            connection.jooq(db.sqlite).update(CASH_MUTATION_RECEIPTS).set(CASH_MUTATION_RECEIPTS.RESULT_SUMMARY, summary)
+                .where(CASH_MUTATION_RECEIPTS.ID.eq(saved.getValue("receipt_id").jsonPrimitive.content)).execute()
+        }
+        assertFailsWith<ReceiptUnavailable> { service.importReceiptPage(token, "original", page, encoding) }
     }
     @Test fun normalizationDetachesCallerContainersAndOldReceiptsRemainAbsent() = authenticated { db, ws, token, user ->
         val fields = result().toMutableMap()

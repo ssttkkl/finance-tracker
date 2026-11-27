@@ -109,26 +109,36 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         val header = section == CashImportReceiptSection.HEADER
         val pending = section == CashImportReceiptSection.PENDING_TRANSACTION_IDS
         val array = if (pending) "result_summary -> 'pending_transaction_ids'" else "result_summary -> 'write_set_result' -> ?"
+        val pageCount = if (pending) "pending" else "write_set -> ?"
         val projection = if (header) """
             1 as item_count,
-            (select json_object_agg(part.key, part.value)::text
-             from json_each(result_summary) part
+            (select json_object_agg(part.key, part.value order by part.position)::text
+             from fields part
              where part.key not in ('write_set_result','pending_transaction_ids','affected_transaction_ids','projection_refs')) as header
-        """ else "coalesce(json_array_length($array), 0) as item_count"
+        """ else "coalesce(json_array_length($pageCount), 0) as item_count"
         val query = """
-            select id, plan_id, created_at, (result_summary -> 'ledger_seq')::text as ledger_seq,
-              json_array_length(result_summary -> 'pending_transaction_ids') as pending_count,
-              (select array_agg(field) from json_object_keys(result_summary -> 'write_set_result') as field) as write_fields,
+            with receipt as materialized (
+              select id, plan_id, created_at, result_summary from cash_mutation_receipts
+              where workspace_id = ? and user_id = ? and idempotency_key = ? and operation_kind = 'cash_write_set'
+            ), fields as materialized (
+              select field.key, field.value, field.position from receipt,
+                lateral json_each(result_summary) with ordinality as field(key, value, position)
+            ), shape as materialized (
+              select (select value from fields where key = 'ledger_seq' order by position desc limit 1) as ledger_seq,
+                (select value from fields where key = 'pending_transaction_ids' order by position desc limit 1) as pending,
+                (select value from fields where key = 'write_set_result' order by position desc limit 1) as write_set
+            )
+            select id, plan_id, created_at, ledger_seq::text as ledger_seq,
+              json_array_length(pending) as pending_count,
+              (select array_agg(field) from json_object_keys(write_set) as field) as write_fields,
               $projection
-            from cash_mutation_receipts
-            where workspace_id = ? and user_id = ? and idempotency_key = ? and operation_kind = 'cash_write_set'
+            from receipt cross join shape
         """
         return connection.prepareStatement(query).use { statement ->
-            var index = 1
-            if (!header && !pending) statement.setString(index++, section.wireName)
-            statement.setString(index++, workspace)
-            statement.setString(index++, user)
-            statement.setString(index, key)
+            statement.setString(1, workspace)
+            statement.setString(2, user)
+            statement.setString(3, key)
+            if (!header && !pending) statement.setString(4, section.wireName)
             statement.executeQuery().use { row ->
                 if (!row.next()) return null
                 val id = row.getString("id")
