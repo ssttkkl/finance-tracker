@@ -2139,6 +2139,16 @@
       "signature": "ClientCashImportStore.pendingConfirmationKey|pendingConfirmationKey(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
       "disposition": "spi",
       "reason": "Local pending-operation lookup covered by the installed confirmation status and cancellation scenarios"
+    },
+    {
+      "signature": "ClientCashImportStore.archivedConfirmation|archivedConfirmation(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Narrow committed status record covered by installed status after archiving the original receipt"
+    },
+    {
+      "signature": "ClientCashImportStore.rememberArchivedConfirmation|rememberArchivedConfirmation(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Archive commit and status-cache persistence covered by installed response-loss recovery"
     }
   ],
   "nonOperations": [

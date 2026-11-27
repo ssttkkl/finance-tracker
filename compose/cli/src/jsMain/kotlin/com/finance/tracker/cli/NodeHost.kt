@@ -16,6 +16,8 @@ import com.finance.tracker.client.ClientPendingCommand
 import com.finance.tracker.client.ClientCashMaintenanceOperations
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
@@ -277,6 +279,23 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         return indexed.operationKey
     }
 
+    override suspend fun archivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportConfirmation? {
+        val batch = "${slot(session, workspaceId)}.import.$batchId"
+        val index = read<ArchivedConfirmationIndex>("$batch.file.archive-status") ?: return null
+        if (index.stamp != readLocalState { stateStamp(batch) }) return null
+        if (!com.finance.tracker.business.domain.isCashWriteSetKey(index.operationKey) || index.receiptId.isBlank())
+            throw ClientOperationFailure("local_state_unreadable")
+        return CashImportConfirmation(index.operationKey, CashImportConfirmationStatus.COMMITTED, index.receiptId)
+    }
+
+    override suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String,
+        key: String, receiptId: String) {
+        if (!sameState(session, session())) throw ClientOperationFailure("session_changed")
+        val batch = "${slot(session, workspaceId)}.import.$batchId"
+        val stamp = checkNotNull(stateStamp(batch))
+        database.write("$batch.file.archive-status", Json.encodeToString(ArchivedConfirmationIndex(stamp, key, receiptId)))
+    }
+
     private fun stateStamp(key: String): String? = database.stateStamp(key) as String?
 
     private fun readPreviewBatch(key: String, batchId: String): ClientCashImportBatch? =
@@ -411,6 +430,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
 
 @Serializable
 private data class PendingConfirmationIndex(val stamp: String, val operationKey: String)
+
+@Serializable
+private data class ArchivedConfirmationIndex(val stamp: String, val operationKey: String, val receiptId: String)
 
 @Serializable
 private data class StoredReviewedCommand(val planId: String, val revision: Long, val ledgerSeq: String,

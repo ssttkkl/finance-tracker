@@ -59,6 +59,9 @@ interface ClientCashImportStore {
     suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
         read(session, workspaceId, batchId)
     suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? = null
+    suspend fun archivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportConfirmation? = null
+    /** Record the status projection of the archive just saved in this transaction. */
+    suspend fun rememberArchivedConfirmation(session: ClientStoredSession, workspaceId: String, batchId: String, key: String, receiptId: String) {}
     /** Freezing an editable batch must atomically reject associated unresolved account commands. */
     suspend fun compareAndSave(
         session: ClientStoredSession,
@@ -476,6 +479,10 @@ class ClientCashImportOperations(
         store.pendingConfirmationKey(binding, workspace, batchId)?.let { key ->
             return observePendingConfirmation(binding, workspace, key, cancel)
         }
+        if (!cancel) store.archivedConfirmation(binding, workspace, batchId)?.let {
+            session.requireCurrent(binding)
+            return ClientCashImportCancellation(it, null)
+        }
         val batch = batch(binding, workspace, batchId)
         val outcome = result(batch)
         val key = batch.submission?.key ?: attemptKey(batch.id, batch.attempt)
@@ -605,6 +612,7 @@ class ClientCashImportOperations(
             LocalCashImportResultInput.decode(checkNotNull(raw.resultInput)), serverItems)
         save(scope, current, current.copy(files = emptyList(), review = null, submission = null, result = content.encode()),
             removedFileIds = current.files.map { it.storageId })
+        store.rememberArchivedConfirmation(scope.binding, scope.id, batch.id, raw.key, content.authoritativeReceipt().receiptId)
         return content
     }
 

@@ -2,11 +2,12 @@ const assert = require('node:assert/strict');
 const { spawn, execFile, execFileSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { createServer } = require('node:http');
-const { mkdtempSync, readFileSync, writeFileSync, truncateSync, rmSync } = require('node:fs');
+const { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, truncateSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { once } = require('node:events');
 const { test } = require('node:test');
+const { pathToFileURL } = require('node:url');
 const { setTimeout: sleep } = require('node:timers/promises');
 
 const fixture = resolve(__dirname, '../../backend/src/test/resources/cash-import-slice/alipay-01.csv');
@@ -169,16 +170,16 @@ for (const database of backends) test(`the installed CLI resumes the original ca
             ...process.env, FT_CLI_SERVER: `http://127.0.0.1:${proxy.address().port}`,
             FT_CLI_STATE_DIR: join(dir, 'state'), FT_CLI_STORAGE_KEY: Buffer.alloc(32, 23).toString('base64'),
         };
-        const run = (args, input = '', override = {}) => new Promise((resolve, reject) => {
-            const child = execFile(bin, [...args, '--json'], { cwd: dir, env: { ...env, ...override }, timeout: 20000 }, (error, stdout, stderr) => {
+        const run = (args, input = '', override = {}, executable = bin) => new Promise((resolve, reject) => {
+            const child = execFile(executable, [...args, '--json'], { cwd: dir, env: { ...env, ...override }, timeout: 20000 }, (error, stdout, stderr) => {
                 if (error && typeof error.code !== 'number') return reject(error);
                 try { resolve({ status: error?.code || 0, value: JSON.parse(stdout), stderr }); }
                 catch (failure) { reject(new Error(`Invalid CLI response: ${stdout} ${stderr}`, { cause: failure })); }
             });
             child.stdin.end(input);
         });
-        const ok = async (args, input, override) => {
-            const output = await run(args, input, override);
+        const ok = async (args, input, override, executable) => {
+            const output = await run(args, input, override, executable);
             assert.equal(output.status, 0, JSON.stringify(output));
             return output.value;
         };
@@ -270,11 +271,39 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         });
         assert.equal(humanResult.split('\n')[0], `Batch ${prepared.batch_id}  Receipt ${reopened.receipt.receipt_id}`);
         const statusStart = requestedPaths.length;
-        const confirmedOperation = await ok(['import', 'status', prepared.batch_id]);
-        assert.ok(!requestedPaths.slice(statusStart).some((path) => path.startsWith('/api/v1/ledger/')));
+        const statusProbe = join(dir, 'status-probe.mjs');
+        const archiveReads = join(dir, 'status-archive-reads');
+        writeFileSync(statusProbe, `
+            import { StatementSync } from 'node:sqlite';
+            import { appendFileSync } from 'node:fs';
+            const get = StatementSync.prototype.get;
+            StatementSync.prototype.get = function (...parameters) {
+                const row = get.apply(this, parameters);
+                if (row?.payload && String(parameters[1]).endsWith('.import.' + process.env.FT_TEST_ARCHIVE_BATCH))
+                    appendFileSync(process.env.FT_TEST_ARCHIVE_READ_REPORT, '1');
+                return row;
+            };
+        `);
+        const confirmedOperation = await ok(['import', 'status', prepared.batch_id], '', {
+            NODE_OPTIONS: `--import=${pathToFileURL(statusProbe)}`,
+            FT_TEST_ARCHIVE_BATCH: prepared.batch_id, FT_TEST_ARCHIVE_READ_REPORT: archiveReads,
+        });
+        assert.deepEqual(requestedPaths.slice(statusStart), ['/api/v1/auth/session']);
+        assert.equal(existsSync(archiveReads), false, 'archived status should not read the encrypted batch payload');
         assert.equal(confirmedOperation.status, 'committed');
         assert.equal(confirmedOperation.receipt_id, recovered.receipt.receipt_id);
         assert.equal(confirmedOperation.operation_id, prepared.batch_id);
+        const previousPackage = process.env.FT_TEST_ARCHIVED_PREVIOUS_PACKAGE;
+        if (previousPackage) {
+            const previous = join(dir, 'previous');
+            mkdirSync(previous);
+            execFileSync('npm', ['install', '--prefix', previous, '--no-audit', '--no-fund', '--ignore-scripts', resolve(previousPackage)]);
+            const oldBin = join(previous, 'node_modules/.bin/ft');
+            assert.deepEqual(await ok(['import', 'status', prepared.batch_id], '', {}, oldBin), confirmedOperation);
+            const oldCancel = await ok(['import', 'cancel-confirmation', prepared.batch_id], '', {}, oldBin);
+            assert.equal(oldCancel.status, 'committed');
+            assert.deepEqual(oldCancel.receipt, alreadyCommitted.receipt);
+        }
         assert.equal(recovered.receipt.committed, true);
         assert.equal(recovered.items_complete, true);
         assert.equal(recovered.page.items.filter((item) => item.result_kind === 'row' && item.transaction_id).length, 1);
@@ -294,6 +323,12 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         `, prepared.batch_id], { cwd: dir, env });
         const historical = await ok(['import', 'result', prepared.batch_id]);
         assert.deepEqual(historical, { ...reopened, receipt: { ...reopened.receipt, projection_version: '9223372036854775807' } });
+        const legacyStatus = await ok(['import', 'status', prepared.batch_id], '', {
+            NODE_OPTIONS: `--import=${pathToFileURL(statusProbe)}`,
+            FT_TEST_ARCHIVE_BATCH: prepared.batch_id, FT_TEST_ARCHIVE_READ_REPORT: archiveReads,
+        });
+        assert.deepEqual(legacyStatus, confirmedOperation);
+        assert.equal(existsSync(archiveReads), true, 'a legacy overwrite must follow the original authenticated read');
         const ledger = await ok(['cash', 'list']);
         assert.equal(ledger.page.items.length, 1);
         const balances = await ok(['account', 'show', account.account_id]);
