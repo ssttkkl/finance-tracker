@@ -21,7 +21,7 @@ interface ClientImportSubmissionHost<Result> {
     suspend fun submit(attempt: StoredCashImportSubmission): CashMutationReceiptDto
     suspend fun recordBaseRejection(attempt: StoredCashImportSubmission, reason: ClientOperationFailure)
     suspend fun rebase(attempt: StoredCashImportSubmission, reason: ClientOperationFailure): CashMutationReceiptDto?
-    suspend fun discardReplayMismatch(attempt: StoredCashImportSubmission)
+    suspend fun discardRejectedAttempt(attempt: StoredCashImportSubmission, reason: ClientOperationFailure)
     suspend fun complete(attempt: StoredCashImportSubmission, receipt: CashMutationReceiptDto): Result
     suspend fun awaitNextAttempt(attempt: Int) = Unit
     fun retriesExhausted(reason: ClientOperationFailure): Nothing = throw reason
@@ -71,12 +71,15 @@ private suspend fun <Result> resolveFrozenImport(
                 host.recordBaseRejection(original, failure)
                 throw ImportBaseRejected(failure)
             }
-            failure.status == 422 && failure.code == "write_set_replay_mismatch" && failure.commitState == "not_committed" -> {
+            failure.commitState == "not_committed" &&
+                (failure.status == 422 && failure.code == "write_set_replay_mismatch" ||
+                    failure.status == 409 && failure.code == "rules_version_changed" ||
+                    failure.status == 413 && failure.code == "payload_too_large") -> {
                 lookupImportReceipt { host.receipt(original.key) }?.let { return it }
-                host.discardReplayMismatch(original)
+                host.discardRejectedAttempt(original, failure)
                 throw failure
             }
-            failure.commitState == "unknown" || failure.status == 408 || failure.status?.let { it >= 500 } == true ||
+            failure.commitState == "unknown" || failure.status in setOf(408, 413) || failure.status?.let { it >= 500 } == true ||
                 failure.code in setOf("transport_error", "protocol_error") ->
                 throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown")
             else -> throw failure

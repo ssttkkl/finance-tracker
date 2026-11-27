@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.business.domain.CASH_WRITE_SET_MAX_BYTES
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.utils.io.*
@@ -25,7 +26,7 @@ internal data class CashImportPreviewRequest(val expectedRevision: Long, val pre
 internal object CashImportProtocol {
     const val MAX_FILE_BYTES = 100 * 1024 * 1024
     const val MAX_METADATA_BYTES = 65536
-    const val MAX_PLAN_INPUT_BYTES = 64 * 1024 * 1024
+    const val MAX_PLAN_INPUT_BYTES = CASH_WRITE_SET_MAX_BYTES
     const val MAX_REQUEST_BYTES = 20L * MAX_FILE_BYTES + 1024 * 1024
     private val clientReference = Regex("[A-Za-z0-9_-]{1,128}")
     private val sourceHint = Regex("[a-z][a-z0-9_-]{0,63}")

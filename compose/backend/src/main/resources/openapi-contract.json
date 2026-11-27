@@ -13790,7 +13790,7 @@
             }
           },
           "413": {
-            "description": "Decoded or expanded command exceeds 64 MiB",
+            "description": "Decoded or expanded command exceeds 64 MiB; commit_state is not_committed",
             "content": {
               "application/json": {
                 "schema": {

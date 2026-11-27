@@ -47,7 +47,7 @@ suspend fun main() {
     } catch (failure: CashProjectionDomainFailure) {
         report(machine, failure.code, 1)
     } catch (failure: CashImportPlanError) {
-        report(machine, failure.code, 1)
+        report(machine, failure.code, 1, commitState = failure.commitState)
     } catch (failure: Throwable) {
         process.stderr.write("ft: system_error (${failure::class.simpleName})\n")
         report(machine, "system_error", 1)

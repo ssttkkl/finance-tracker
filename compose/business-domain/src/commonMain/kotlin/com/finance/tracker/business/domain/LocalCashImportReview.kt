@@ -65,9 +65,9 @@ class LocalCashImportReview private constructor(private val text: String) {
                 .associateWith { input[it] ?: JsonArray(emptyList()) }), context) }
 
         /** Freeze the complete result at confirmation; recovery never substitutes facts from a later snapshot. */
-        fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto): LocalCashImportReview {
+        fun freeze(input: JsonObject, plan: Map<String, Any?>, source: LedgerSnapshotDto, changes: CashWriteSetDto,
+            frozenPlan: JsonObject = freezeLocalCashImportPreviewPlan(plan)): LocalCashImportReview {
             val original = freeze(input, plan).document()
-            val frozenPlan = freezeLocalCashImportPreviewPlan(plan)
             val conclusion = localCashImportConclusion(source, frozenPlan, changes)
             val bindings = freezeLocalCashImportChoiceBindings(source, frozenPlan, changes, input, original.getValue("context").jsonObject)
             return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion), "bindings" to bindings)).toString())

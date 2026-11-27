@@ -312,13 +312,13 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
   }
 });
 
-for (const scenario of ["normal", "conflict", "completion"] as const) {
+for (const scenario of ["normal", "conflict", "completion", "size-refusal"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";
 const interruptArchive = scenario === "archive-worker";
 const interruptSnapshot = scenario === "snapshot-worker";
-test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整文件" : `新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -555,6 +555,21 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await clickStableComposeTarget(page, page.locator('[id="cash.import.review"]:visible').last());
   await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
   expect(writeKeys).toEqual([]);
+  if (scenario === "size-refusal") {
+    diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404, 413] });
+    await page.route("**/api/v1/cash-import/write-set?*", (route) => route.request().method() === "POST"
+      ? route.fulfill({ status: 413, json: { error: { code: "payload_too_large", retryable: false }, commit_state: "not_committed" } })
+      : route.continue());
+    await clickStableComposeTarget(page, page.locator('[id="cash.import.confirm"]:visible').last());
+    await expect(page.locator('[id="cash.import.preview-too-large"]:visible').last())
+      .toHaveText("本次导入内容过多，请减少文件后重试。", { timeout: 30_000 });
+    expect(writeKeys).toHaveLength(1);
+    expect(receiptLookups.filter((url) => new URL(url).searchParams.get("key") === writeKeys[0]).length).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText("synthetic.csv", { exact: true }).last()).toBeAttached();
+    await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("local-csv-size-refusal.png") });
+    return;
+  }
   const crashConfirmation = scenario === "normal" || interruptArchive;
   let archiveCrash: Promise<void> | undefined;
   if (crashConfirmation) {

@@ -16,7 +16,10 @@ class CashRelationReferences<A>(private val core:CashRelationCoreRules<A>) {
         return if(key.startsWith("preview:")) key.removePrefix("preview:") else key
     }
     fun proposalKey(proposal:RelationProposal,facts:List<RelationFact<A>> = emptyList()):String {
-        val byId=facts.associateBy {it.id}
+        return proposalKey(proposal, facts.associateBy { it.id })
+    }
+
+    internal fun proposalKey(proposal: RelationProposal, byId: Map<String, RelationFact<A>>): String {
         val payload=linkedMapOf<String,Any?>(
             "kind" to proposal.kind,
             "primary" to stableFactRef(proposal.primaryFactId,byId),

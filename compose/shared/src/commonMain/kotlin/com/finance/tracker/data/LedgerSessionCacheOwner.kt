@@ -386,9 +386,9 @@ internal class LedgerSessionCacheOwner(
                     return rebaseImportSubmission(batchId, original(attempt), reason, calculate, captureSnapshot)
                 }
 
-                override suspend fun discardReplayMismatch(attempt: StoredCashImportSubmission) {
+                override suspend fun discardRejectedAttempt(attempt: StoredCashImportSubmission, reason: ClientOperationFailure) {
                     withImportFiles { it.discardUnprovableSubmission(batchId, original(attempt)) }
-                    throw CashImportPlanError("write_set_replay_mismatch", "not_committed")
+                    throw CashImportPlanError(reason.code, "not_committed")
                 }
 
                 override suspend fun complete(attempt: StoredCashImportSubmission, receipt: CashMutationReceiptDto) =

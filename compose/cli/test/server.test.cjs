@@ -52,9 +52,16 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let dropAccountRequest = false;
     let damageAccountReceipt = false;
     let rejectReceiptLookup = false;
+    let oversizedImportReply;
+    const oversizedImportAttempts = [];
     const proxy = createServer(async (req, res) => {
         try {
             const body = Buffer.concat(await Array.fromAsync(req));
+            if (oversizedImportReply && req.method === 'POST' && req.url.startsWith('/api/v1/cash-import/write-set?')) {
+                oversizedImportAttempts.push(req.headers['idempotency-key']);
+                res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify(oversizedImportReply));
+                return;
+            }
             if (dropAccountRequest && req.method === 'POST' && req.url.startsWith('/api/v1/accounts?')) {
                 dropAccountRequest = false;
                 req.socket.destroy();
@@ -232,6 +239,40 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.equal(ledger.page.items.length, 1);
         const balances = await ok(['account', 'show', account.account_id]);
         assert.equal(balances.balances.find((item) => item.currency === 'CNY').balance, '-13.00');
+
+        const rejectedBatch = await ok(['import', 'prepare', statement]);
+        const reviewedAgain = join(dir, 'repeat-import-review.json');
+        const revisedChoices = { expected_session_revision: Number(rejectedBatch.revision), previous_plan_id: null,
+            account_selections: rejectedBatch.source_accounts.map(({ source_account_ref }) => ({ source_account_ref,
+                account_id: account.account_id, expected_account_revision: Number(account.account_revision) })),
+            row_choices: [], relation_choices: [] };
+        writeFileSync(reviewedAgain, JSON.stringify(revisedChoices));
+        const initialRejectedPlan = await ok(['import', 'review', rejectedBatch.batch_id, '--choices', reviewedAgain]);
+        revisedChoices.expected_session_revision = Number(initialRejectedPlan.review_revision);
+        revisedChoices.previous_plan_id = initialRejectedPlan.plan_id;
+        writeFileSync(reviewedAgain, JSON.stringify(revisedChoices));
+        const rejectedPlan = await ok(['import', 'review', rejectedBatch.batch_id, '--choices', reviewedAgain]);
+        assert.equal(rejectedPlan.can_commit, true);
+        oversizedImportReply = { error: { code: 'payload_too_large' } };
+        const opaque = await run(['import', 'confirm', rejectedBatch.batch_id, '--review', rejectedPlan.review_revision]);
+        assert.equal(opaque.value.error.code, 'result_unknown');
+        assert.equal(opaque.value.error.commit_state, 'unknown');
+        assert.match(opaque.stderr, /ft import: submit_write_set/);
+        assert.doesNotMatch(opaque.stderr, /ft import: (read_files|discover_relations)/);
+        const listRejectedBatch = async () => (await ok(['import', 'batches'])).batches.find(({ batch_id }) =>
+            batch_id === rejectedBatch.batch_id);
+        assert.equal((await listRejectedBatch()).status, 'result_pending');
+        oversizedImportReply.commit_state = 'not_committed';
+        const refusal = await run(['import', 'resume', rejectedBatch.batch_id]);
+        assert.equal(refusal.value.error.code, 'payload_too_large');
+        assert.equal(refusal.value.error.commit_state, 'not_committed');
+        assert.equal((await listRejectedBatch()).status, 'open');
+        const retainedImport = await ok(['import', 'resume', rejectedBatch.batch_id]);
+        assert.equal(retainedImport.files.length, 1);
+        assert.deepEqual(oversizedImportAttempts, [rejectedBatch.batch_id, rejectedBatch.batch_id]);
+        oversizedImportReply = undefined;
+        assert.equal(writeCount, 1);
+        assert.equal((await ok(['cash', 'list'])).page.items.length, 1);
 
         const add = ['cash', 'add', '--workspace', workspace, '--account', account.account_id, '--amount', '0.123456789012345678',
             '--currency', 'CNY', '--occurred-at', '2026-11-26T01:02:03Z', '--type', 'income', '--subtype', 'not_applicable'];

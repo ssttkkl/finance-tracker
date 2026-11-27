@@ -5,6 +5,7 @@ import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.domain.inspectStoredCashImportSubmission
 import com.finance.tracker.business.domain.verifyCashWriteSetTransport
+import com.finance.tracker.client.encodeCashImportRequest
 import kotlinx.serialization.json.jsonObject
 
 /** Immutable original operation. Its text is sensitive local recovery data, never a diagnostic. */
@@ -89,7 +90,7 @@ internal class LocalCashImportSubmission private constructor(
         fun freeze(key: String, input: CashWriteSetRequestDto, resultInput: LocalCashImportResultInput? = null,
             transport: String? = null): LocalCashImportSubmission {
             cashKeyHeaders(key)
-            return LocalCashImportSubmission(key, cashWriteSetJson.encodeToString(input), null, false, resultInput, input.baseLedgerSeq, transport)
+            return LocalCashImportSubmission(key, encodeCashImportRequest(input), null, false, resultInput, input.baseLedgerSeq, transport)
         }
 
         fun restore(key: String, request: String, receipt: String? = null, baseRejected: Boolean = false,

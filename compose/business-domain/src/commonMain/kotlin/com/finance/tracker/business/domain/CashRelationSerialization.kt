@@ -9,6 +9,7 @@ class CashRelationSerializationRules<A>(private val core:CashRelationCoreRules<A
     fun stableFactRef(factId:String?,factsById:Map<String,RelationFact<A>> = emptyMap())=references.stableFactRef(factId,factsById)
     fun canonicalOccurredAt(value:Any?):String=canonicalTime(value)
     fun proposalKey(proposal:RelationProposal,facts:List<RelationFact<A>> = emptyList())=references.proposalKey(proposal,facts)
+    internal fun proposalKey(proposal: RelationProposal, facts: Map<String, RelationFact<A>>) = references.proposalKey(proposal, facts)
     fun factDetailRow(fact: RelationFact<A>): Map<String, Any?> = linkedMapOf(
         "id" to fact.id, "record_id" to fact.recordId, "amount" to fact.amount, "currency" to fact.currency,
         "occurred_at" to fact.occurredAt, "counterparty" to fact.counterparty,

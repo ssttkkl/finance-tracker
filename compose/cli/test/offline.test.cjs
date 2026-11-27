@@ -89,7 +89,9 @@ test('installed ft restores the original snapshot in a new process when disconne
         const ok = async (args, input) => {
             const response = await run(args, input);
             assert.equal(response.status, 0, JSON.stringify(response));
-            assert.equal(response.stderr, '');
+            if (args[0] === 'import' && args[1] === 'review') {
+                assert.match(response.stderr, /^ft import: read_files\nft import: prepare_sources\nft import: discover_relations\nft import: build_write_set\n(?:ft import: save_review\n)?$/);
+            } else assert.equal(response.stderr, '');
             return response.value;
         };
         const login = await ok(['auth', 'login', '--email', 'person@example.test', '--password-stdin'], 'synthetic-password\r\n');

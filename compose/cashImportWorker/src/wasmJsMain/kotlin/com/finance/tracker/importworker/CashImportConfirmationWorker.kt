@@ -19,6 +19,7 @@ import com.finance.tracker.business.domain.prepareLocalCashImportView
 import com.finance.tracker.business.domain.page
 import com.finance.tracker.client.rebaseCashImportReview
 import com.finance.tracker.client.freezeCashImportConfirmation
+import com.finance.tracker.client.encodeCashImportRequest
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 import kotlin.js.JsExport
@@ -97,7 +98,7 @@ fun rebaseCashImport(workspace: String, base: String, review: String, files: JsA
     check(snapshot.ledgerSeq == base) { "cash_import_snapshot_changed" }
     val parsed = readCapturedCashImportFiles(files)
     val request = rebaseCashImportReview(parsed, snapshot, LocalCashImportReview.decode(review)) {}
-    rebaseResponse(cashWriteSetJson.encodeToString(request), null)
+    rebaseResponse(encodeCashImportRequest(request), null)
 } catch (failure: CashImportPlanError) {
     rebaseResponse(null, previewPlanError(failure).toString())
 }

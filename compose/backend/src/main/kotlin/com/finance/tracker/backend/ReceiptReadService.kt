@@ -46,13 +46,15 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             JsonObject(receiptJson.encodeToJsonElement(dto).jsonObject.filterKeys {it in row})
         }
         val ids=items.mapNotNull {it["transaction_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content?.takeIf {text ->text.matches(Regex("[0-9]+"))}?.toLongOrNull()?.takeIf {it>0}}.toSet().sorted()
-        val sql=c.jooq(database.sqlite); val member=CASH_ENTRY_MEMBERS; val entry=CASH_ENTRIES; val fact=CASH_TRANSACTIONS
-        val refs=if(ids.isEmpty()) emptyList() else sql
-            .select(member.TRANSACTION_ID, entry.ID).from(member).join(entry)
-            .on(entry.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(entry.ID.eq(member.ENTRY_ID))
-            .join(fact).on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.TRANSACTION_ID))
-            .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.`in`(ids)).and(fact.DELETED_AT.isNull)
-            .orderBy(member.TRANSACTION_ID).fetch().map { CashMutationProjectionRefDto(it[member.TRANSACTION_ID]!!.toString(), "cash-entry:${it[entry.ID]!!}") }
+        val sql=c.jooq(database.sqlite); val member=CASH_ENTRY_MEMBERS; val fact=CASH_TRANSACTIONS
+        val activeIds = if (ids.isEmpty()) emptyList() else sql.select(fact.ID).from(fact)
+            .where(fact.WORKSPACE_ID.eq(workspace)).and(fact.ID.`in`(ids)).and(fact.DELETED_AT.isNull)
+            .fetch(fact.ID)
+        val refs = if (activeIds.isEmpty()) emptyList() else sql.select(member.TRANSACTION_ID, member.ENTRY_ID).from(member)
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.`in`(activeIds))
+            .orderBy(member.TRANSACTION_ID).fetch().map {
+                CashMutationProjectionRefDto(it[member.TRANSACTION_ID]!!.toString(), "cash-entry:${it[member.ENTRY_ID]!!}")
+            }
         val version=sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ) ?: 0L
         val fresh=reads.context(c,token,write=false)
         if(fresh.workspaceId!=workspace || fresh.userId!=principal.userId) throw AccessFailure(true)

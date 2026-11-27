@@ -5,26 +5,32 @@ import com.finance.tracker.business.contracts.CashWriteSetDto
 import kotlinx.serialization.json.*
 import kotlin.time.Instant
 
+enum class CashImportPlanningStage { PREPARE_SOURCES, DISCOVER_RELATIONS, BUILD_WRITE_SET }
+
 /** Compute the complete file-import plan locally; preserve calculated types until the final plan encoding boundary. */
 fun buildLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
     now: () -> Instant): MutableMap<String, Any?> = localCashImportBusinessPlan(files, source, input, previous, recordIds,
-    requireActive, now) { plan, _ -> plan }
+    requireActive, {}, now) { plan, _ -> plan }
 
 /** Build the complete plan and command from the same source preparation and exclusive preview. */
 fun calculateLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
+    progress: (CashImportPlanningStage) -> Unit = {},
     now: () -> Instant): Pair<Map<String, Any?>, CashWriteSetDto> = localCashImportBusinessPlan(files, source, input, previous,
-    recordIds, requireActive, now) { plan, sources ->
+    recordIds, requireActive, progress, now) { plan, sources ->
+        progress(CashImportPlanningStage.BUILD_WRITE_SET)
         val empty = JsonArray(emptyList())
         plan to buildLocalCashImportWriteSet(source, files, sources, freezeLocalCashImportPreviewPlan(plan),
             (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
     }
 
 private fun <R> localCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
-    previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit, now: () -> Instant,
+    previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
+    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
     complete: (MutableMap<String, Any?>, PreparedCashSourcePlan) -> R): R {
     requireActive()
+    progress(CashImportPlanningStage.PREPARE_SOURCES)
     val empty = JsonArray(emptyList())
     val choices = prepareLocalCashImportInput(input["account_selections"] ?: empty, input["row_choices"] ?: empty,
         input["relation_choices"] ?: empty, input["entry_choices"])
@@ -45,6 +51,7 @@ private fun <R> localCashImportBusinessPlan(files: List<ParsedImportFile>, sourc
         operations.operations, operations.source.rows.rows, entries, previous)
     val preview = buildLocalCashImportPreviewSnapshot(source, prepared.context, prepared.operations, operations.rows, now)
     val seeds = cashImportPreviewDiscoverySeeds(preview)
+    progress(CashImportPlanningStage.DISCOVER_RELATIONS)
     val proposals = if (seeds.isEmpty()) emptyList() else discoverLocalCashImportRelations(
         source, preview, seeds, prepared.accounts, requireActive)
     val plan = completeLocalCashImportPreviewPlan(source, prepared, preview, proposals, files, choices, previous, operations.candidateSets)

@@ -5,7 +5,9 @@ import com.finance.tracker.client.CashImportFileInput
 import com.finance.tracker.client.CashImportFileSource
 import com.finance.tracker.client.ClientCapturedCashImportFile
 import com.finance.tracker.client.ClientCashImportBatch
+import com.finance.tracker.client.ClientCashImportListing
 import com.finance.tracker.client.ClientCashImportOperations
+import com.finance.tracker.client.ClientCashImportReviewedCommand
 import com.finance.tracker.client.ClientCashImportStore
 import com.finance.tracker.client.ClientImportAccountOperations
 import com.finance.tracker.client.ClientCashCommandStore
@@ -24,6 +26,7 @@ import com.finance.tracker.client.ClientSessionOperations
 import com.finance.tracker.client.ClientSessionStore
 import com.finance.tracker.client.ClientStoredLedger
 import com.finance.tracker.client.ClientStoredSession
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -61,9 +64,11 @@ internal suspend fun <T> withClient(
     return withHost(server, createKey) { session, _ -> action(session) }
 }
 
-internal suspend fun <T> withCashImport(server: String?, action: suspend (ClientCashImportOperations) -> T): T =
+internal suspend fun <T> withCashImport(server: String?, reportProgress: Boolean = false, action: suspend (ClientCashImportOperations) -> T): T =
     withHost(server, false) { session, store ->
-        action(ClientCashImportOperations(session, store, nodeCalendar, ::newReference))
+        action(ClientCashImportOperations(session, store, nodeCalendar, ::newReference, progress = { stage ->
+            if (reportProgress) process.stderr.write("ft import: $stage\n")
+        }))
     }
 
 internal suspend fun <T> withImportAccounts(server: String?, action: suspend (ClientImportAccountOperations) -> T): T =
@@ -186,16 +191,21 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private fun slot(session: ClientStoredSession, workspaceId: String): String =
         database.workspaceSlot(session.token, session.session.user.email, workspaceId) as String
 
-    override suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportBatch> {
+    override suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportListing> {
         val prefix = "${slot(session, workspaceId)}.import."
         return database.slots(prefix).unsafeCast<Array<String>>()
-            .filterNot { ".file." in it }.map { key -> checkNotNull(read<ClientCashImportBatch>(key)) }
+            .filterNot { ".file." in it }.map { key -> checkNotNull(read<ClientCashImportBatch>(key)).listing() }
     }
 
-    override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
-        read<ClientCashImportBatch>("${slot(session, workspaceId)}.import.$batchId")?.also {
-            if (it.id != batchId) throw ClientOperationFailure("local_state_unreadable")
-        }
+    override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? {
+        val key = "${slot(session, workspaceId)}.import.$batchId"
+        val batch = read<ClientCashImportBatch>(key) ?: return null
+        if (batch.id != batchId) throw ClientOperationFailure("local_state_unreadable")
+        if (batch.planId == null || batch.submission != null || batch.result != null) return batch
+        val review = read<StoredReviewedCommand>("$key.file.reviewed")
+        return if (review != null && review.planId == batch.planId && review.revision == batch.revision &&
+            review.ledgerSeq == batch.ledgerSeq) batch.copy(reviewed = review.command) else batch
+    }
 
     override suspend fun compareAndSave(
         session: ClientStoredSession,
@@ -212,7 +222,15 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
             throw ClientOperationFailure("account_result_unknown", commitState = "unknown")
         val prefix = "${slot(session, workspaceId)}.import.${batch.id}"
         file?.let { database.write("$prefix.file.${it.storageId}", it.payload) }
-        database.write(prefix, Json.encodeToString(batch))
+        database.write(prefix, Json.encodeToString(batch.copy(reviewed = null)))
+        val reviewed = batch.reviewed
+        if (reviewed == null) database.remove("$prefix.file.reviewed")
+        else if (reviewed != current?.reviewed || batch.planId != current.planId || batch.revision != current.revision ||
+            batch.ledgerSeq != current.ledgerSeq) {
+            database.write("$prefix.file.reviewed", Json.encodeToString(StoredReviewedCommand(
+                checkNotNull(batch.planId), batch.revision, checkNotNull(batch.ledgerSeq), reviewed,
+            )))
+        }
         removedFileIds.forEach { database.remove("$prefix.file.$it") }
         return true
     }
@@ -267,6 +285,10 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         throw ClientOperationFailure("local_state_unreadable", cause = failure)
     }
 }
+
+@Serializable
+private data class StoredReviewedCommand(val planId: String, val revision: Long, val ledgerSeq: String,
+    val command: ClientCashImportReviewedCommand)
 
 private fun encodeUrlComponent(value: String): String = js("encodeURIComponent(value)")
 

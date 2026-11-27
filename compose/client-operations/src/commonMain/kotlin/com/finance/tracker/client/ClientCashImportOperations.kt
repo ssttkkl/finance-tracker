@@ -7,6 +7,7 @@ import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.domain.LocalCashImportResultInput
 import com.finance.tracker.business.domain.cashWriteSetJson
@@ -47,7 +48,7 @@ fun interface ClientStatementParser {
 }
 
 interface ClientCashImportStore {
-    suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportBatch>
+    suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportListing>
     suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch?
     /** Freezing an editable batch must atomically reject associated unresolved account commands. */
     suspend fun compareAndSave(
@@ -76,8 +77,21 @@ data class ClientCashImportBatch(
     val submission: StoredCashImportSubmission? = null,
     val result: String? = null,
     val attempt: Int = 0,
+    val reviewed: ClientCashImportReviewedCommand? = null,
 ) {
     override fun toString(): String = "ClientCashImportBatch(id=$id, revision=$revision)"
+
+    fun listing(): ClientCashImportListing = ClientCashImportListing(id, revision.toString(), when {
+        result != null -> "committed"
+        submission?.receipt != null -> "committed_details_pending"
+        submission != null -> "result_pending"
+        else -> "open"
+    }, files.size)
+}
+
+@Serializable
+data class ClientCashImportReviewedCommand(val rulesVersion: String, val request: String, val resultInput: String) {
+    override fun toString(): String = "ClientCashImportReviewedCommand(rulesVersion=$rulesVersion)"
 }
 
 @Serializable
@@ -116,20 +130,13 @@ class ClientCashImportOperations(
     private val calendar: CashLedgerCalendar,
     private val nextId: () -> String,
     private val remoteParser: ClientStatementParser = ClientStatementParser(session::parseStatement),
+    private val progress: (String) -> Unit = {},
 ) {
     suspend fun batches(workspaceId: String?): List<ClientCashImportListing> {
         val ledger = session.ledger(workspaceId)
         val batches = store.batches(ledger.binding, ledger.ledger.snapshot.workspaceId)
         session.requireCurrent(ledger.binding)
-        return batches.map { batch ->
-            val status = when {
-                batch.result != null -> "committed"
-                batch.submission?.receipt != null -> "committed_details_pending"
-                batch.submission != null -> "result_pending"
-                else -> "open"
-            }
-            ClientCashImportListing(batch.id, batch.revision.toString(), status, batch.files.size)
-        }
+        return batches
     }
 
     suspend fun prepare(workspaceId: String?, files: List<CashImportFileSource>): PreparedCashImport {
@@ -217,7 +224,8 @@ class ClientCashImportOperations(
         batch: ClientCashImportBatch, files: List<ClientCashImportFileRef>, obsoleteRef: String?,
     ): ClientCashImportBatch {
         val retained = batch.review?.let(LocalCashImportReview::decode)?.afterFilesChanged(setOfNotNull(obsoleteRef))
-        return batch.copy(revision = nextRevision(batch), files = files, planId = null, ledgerSeq = null, review = retained?.encode())
+        return batch.copy(revision = nextRevision(batch), files = files, planId = null, ledgerSeq = null,
+            review = retained?.encode(), reviewed = null)
     }
 
     private fun capturePayload(file: StoredCashImportFile): ClientCapturedCashImportFile =
@@ -324,13 +332,21 @@ class ClientCashImportOperations(
         val planId = if (reusable) checkNotNull(batch.planId) else nextId()
         val previous = batch.review?.let(LocalCashImportReview::decode)
         val choices = (updatedChoices ?: retained).copy(expectedSessionRevision = revision, timezoneName = timezone)
+        progress("read_files")
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
             snapshot, batch.id, planId, revision, parsedFiles(ledger, batch),
-            choices, previous,
+            choices, previous, progress = { progress(it.name.lowercase()) },
         )
         session.requireCurrent(ledger.binding)
-        if (!reusable) save(ledger, batch, batch.copy(revision = revision, planId = planId, ledgerSeq = snapshot.ledgerSeq,
-            review = review.calculation.review.encode()))
+        if (!reusable || (batch.reviewed == null && review.calculation.requestBody != null &&
+                previous?.conclusion() == review.calculation.review.conclusion())) {
+            progress("save_review")
+            val reviewed = review.calculation.requestBody?.let { body ->
+                ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
+            }
+            save(ledger, batch, batch.copy(revision = revision, planId = planId, ledgerSeq = snapshot.ledgerSeq,
+                review = review.calculation.review.encode(), reviewed = reviewed))
+        }
         return review
     }
 
@@ -351,16 +367,25 @@ class ClientCashImportOperations(
         result(batch)?.let { return it }
         session.requireOnlineWriter(ledger)
         if (batch.submission != null) return finish(ledger, batch)
-        val review = review(ledger, batch, "UTC", updatedChoices = null)
-        val expected = checkNotNull(batch.review).let(LocalCashImportReview::decode)
-        if (review.plan.sessionRevision != revision || !review.plan.canCommit ||
-            expected.conclusion() != review.calculation.review.conclusion())
-            throw ClientOperationFailure("plan_changed", 409)
-        if (ledger.ledger.snapshot.ledgerSeq != review.calculation.request.baseLedgerSeq)
-            throw ClientOperationFailure("plan_changed", 409)
-        val frozen = freezeCashImportConfirmation(attemptKey(batch.id, batch.attempt), review.plan.canCommit,
-            review.calculation.request, review.calculation.plan)
-        save(ledger, batch, batch.copy(submission = frozen))
+        val key = attemptKey(batch.id, batch.attempt)
+        val snapshot = ledger.ledger.snapshot
+        if (snapshot.rulesVersion != CASH_RULES_VERSION) throw ClientOperationFailure("rules_version_changed", 409,
+            commitState = "not_committed")
+        val reviewed = batch.reviewed?.takeIf {
+            it.rulesVersion == snapshot.rulesVersion && batch.ledgerSeq == snapshot.ledgerSeq
+        }
+        val frozen = if (reviewed != null) {
+            StoredCashImportSubmission(key, reviewed.request, resultInput = reviewed.resultInput)
+        } else {
+            val review = review(ledger, batch, "UTC", updatedChoices = null)
+            val expected = checkNotNull(batch.review).let(LocalCashImportReview::decode)
+            if (review.plan.sessionRevision != revision || !review.plan.canCommit ||
+                expected.conclusion() != review.calculation.review.conclusion() ||
+                ledger.ledger.snapshot.ledgerSeq != review.calculation.request.baseLedgerSeq)
+                throw ClientOperationFailure("plan_changed", 409)
+            freezeCashImportConfirmation(key, review.plan.canCommit, review.calculation.request, review.calculation.plan)
+        }
+        save(ledger, batch, batch.copy(submission = frozen, reviewed = null))
         store.checkpoint()
         val durable = batch(ledger, batchId)
         result(durable)?.let { return it }
@@ -392,10 +417,15 @@ class ClientCashImportOperations(
                 result(batch)?.let { ClientImportSubmissionState.Complete(it) }
                     ?: ClientImportSubmissionState.Pending(batch.submission ?: throw ClientOperationFailure("plan_changed", 409))
 
-            override suspend fun receipt(key: String) = session.cashImportReceipt(ledger, key)
+            override suspend fun receipt(key: String): CashMutationReceiptDto? {
+                progress("check_receipt")
+                return session.cashImportReceipt(ledger, key)
+            }
 
-            override suspend fun submit(attempt: StoredCashImportSubmission) =
-                session.submitCashImport(ledger, attempt.key, attempt.request)
+            override suspend fun submit(attempt: StoredCashImportSubmission): CashMutationReceiptDto {
+                progress("submit_write_set")
+                return session.submitCashImport(ledger, attempt.key, attempt.request)
+            }
 
             override suspend fun recordBaseRejection(attempt: StoredCashImportSubmission, reason: ClientOperationFailure) {
                 val closed = batch.copy(submission = attempt.copy(baseRejected = true))
@@ -417,13 +447,13 @@ class ClientCashImportOperations(
                 return try {
                     rebaseRejectedCashImport(before, snapshot.ledgerSeq, reason, { receipt(attempt.key) }, calculate = {
                         val original = checkNotNull(batch.review).let(LocalCashImportReview::decode)
-                        rebaseCashImportReview(parsedFiles(ledger, batch), snapshot, original) {}
+                        encodeCashImportRequest(rebaseCashImportReview(parsedFiles(ledger, batch), snapshot, original) {})
                     }, retire = { replacement ->
                         val next = if (replacement == null) {
                             batch.copy(revision = nextRevision(batch), planId = null, ledgerSeq = null, submission = null, attempt = nextAttempt)
                         } else {
                             batch.copy(attempt = nextAttempt, submission = rejected.copy(
-                                key = attemptKey(batch.id, nextAttempt), request = cashWriteSetJson.encodeToString(replacement),
+                                key = attemptKey(batch.id, nextAttempt), request = replacement,
                                 baseRejected = false, transport = null,
                             ))
                         }
@@ -436,9 +466,10 @@ class ClientCashImportOperations(
                 }
             }
 
-            override suspend fun discardReplayMismatch(attempt: StoredCashImportSubmission) {
+            override suspend fun discardRejectedAttempt(attempt: StoredCashImportSubmission, reason: ClientOperationFailure) {
                 save(ledger, batch, batch.copy(revision = nextRevision(batch), planId = null, ledgerSeq = null, submission = null,
                     attempt = nextAttempt(batch.attempt)))
+                store.checkpoint()
             }
 
             override suspend fun complete(attempt: StoredCashImportSubmission, receipt: CashMutationReceiptDto) =
@@ -453,6 +484,7 @@ class ClientCashImportOperations(
     private fun attemptKey(id: String, attempt: Int): String = if (attempt == 0) id else "$id:attempt:$attempt"
 
     private suspend fun archive(ledger: ClientLedgerRead, batch: ClientCashImportBatch, receipt: CashMutationReceiptDto): CashImportResultContent {
+        progress("read_result")
         val submission = checkNotNull(batch.submission)
         val receiptBody = cashWriteSetJson.encodeToString(receipt)
         val known = batch.copy(submission = submission.copy(receipt = receiptBody, baseRejected = false))

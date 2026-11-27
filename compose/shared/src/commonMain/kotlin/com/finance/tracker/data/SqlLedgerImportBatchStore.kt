@@ -214,7 +214,7 @@ internal class SqlLedgerImportBatchStore private constructor(private val driver:
         val previous = checkNotNull(readText(scope, batchId)) { "cash_import_files_missing" }
         val batch = readStoredImportBatch(previous)
         val original = checkNotNull(command(batchId, batch)) { "cash_import_submission_missing" }
-        check(expected.receiptBody == null && original.idempotencyKey == expected.idempotencyKey &&
+        check(expected.receiptBody == null && original.receiptBody == null && original.idempotencyKey == expected.idempotencyKey &&
             original.requestBody == expected.requestBody && original.resultInput?.encode() == expected.resultInput?.encode()) {
             "cash_import_submission_changed"
         }

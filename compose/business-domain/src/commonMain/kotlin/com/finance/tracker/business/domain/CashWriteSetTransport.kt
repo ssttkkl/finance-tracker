@@ -321,7 +321,7 @@ fun expandCashWriteSetTransport(payload: JsonObject, facts: LedgerFactsDto?,
     var budget = 0L
     fun charge(bytes: Long) {
         budget += bytes
-        if (budget > 64L * 1024 * 1024) throw CashWriteSetPayloadTooLarge()
+        if (budget > CASH_WRITE_SET_MAX_BYTES) throw CashWriteSetPayloadTooLarge()
     }
     val tableBytes = LongArray(table.size) { table[it].toString().encodeToByteArray().size.toLong() }
     val expandedBindings = (changes["source_bindings"] as? JsonArray ?: JsonArray(emptyList())).map { raw ->
@@ -437,7 +437,7 @@ fun expandCashWriteSetTransport(payload: JsonObject, facts: LedgerFactsDto?,
         payload.forEach { (key, value) -> if (key in setOf("base_ledger_seq", "rules_version")) put(key, value) }
         put("changes", expandedChanges)
     }
-    if (expanded.toString().encodeToByteArray().size > 64 * 1024 * 1024) throw CashWriteSetPayloadTooLarge()
+    if (!cashWriteSetFitsBudget(expanded.toString())) throw CashWriteSetPayloadTooLarge()
     val expectedDigest = (payload["request_digest"] as? JsonPrimitive)?.takeIf { it.isString }?.content
         ?: throw IllegalArgumentException("write_set_payload_invalid")
     if (cashWriteSetRequestDigest(expanded) != expectedDigest) throw CashWriteSetReplayMismatch()

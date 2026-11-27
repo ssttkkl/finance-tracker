@@ -86,6 +86,8 @@ ft import result "$BATCH_ID" --workspace "$WORKSPACE_ID" --kind row --json
 
 核对分页仅影响显示范围。导入期间新建账户或补币种会单独生效，需要撤回时查看 `ft import --help` 中的 `account undo` 和 `cancel`。结束时根据实际结果报告已保存、草稿和未导入原因。投资账单不在此命令的支持范围内。
 
+核对和确认的进展写入标准错误。`--json` 的标准输出仍只返回单个结果。若返回 `payload_too_large` 和 `error.commit_state = "not_committed"`，使用原批次调整文件并重新核对。结果未知时继续下节的原批次核实流程。
+
 ## 中断后继续
 
 写入期间断线、进程退出，或错误返回 `error.commit_state = "unknown"` 时，沿原操作核实，再判断是否入账。

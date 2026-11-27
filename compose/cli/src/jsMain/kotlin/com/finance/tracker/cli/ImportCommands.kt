@@ -85,7 +85,7 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
     val options = parseOptions(args.drop(1), scopeOptions + optionsAllowed)
     val expected = options["--workspace"]
     val zone = options["--timezone"] ?: "UTC"
-    return withCashImport(options["--server"]) { operations ->
+    return withCashImport(options["--server"], reportProgress = action in setOf("review", "confirm", "resume")) { operations ->
         when (action) {
             "review" -> {
                 val choices = options["--choices"]?.let { decodeInput(CashImportPreviewInput.serializer(), it) }

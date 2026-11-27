@@ -162,6 +162,8 @@ ft import result "$BATCH_ID" --kind row --json
 
 准备结果列出文件、来源账户与批次修订。每次文件或选择变化都使用最新修订；确认使用整批核对返回的 `review_revision`。CSV／XLSX 本地解析，PDF／旧 XLS 需要服务端解析。PDF 密码按文件从标准输入提供。退出后用 `ft import batches` 查批次，用 `ft import resume "$BATCH_ID"` 接续准备或核实收据。标为已保存但明细待补齐时，也用原批次继续。账户创建与补币种即时生效，用 `ft import account undo` 按原修订逐项撤回。
 
+核对和确认的阶段进展写入标准错误，`--json` 的标准输出仍是单个 JSON 结果。批次和账本版本未变化时，确认直接使用已核对的整批内容。`error.code` 为 `payload_too_large` 且 `error.commit_state` 为 `not_committed` 时，可在原批次调整文件并重新核对。状态为 `unknown` 时先接续原批次核实结果。
+
 记账、转账和维护确认由服务端保存。进程在结果返回前关闭时，用 `ft cash pending` 找原操作，再用 `ft cash resume "$OPERATION_ID"` 核实。分类和删除等需要确认实际影响的命令使用当前账本或目录修订；操作结果待核实时先重新读取目标。命令参数与子命令帮助见 `ft auth --help`、`ft workspace --help`、`ft cash --help`、`ft category --help`、`ft account --help`、`ft import --help`。
 
 Compose 正式页面和 `ft` 共用 Kotlin 模块 `:client-operations`。账本读取和现金账户目录使用原工作区的快照。记账、转账、维护和整批现金导入使用原请求和幂等键核实收据。Compose 使用平台的加密账本缓存和 Worker，`ft` 使用自己的加密本机状态。客户端退出、切换工作区或断网后，回到原工作区打开原有入口即可继续核实。
