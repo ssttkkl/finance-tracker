@@ -28,6 +28,59 @@ function networkFailure(error, signal) {
     return signal.aborted || networkCodes.has(error.cause?.code);
 }
 
+function parseImportEnvelope(text) {
+    return JSON.parse(text, (_, value, context) =>
+        typeof value === 'number' ? JSON.rawJSON(context.source) : value);
+}
+
+function afterJsonString(text, start) {
+    let index = start + 1;
+    while (index < text.length) {
+        const quote = text.indexOf('"', index);
+        if (quote < 0) break;
+        let backslashes = 0;
+        while (text[quote - 1 - backslashes] === '\\') backslashes++;
+        if (backslashes % 2 === 0) return quote + 1;
+        index = quote + 1;
+    }
+    return -1;
+}
+
+export function splitLargeImportRequest(text, field, threshold) {
+    if (text.length < threshold) return null;
+    const owner = text.indexOf(`"${field}":{`);
+    const requestKey = '"request":';
+    const property = owner < 0 ? -1 : text.indexOf(requestKey, owner);
+    if (property < 0) return null;
+    const start = property + requestKey.length;
+    if (text[start] !== '"') return null;
+    const end = afterJsonString(text, start);
+    if (end - start < threshold) return null;
+
+    const placeholder = 'ft-embedded-import-request';
+    const placeholderToken = JSON.stringify(placeholder);
+    if (text.includes(placeholderToken)) return null;
+    const head = text.slice(0, start);
+    const tail = text.slice(end);
+    const envelopeText = head + placeholderToken + tail;
+    try {
+        const envelope = parseImportEnvelope(envelopeText);
+        // Only lift the exact field from a canonical envelope. Keep unusual inputs with the original typed decoder.
+        if (envelope?.[field]?.request !== placeholder || JSON.stringify(envelope) !== envelopeText) return null;
+        const request = JSON.parse(text.slice(start, end));
+        return request.length < threshold ? null : { metadata: head + '""' + tail, request };
+    } catch (error) {
+        if (error instanceof SyntaxError) return null;
+        throw error;
+    }
+}
+
+export function encodeFrozenImportBatch(metadata, request) {
+    const envelope = parseImportEnvelope(metadata);
+    envelope.submission.request = request;
+    return JSON.stringify(envelope);
+}
+
 export async function request(origin, method, path, token, body, suppliedHeaders) {
     const url = new URL(path, origin);
     if (url.origin !== origin) throw new Error('Invalid request origin');

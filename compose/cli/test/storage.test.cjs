@@ -93,3 +93,24 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
         rmSync(root, { recursive: true, force: true });
     }
 });
+
+test('large import text round-trips through the old encrypted state JSON shape', async () => {
+    const { splitLargeImportRequest, encodeFrozenImportBatch } = await import('../npm/lib/host.mjs');
+    const request = JSON.stringify({ amount: '0.10', currency: 'USD', opaque: '说明😀"\\'.repeat(180_000) });
+    const threshold = 1024 * 1024;
+    const metadata = '{"revision":9223372036854775807,"submission":{"key":"synthetic","request":"","baseRejected":false}}';
+    const frozen = encodeFrozenImportBatch(metadata, request);
+    assert.equal(frozen, metadata.replace('""', JSON.stringify(request)));
+    assert.deepEqual(splitLargeImportRequest(frozen, 'submission', threshold), { metadata, request });
+    const reviewed = '{"revision":9223372036854775807,"command":{"request":' + JSON.stringify(request) + '}}';
+    assert.equal(splitLargeImportRequest(reviewed, 'command', threshold).request, request);
+    assert.equal(splitLargeImportRequest(frozen, 'command', threshold), null);
+    assert.equal(splitLargeImportRequest('{"result":' + JSON.stringify(request) + '}', 'submission', threshold), null);
+    assert.equal(splitLargeImportRequest(frozen.slice(0, -1), 'submission', threshold), null);
+    const duplicateRevision = frozen.replace('"revision":', '"revision":"malformed","revision":');
+    const duplicateRequest = frozen.replace('"request":', '"request":1,"request":');
+    const escapedDuplicateRequest = frozen.replace('"request":', '"reques\\u0074":1,"request":');
+    assert.equal(splitLargeImportRequest(duplicateRevision, 'submission', threshold), null);
+    assert.equal(splitLargeImportRequest(duplicateRequest, 'submission', threshold), null);
+    assert.equal(splitLargeImportRequest(escapedDuplicateRequest, 'submission', threshold), null);
+});

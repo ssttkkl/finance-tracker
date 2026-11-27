@@ -44,6 +44,8 @@ private external object NodeHost {
     fun timeZoneOffset(epochSeconds: String, zone: String): Int
     fun startOfDay(date: String, zone: String): String
     fun openStore(origin: String, createKey: Boolean): dynamic
+    fun splitLargeImportRequest(text: String, field: String, threshold: Int): dynamic
+    fun encodeFrozenImportBatch(metadata: String, request: String): String
     fun readStatement(path: String, limit: Int): dynamic
 }
 
@@ -136,6 +138,8 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
         if (status == -1) throw ClientOperationFailure("transport_error", cause = IllegalStateException(result.diagnostic as String))
         ClientHttpResponse(status, result.body as String)
     }
+private const val largeImportRequestLength = 1024 * 1024
+
 private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore {
     private var observedReview: ObservedReview? = null
     private var savedConfirmation: SavedConfirmation? = null
@@ -216,7 +220,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         val batch = readPreviewBatch(key, batchId) ?: return null
         if (batch.planId == null || batch.submission != null || batch.result != null) return batch
         val reviewedSlot = "$key.file.reviewed"
-        val review = read<StoredReviewedCommand>(reviewedSlot)
+        val review = readImportRequest<StoredReviewedCommand>(reviewedSlot, "command") { stored, request ->
+            stored.copy(command = stored.command.copy(request = request))
+        }
         if (review == null || review.planId != batch.planId || review.revision != batch.revision ||
             review.ledgerSeq != batch.ledgerSeq) return batch
         val reviewed = batch.copy(reviewed = review.command)
@@ -239,7 +245,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private fun stateStamp(key: String): String? = database.stateStamp(key) as String?
 
     private fun readPreviewBatch(key: String, batchId: String): ClientCashImportBatch? =
-        read<ClientCashImportBatch>(key)?.also {
+        readImportRequest<ClientCashImportBatch>(key, "submission") { stored, request ->
+            stored.copy(submission = checkNotNull(stored.submission).copy(request = request))
+        }?.also {
             if (it.id != batchId) throw ClientOperationFailure("local_state_unreadable")
         }
 
@@ -263,7 +271,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         if (current?.submission == null && batch.submission != null && hasPendingImportAccountCommand(session, workspaceId, batch.id))
             throw ClientOperationFailure("account_result_unknown", commitState = "unknown")
         file?.let { database.write("$prefix.file.${it.storageId}", it.payload) }
-        database.write(prefix, Json.encodeToString(batch.copy(reviewed = null)))
+        database.write(prefix, encodeImportBatch(batch))
         val reviewed = batch.reviewed
         if (reviewed == null) database.remove("$prefix.file.reviewed")
         else if (reviewed != current?.reviewed || batch.planId != current.planId || batch.revision != current.revision ||
@@ -334,8 +342,26 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         if (saved != null && version == database.dataVersion() as Int) checkpointedConfirmation = saved
     }
 
-    private inline fun <reified T> read(slot: String): T? = try {
-        (database.read(slot) as String?)?.let { Json.decodeFromString<T>(it) }
+    private fun encodeImportBatch(batch: ClientCashImportBatch): String {
+        val submission = batch.submission
+        if (submission == null || submission.request.length < largeImportRequestLength)
+            return Json.encodeToString(batch.copy(reviewed = null))
+        val metadata = Json.encodeToString(batch.copy(reviewed = null, submission = submission.copy(request = "")))
+        return NodeHost.encodeFrozenImportBatch(metadata, submission.request)
+    }
+
+    private inline fun <reified T> readImportRequest(slot: String, field: String, withRequest: (T, String) -> T): T? =
+        readState(slot) { text ->
+            val parts = NodeHost.splitLargeImportRequest(text, field, largeImportRequestLength)
+            if (parts == null) Json.decodeFromString<T>(text)
+            else withRequest(Json.decodeFromString<T>(parts.metadata as String), parts.request as String)
+        }
+
+    private inline fun <reified T> read(slot: String): T? =
+        readState(slot) { Json.decodeFromString<T>(it) }
+
+    private inline fun <T> readState(slot: String, decode: (String) -> T): T? = try {
+        (database.read(slot) as String?)?.let(decode)
     } catch (failure: Throwable) {
         throw ClientOperationFailure("local_state_unreadable", cause = failure)
     }
