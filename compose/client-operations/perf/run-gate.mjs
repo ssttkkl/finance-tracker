@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, closeSync, cpSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { arch, release, tmpdir, type } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +75,7 @@ function prepare(checkout, name) {
   const logfile = join(logs, 'build.log');
   const gradle = join(checkout, 'compose/gradlew');
   const targets = [':backend:installDist'];
+  if (job === 'maximum' && name === 'head') targets.push(':backend:stagePerformanceReplayClasspath');
   if (lane !== 'shared') targets.push(':cli:stageNpm');
   if (job === 'ordinary' && lane !== 'cli') {
     targets.push(':client-operations-perf:stageBenchmark');
@@ -157,14 +158,36 @@ function measure(prepared, phase, selected, enforceBudget) {
   for (const variable of ['NODE_OPTIONS', 'FT_PERF_DIAGNOSTIC', 'FT_PERF_WARMUPS', 'FT_PERF_SAMPLES', 'FT_PERF_ONLY', 'FT_PERF_SELECT']) {
     delete env[variable];
   }
+  delete env.FT_PERF_ISOLATED_BACKEND;
+  delete env.FT_PERF_LEGACY_COMPARISON;
+  const legacyComparison = !enforceBudget && !existsSync(join(prepared.checkout,
+    'compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportConfirmationService.kt'));
+  if (legacyComparison) env.FT_PERF_LEGACY_COMPARISON = '1';
   const checkoutPerf = join(prepared.checkout, 'compose/client-operations/perf');
   const run = (script, options = {}) => command(process.execPath, [join(checkoutPerf, script)], {
     cwd: prepared.checkout, env: { ...env, ...options }, log: join(out, 'runtime.log'), allowFailure: true,
   });
   let ok = true;
+  let replayDetails;
+  let replayOk = true;
   if (job === 'maximum') {
     env.FT_TEST_POSTGRES_URL = postgresUrl(phase);
     ok = run('large-bench.mjs');
+    if (enforceBudget) {
+      const replayDir = join(out, 'replay');
+      mkdirSync(replayDir);
+      replayOk = run('large-bench.mjs', {
+        FT_PERF_ISOLATED_BACKEND: '1',
+        FT_TEST_POSTGRES_URL: !process.env.FT_PERF_PG_ADMIN_URL && phase === 'head' && process.env.FT_PERF_REPLAY_POSTGRES_URL
+          ? process.env.FT_PERF_REPLAY_POSTGRES_URL : postgresUrl(`${phase}-replay`),
+        FT_PERF_ARTIFACTS: replayDir,
+        FT_PERF_EVENTS: join(replayDir, 'measurements.jsonl'),
+      });
+      if (existsSync(join(replayDir, 'large-details.json'))) {
+        replayDetails = JSON.parse(readFileSync(join(replayDir, 'large-details.json')));
+      }
+
+    }
   } else {
     const shared = selected.filter((scenario) => !scenario.id.startsWith('cli.'));
     const cli = selected.filter((scenario) => scenario.id.startsWith('cli.'));
@@ -179,7 +202,11 @@ function measure(prepared, phase, selected, enforceBudget) {
       ok = run('cli-bench.mjs', overrides) && ok;
     }
   }
-  const budgets = enforceBudget ? selected : selected.map((scenario) => ({
+  const comparable = legacyComparison && job === 'maximum'
+    ? selected.filter((scenario) => !['large.confirm-no-wait', 'large.confirmation-status',
+      'large.cancel-confirmation', 'large.resume'].includes(scenario.id))
+    : selected;
+  const budgets = enforceBudget ? comparable : comparable.map((scenario) => ({
     ...scenario, budgetMs: Infinity,
     ...(scenario.maxRssBytes === undefined ? {} : { maxRssBytes: Number.MAX_SAFE_INTEGER }),
   }));
@@ -191,9 +218,9 @@ function measure(prepared, phase, selected, enforceBudget) {
     if (job === 'maximum') {
       const details = JSON.parse(readFileSync(join(out, 'large-details.json')));
       if (enforceBudget) {
-        const http = evaluateMaximumHttpGate(details);
+        const http = evaluateMaximumHttpGate(details, replayDetails);
         writeReport(`${phase}-http.json`, http);
-        if (!http.ok) {
+        if (!http.ok || !replayOk) {
           console.error(`HTTP performance: ${http.errors.length} errors (see ${phase}-http.json)`);
           httpOk = false;
         }

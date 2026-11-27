@@ -211,6 +211,15 @@ export async function startRegularHost() {
                 return sqlite.prepare('SELECT id FROM cash_mutation_receipts WHERE workspace_id=? AND idempotency_key=?')
                     .get(workspace, key)?.id ?? null;
             },
+            async waitForReceipt(workspace, key) {
+                const deadline = performance.now() + 120_000;
+                do {
+                    const receipt = this.receiptId(workspace, key);
+                    if (receipt) return receipt;
+                    await sleep(100);
+                } while (performance.now() < deadline);
+                throw new Error('The original import receipt did not finish before the resume test');
+            },
             requestMark() { return requests.length; },
             requestCount(mark, method, path) {
                 return requests.slice(mark).filter((item) =>

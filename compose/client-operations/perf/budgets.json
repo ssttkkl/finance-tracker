@@ -962,6 +962,50 @@
       "budgetMs": 8000,
       "maxRssBytes": 2147483648,
       "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.confirm-no-wait",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "持久受理同一操作，首条提交仅一次",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": null,
+      "maxRssBytes": null
+    },
+    {
+      "id": "large.confirmation-status",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "后台工作已进入写事务且返回原键运行状态",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": null,
+      "maxRssBytes": null
+    },
+    {
+      "id": "large.cancel-confirmation",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "后台运行时请求取消，核实终态零入账",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": null,
+      "maxRssBytes": null
+    },
+    {
+      "id": "large.resume",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "另起安装包进程按原键取得唯一完整收据",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": null,
+      "maxRssBytes": null
     }
   ],
   "entrypoints": [
@@ -1290,7 +1334,8 @@
       "signature": "ClientCashImportOperations.resume|resume(kotlin.String?;kotlin.String){}",
       "scenarios": [
         "import.resume",
-        "import.rebase"
+        "import.rebase",
+        "large.resume"
       ]
     },
     {
@@ -1924,6 +1969,49 @@
       "signature": "validateCashAccountCurrencyChange|validateCashAccountCurrencyChange(com.finance.tracker.business.contracts.AccountCommandViewDto){}",
       "disposition": "implementation",
       "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "ClientCashImportOperations.acceptConfirmation|acceptConfirmation(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "large.confirm-no-wait"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.cancelConfirmation|cancelConfirmation(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "large.cancel-confirmation"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.confirmationStatus|confirmationStatus(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "large.confirmation-status"
+      ]
+    },
+    {
+      "signature": "ClientImportSubmissionHost.awaitStatusPoll|awaitStatusPoll(){}",
+      "disposition": "spi",
+      "reason": "Included in confirmation and readback"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.observeStatus|observeStatus(com.finance.tracker.business.contracts.CashImportConfirmation){}",
+      "disposition": "spi",
+      "reason": "Included in confirmation and readback"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.status|status(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Included in confirmation and readback"
+    },
+    {
+      "signature": "continueCashImportSubmission|continueCashImportSubmission(com.finance.tracker.client.ClientImportSubmissionHost<0:0>;kotlin.Boolean){0§<kotlin.Any?>}",
+      "disposition": "implementation",
+      "reason": "Included in confirmation and readback"
+    },
+    {
+      "signature": "requireCashImportConfirmation|requireCashImportConfirmation(kotlin.String;com.finance.tracker.business.contracts.CashImportConfirmation){}",
+      "disposition": "implementation",
+      "reason": "Included in confirmation and readback"
     }
   ],
   "nonOperations": [
@@ -2576,6 +2664,35 @@
         "ImportAccountChangeResult.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
         "ImportAccountChangeResult.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ImportAccountChangeResult){}",
         "ImportAccountChangeResult.Companion.serializer|serializer(){}"
+      ]
+    },
+    {
+      "disposition": "data-model",
+      "reason": "Immutable confirmation and cancellation results",
+      "signatures": [
+        "ClientCashImportCancellation.<init>|<init>(com.finance.tracker.business.contracts.CashImportConfirmation;com.finance.tracker.business.contracts.CashMutationReceiptDto?){}",
+        "ClientCashImportCancellation.component1|component1(){}",
+        "ClientCashImportCancellation.component2|component2(){}",
+        "ClientCashImportCancellation.copy|copy(com.finance.tracker.business.contracts.CashImportConfirmation;com.finance.tracker.business.contracts.CashMutationReceiptDto?){}",
+        "ClientCashImportCancellation.equals|equals(kotlin.Any?){}",
+        "ClientCashImportCancellation.hashCode|hashCode(){}",
+        "ClientCashImportCancellation.operation.<get-operation>|<get-operation>(){}",
+        "ClientCashImportCancellation.receipt.<get-receipt>|<get-receipt>(){}",
+        "ClientCashImportCancellation.toString|toString(){}",
+        "ClientImportConfirmationOutcome.Complete.<init>|<init>(1:0){}",
+        "ClientImportConfirmationOutcome.Complete.component1|component1(){}",
+        "ClientImportConfirmationOutcome.Complete.copy|copy(1:0){}",
+        "ClientImportConfirmationOutcome.Complete.equals|equals(kotlin.Any?){}",
+        "ClientImportConfirmationOutcome.Complete.hashCode|hashCode(){}",
+        "ClientImportConfirmationOutcome.Complete.result.<get-result>|<get-result>(){}",
+        "ClientImportConfirmationOutcome.Complete.toString|toString(){}",
+        "ClientImportConfirmationOutcome.Observed.<init>|<init>(com.finance.tracker.business.contracts.CashImportConfirmation){}",
+        "ClientImportConfirmationOutcome.Observed.component1|component1(){}",
+        "ClientImportConfirmationOutcome.Observed.copy|copy(com.finance.tracker.business.contracts.CashImportConfirmation){}",
+        "ClientImportConfirmationOutcome.Observed.equals|equals(kotlin.Any?){}",
+        "ClientImportConfirmationOutcome.Observed.hashCode|hashCode(){}",
+        "ClientImportConfirmationOutcome.Observed.operation.<get-operation>|<get-operation>(){}",
+        "ClientImportConfirmationOutcome.Observed.toString|toString(){}"
       ]
     }
   ]

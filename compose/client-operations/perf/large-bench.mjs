@@ -14,8 +14,11 @@ import { measureCommand } from './large-measure.mjs';
 import {
     collectConfirmObservations, inspectLostConfirmation, observedTime, openProxy, sampleConfirmDatabase, verifyPreparedFiles,
 } from './large-support.mjs';
+import { holdCashWriteLock, waitForCashWriter } from './postgres-lock.mjs';
+import { startPeakRss } from './peak-rss.mjs';
+import { ordinaryLedgerCsv } from './cli-fixture.mjs';
 import { readEvents } from './gate.mjs';
-import { joinClientRequestClocks } from './request-observation.mjs';
+import { joinClientRequestClocks, openSerialRssWindows } from './request-observation.mjs';
 import { collectRunnerFacts } from './large-telemetry.mjs';
 
 const perfDirectory = dirname(fileURLToPath(import.meta.url));
@@ -117,10 +120,22 @@ async function main() {
     await mkdir(outputDir);
     const backend = resolve(process.env.FT_PERF_BACKEND_INSTALL ?? join(checkout, 'compose/backend/build/install/backend'));
     const psqlArgs = ['-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '--dbname', dbUrl];
-    const psql = args => tool('psql', [...psqlArgs, ...args]).trim();
+    const psql = (args) => {
+        try {
+            return tool('psql', [...psqlArgs, ...args]).trim();
+        } catch (error) {
+            throw new Error(`Synthetic PostgreSQL benchmark command failed (${error.status ?? error.code ?? error.name})`);
+        }
+    };
     const logs = await open(join(evidenceDir, 'large-backend.log'), 'w');
     let server;
+    let worker;
+    let beginRequestRss;
     let proxy;
+    const isolated = process.env.FT_PERF_ISOLATED_BACKEND === '1';
+    const legacyComparison = process.env.FT_PERF_LEGACY_COMPARISON === '1';
+    assert.ok(!isolated || !legacyComparison);
+    if (isolated) assert.equal(process.platform, 'linux');
     const observed = [];
     let requestFlow;
     const requestReports = [];
@@ -196,24 +211,39 @@ async function main() {
             'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1', '-subj', '/CN=127.0.0.1',
             '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', keyPath, '-out', certPath,
         ], { stdio: 'ignore' });
+        const startBackend = async (bin, args, port, log, extraEnv = {}) => {
+            const service = spawn(bin, args, {
+                env: {
+                    ...process.env, PORT: String(port), FT_HOST: '127.0.0.1',
+                    FT_WEB_ORIGIN: 'https://127.0.0.1:5173', FT_DATABASE_URL: dbUrl, FT_SENTRY_DSN: '',
+                    FT_IMPORT_STAGING_BACKEND: 'memory', FT_IMPORT_STAGING_ALLOW_MEMORY: '1',
+                    ...extraEnv,
+                },
+                stdio: ['ignore', log.fd, log.fd], detached: true,
+            });
+            let spawnError;
+            service.once('error', error => { spawnError = error; });
+            const health = `http://127.0.0.1:${port}/health`;
+            const deadline = performance.now() + 60_000;
+            while (!(await fetch(health, { signal: AbortSignal.timeout(1_500) }).then(response => response.ok, () => false))) {
+                if (spawnError) throw spawnError;
+                if (service.exitCode !== null || performance.now() >= deadline) {
+                    if (service.exitCode === null) process.kill(-service.pid, 'SIGTERM');
+                    throw new Error('Loopback Ktor backend did not become healthy; see large-backend.log');
+                }
+                await pause(200);
+            }
+            return service;
+        };
         const backendPort = await localPort();
-        server = spawn(join(backend, 'bin/backend'), [], {
-            env: {
-                ...process.env, PORT: String(backendPort), FT_HOST: '127.0.0.1',
-                FT_WEB_ORIGIN: 'https://127.0.0.1:5173', FT_DATABASE_URL: dbUrl, FT_SENTRY_DSN: '',
-                FT_IMPORT_STAGING_BACKEND: 'memory', FT_IMPORT_STAGING_ALLOW_MEMORY: '1',
-            },
-            stdio: ['ignore', logs.fd, logs.fd], detached: true,
-        });
-        let spawnError;
-        server.once('error', error => { spawnError = error; });
-        const health = `http://127.0.0.1:${backendPort}/health`;
-        const deadline = performance.now() + 60_000;
-        while (!(await fetch(health, { signal: AbortSignal.timeout(1_500) }).then(response => response.ok, () => false))) {
-            if (spawnError) throw spawnError;
-            if (server.exitCode !== null || performance.now() >= deadline)
-                throw new Error('Loopback Ktor backend did not become healthy; see large-backend.log');
-            await pause(200);
+        const productionEntry = join(backend, 'bin/backend');
+        if (isolated) {
+            const classpath = (await readFile(join(checkout, 'compose/backend/build/performance/replay-classpath'), 'utf8')).trim();
+            server = await startBackend(java, ['-cp', classpath, 'com.finance.tracker.backend.PerformanceReplayServerKt'],
+                backendPort, logs, { FT_PERF_REPLAY: '1' });
+            worker = await startBackend(productionEntry, [], await localPort(), logs);
+        } else {
+            server = await startBackend(productionEntry, [], backendPort, logs);
         }
         proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed, () => requestFlow);
         const proxyPort = await listen(proxy);
@@ -227,12 +257,12 @@ async function main() {
         delete cliEnv.NODE_OPTIONS;
         delete cliEnv.NODE_TLS_REJECT_UNAUTHORIZED;
         let sequence = 0;
-        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined } = {}) => {
+        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined, concurrent = false } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
             const clocksPath = join(work, `${label}-http.jsonl`);
             if (flow) {
                 assert.equal(requestFlow, undefined);
-                requestFlow = { id: flow, started: 0, pending: [], errors: [] };
+                requestFlow = { id: flow, concurrent, beginRss: beginRequestRss, started: 0, pending: [], errors: [] };
                 await writeFile(clocksPath, '');
             }
             try {
@@ -279,13 +309,115 @@ async function main() {
         const selected = await run(['workspace', 'use', workspace]);
         assert.equal(selected.value.active_workspace_id, workspace);
         const scope = ['--workspace', workspace];
+        if (isolated) {
+            // Authenticate and read representative ledger headers before measuring the isolated server.
+            for (let i = 0; i < 5; i++) await run(['account', 'list', ...scope]);
+            beginRequestRss = openSerialRssWindows(server.pid);
+        }
         const snapshotPath = '/api/v1/ledger/snapshot';
         const snapshots = after => observed.slice(after)
             .filter(item => item.path === snapshotPath && item.method === 'GET' && item.status === 200).length;
-        const writeRequests = () => observed
-            .filter(item => item.path === '/api/v1/cash-import/write-set' && item.method === 'POST');
+        const writeRequests = (key) => observed
+            .filter(item => item.path === '/api/v1/cash-import/write-set' && item.method === 'POST' && item.key === key);
         const mutatingRequests = after => observed.slice(after)
             .filter(item => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(item.method));
+
+        if (!legacyComparison) {
+            const [, controlCsv] = ordinaryLedgerCsv();
+            const controlFile = join(work, 'confirmation-control.csv');
+            await writeFile(controlFile, controlCsv);
+            async function prepareControl(label) {
+                const controlWorkspace = (await run(['workspace', 'create', '--name', 'Synthetic ' + label])).value.active_workspace_id;
+                const controlScope = ['--workspace', controlWorkspace];
+                const controlBatch = (await run(['import', 'prepare', controlFile, ...controlScope], { flow: null })).value;
+                assert.equal(controlBatch.files[0].status, 'parsed');
+                const controlAccount = (await run([
+                    'import', 'account', 'create', controlBatch.batch_id, '--revision', controlBatch.revision,
+                    '--name', 'Synthetic control settlement', '--type', 'cash', '--currency', 'CNY', ...controlScope,
+                ], { flow: null })).value.account;
+                const choicePath = join(work, `control-${label}.json`);
+                await writeFile(choicePath, JSON.stringify({
+                    expected_session_revision: Number(controlBatch.revision), previous_plan_id: null,
+                    account_selections: controlBatch.source_accounts.map(group => ({
+                        source_account_ref: group.source_account_ref, account_id: controlAccount.account_id,
+                        expected_account_revision: Number(controlAccount.account_revision),
+                    })),
+                    row_choices: [], relation_choices: [], entry_choices: [],
+                }));
+                const reviewed = (await run(['import', 'review', controlBatch.batch_id, '--choices', choicePath, ...controlScope],
+                    { flow: null })).value;
+                assert.equal(reviewed.can_commit, true);
+                const key = controlBatch.batch_id;
+                const args = ['import', 'confirm', key, '--review', reviewed.review_revision, '--no-wait', ...controlScope];
+                return { controlWorkspace, controlScope, key, args };
+            }
+
+            const cancellable = await prepareControl('cancel');
+            const exclusive = await holdCashWriteLock(psqlArgs);
+            const memory = !isolated && process.platform === 'linux' ? startPeakRss(server.pid) : undefined;
+            let cancelledId;
+            try {
+                const accepted = await run(cancellable.args, { flow: 'confirm-no-wait' });
+                assert.ok(['accepted', 'running'].includes(accepted.value.status));
+                assert.equal(accepted.value.operation_id, cancellable.key);
+                assert.equal(accepted.value.receipt_id, null);
+                await record('large.confirm-no-wait', accepted, { status: accepted.value.status, sameOperation: true });
+                await waitForCashWriter(psql, exclusive.pid);
+                const current = await run(['import', 'status', cancellable.key, ...cancellable.controlScope],
+                    { flow: 'status', concurrent: true });
+                assert.equal(current.value.status, 'running');
+                assert.equal(current.value.operation_id, cancellable.key);
+                await record('large.confirmation-status', current, { status: current.value.status, writerBlocked: true });
+                const cancel = await run(['import', 'cancel-confirmation', cancellable.key, ...cancellable.controlScope],
+                    { flow: 'cancel', concurrent: true });
+                assert.equal(cancel.value.status, 'cancel_requested');
+                assert.equal(cancel.value.operation_id, cancellable.key);
+                cancelledId = cancel.value.operation_id;
+                await record('large.cancel-confirmation', cancel, { status: cancel.value.status, sameOperation: true });
+                checks.controls = { accepted: true, active: true, cancellationRecorded: true };
+            } finally {
+                await exclusive.release();
+            }
+            // The short cancel response and eventual transaction rollback have separate clocks.
+            const deadlineForCancellation = performance.now() + 120_000;
+            let terminal;
+            do {
+                const read = await run(['import', 'status', cancellable.key, ...cancellable.controlScope], { flow: 'status' });
+                assert.equal(read.value.operation_id, cancelledId);
+                terminal = read.value.status;
+                if (terminal === 'cancelled') break;
+                assert.equal(terminal, 'cancel_requested');
+                await pause(300);
+            } while (performance.now() < deadlineForCancellation);
+            if (memory) {
+                evidence.concurrentProcessPeakRssBytes = memory.readPeakBytes();
+                evidence.concurrentSamplingMethod = memory.method;
+            }
+            assert.equal(terminal, 'cancelled');
+            const cancelled = await sampleConfirmDatabase(psqlArgs, cancellable.controlWorkspace, email, cancellable.key);
+            assert.equal(cancelled.ledgerSeq, '1');
+            assert.equal(cancelled.originalReceipt, null);
+            assert.equal(writeRequests(cancellable.key).length, 1);
+            checks.controls.cancelled = true;
+
+            const recoverable = await prepareControl('resume');
+            const accepted = await run(recoverable.args, { flow: 'confirm-no-wait' });
+            assert.ok(['accepted', 'running'].includes(accepted.value.status));
+            assert.equal(accepted.value.operation_id, recoverable.key);
+            const recovery = await run(['import', 'resume', recoverable.key, ...recoverable.controlScope], { flow: 'resume' });
+            const resumed = recovery.value;
+            assert.equal(resumed.batch_id, recoverable.key);
+            assert.equal(resumed.items_complete, true);
+            assert.equal(resumed.receipt.committed, true);
+            assert.equal(resumed.receipt.summary.created_posted, 3000);
+            const recovered = await sampleConfirmDatabase(psqlArgs, recoverable.controlWorkspace, email, recoverable.key);
+            assert.equal(recovered.originalReceipt?.id, resumed.receipt.receipt_id);
+            assert.equal(recovered.ledgerSeq, '2');
+            assert.equal(writeRequests(recoverable.key).length, 1);
+            checks.controls.recovered = true;
+            await record('large.resume', recovery, { receiptVerified: true, complete: true, created: resumed.receipt.summary.created_posted });
+            await run(['workspace', 'use', workspace]);
+        }
 
         const plainFiles = manifest.files.filter(file => !file.password_required).map(file => file.file);
         const encryptedFiles = manifest.files.filter(file => file.password_required).map(file => file.file);
@@ -363,7 +495,7 @@ async function main() {
             confirmation.process = error.measurement ?? null;
             monitorController.abort();
             await monitor;
-            const post = writeRequests().find(attempt => attempt.key === batch);
+            const post = writeRequests(batch)[0];
             const bodyForwarded = post?.events.find(event => event.event === 'proxy_forwarded_body');
             const activeWindow = bodyForwarded
                 ? confirmation.databaseDuring.filter(entry => entry.started?.monotonicMs >= bodyForwarded.monotonicMs)
@@ -379,7 +511,7 @@ async function main() {
         } finally {
             monitorController.abort();
             await monitor;
-            confirmation.posts = writeRequests();
+            confirmation.posts = writeRequests(batch);
         }
         const receipt = archiveAssertions(confirm.value, batch);
         const serverFacts = JSON.parse(psql([
@@ -396,10 +528,10 @@ async function main() {
         assert.deepEqual(serverFacts.pairIds, receipt.write_set_result.relations.map(relation => relation.id).sort());
         assert.deepEqual(serverFacts.receipts, [{ id: receipt.receipt_id, idempotency_key: batch }]);
         assert.deepEqual(serverFacts.rowOutcomes, { created: expected.posted });
-        const writes = writeRequests();
+        const writes = writeRequests(batch);
         assert.equal(writes.length, 1);
         assert.equal(writes[0].key, batch);
-        assert.equal(writes[0].status, 200);
+        assert.equal(writes[0].status, legacyComparison ? 200 : 202);
         assert.ok(writes[0].bytes > 0);
         const { pairIds, ...factsSummary } = serverFacts;
         await record('large.confirm', confirm, {
@@ -466,27 +598,30 @@ async function main() {
         assert.equal(refreshed?.name, marker);
         assert.deepEqual(refreshed.currencies, ['CNY']);
         assert.equal(snapshots(refreshStart), 1);
-        assert.equal(writeRequests().length, 1);
+        assert.equal(writeRequests(batch).length, 1);
         await record('large.cash-refresh', refresh, {
             ledgerSeq: '3', snapshotDownloads: 1, rows: expectedPage.length, newAccount: refreshed.id,
         });
         checks.completed = true;
     } catch (error) {
         checks.completed = false;
-        checks.failure = error.message;
+        const assertionSite = error.code === 'ERR_ASSERTION' &&
+            error.stack.split('\n').find(line => /^\s+at .*large-bench\.mjs:\d+:\d+/.test(line));
+        checks.failure = assertionSite ? `Synthetic benchmark assertion failed (${assertionSite.trim()})` : error.message;
         checks.transportErrors = observed.filter(item => item.transportError);
-        throw error;
+        throw new Error(checks.failure);
     } finally {
         try {
             evidence.runnerFactsAfter = collectRunnerFacts();
             await writeFile(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
         } finally {
             await closeServer(proxy);
-            if (server?.pid && server.exitCode === null && server.signalCode === null) {
-                const finished = once(server, 'exit');
-                process.kill(-server.pid, 'SIGTERM');
+            for (const service of [worker, server]) {
+                if (!service?.pid || service.exitCode !== null || service.signalCode !== null) continue;
+                const finished = once(service, 'exit');
+                process.kill(-service.pid, 'SIGTERM');
                 await Promise.race([finished, pause(5_000, undefined, { ref: false })]);
-                if (server.exitCode === null && server.signalCode === null) process.kill(-server.pid, 'SIGKILL');
+                if (service.exitCode === null && service.signalCode === null) process.kill(-service.pid, 'SIGKILL');
             }
             await logs.close();
             await rm(work, { recursive: true, force: true });

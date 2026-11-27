@@ -20,11 +20,21 @@ export function openProxy(cert, key, backendPort, observed, requestFlow = () => 
         const path = new URL(incoming.url, 'https://127.0.0.1').pathname.replace(/\/$/, '');
         const flow = requestFlow();
         let tracker;
+        let window;
+        const finishRssWindow = () => {
+            try {
+                return window?.close();
+            } catch (error) {
+                flow.errors.push(error.message);
+            }
+        };
         if (flow) {
             flow.started += 1;
             try {
+                window = flow.beginRss?.();
                 tracker = observeProxyRequest(incoming, { flow: flow.id, route: importRequestRoute(incoming.method, path) });
             } catch (error) {
+                finishRssWindow();
                 flow.errors.push(error.message);
             }
         }
@@ -51,20 +61,29 @@ export function openProxy(cert, key, backendPort, observed, requestFlow = () => 
         }, response => {
             observation.status = response.statusCode;
             if (tracker) {
-                flow.pending.push(tracker.response(response).catch(error => {
+                let rss;
+                if (window) response.once('end', () => { rss = finishRssWindow(); });
+                flow.pending.push(tracker.response(response).then(row => ({
+                    ...row, concurrent: flow.concurrent, ...(rss ? { ...rss, isolated: true, prewarmed: true } : {}),
+                })).catch(error => {
+                    finishRssWindow();
                     flow.errors.push(error.message);
                     return null;
                 }));
             }
             note('backend_headers', { status: response.statusCode, requestId: response.headers['x-request-id'] ?? null });
             response.on('end', () => note('backend_body_complete'));
-            response.on('aborted', () => note('backend_response_aborted'));
+            response.on('aborted', () => {
+                finishRssWindow();
+                note('backend_response_aborted');
+            });
             response.on('error', error => note('backend_response_error', { code: error.code ?? error.name }));
             outgoing.writeHead(response.statusCode, forwardedLoopbackHeaders(response.headers));
             response.pipe(outgoing);
         });
         forwarded.on('finish', () => note('proxy_forwarded_body', { bytes: observation.bytes }));
         forwarded.on('error', error => {
+            finishRssWindow();
             observation.transportError = error.code ?? error.name;
             note('backend_socket_error', { code: observation.transportError });
             proxyClosedDownstream = true;

@@ -67,20 +67,38 @@ export function joinClientRequestClocks(observed, clocks) {
     });
 }
 
-export function createIsolatedRssRecorder(pid) {
+export function openSerialRssWindows(pid) {
     let active = false;
-    return async function measureRequest(sendAndAssert) {
+    return function begin() {
         if (active) throw new Error('isolated HTTP measurement must be serial');
+        const recording = startPeakRss(pid);
         active = true;
+        let closed = false;
+        return {
+            close() {
+                if (closed) return;
+                closed = true;
+                active = false;
+                return {
+                    method: recording.method, baselineRssBytes: recording.baselineRssBytes,
+                    peakRssBytes: recording.readPeakBytes(),
+                };
+            },
+        };
+    };
+}
+
+export function createIsolatedRssRecorder(pid) {
+    const begin = openSerialRssWindows(pid);
+    return async function measureRequest(sendAndAssert) {
+        const window = begin();
+        let sample;
         try {
-            const recording = startPeakRss(pid);
-            const sample = await sendAndAssert();
-            return {
-                ...sample, method: recording.method, baselineRssBytes: recording.baselineRssBytes,
-                peakRssBytes: recording.readPeakBytes(),
-            };
+            sample = await sendAndAssert();
         } finally {
-            active = false;
+            const rss = window.close();
+            if (sample) Object.assign(sample, rss);
         }
+        return sample;
     };
 }

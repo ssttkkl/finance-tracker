@@ -70,6 +70,17 @@ tasks.register<JavaExec>("generateJooq") {
 }
 
 application { mainClass.set("com.finance.tracker.backend.MainKt") }
+tasks.register("stagePerformanceReplayClasspath") {
+    val testRuntime = sourceSets.test.get().runtimeClasspath
+    val output = layout.buildDirectory.file("performance/replay-classpath")
+    dependsOn(tasks.named("testClasses"))
+    inputs.files(testRuntime)
+    outputs.file(output)
+    doLast {
+        output.get().asFile.writeText(testRuntime.asPath)
+    }
+}
+
 tasks.test {
     useJUnit { excludeCategories("com.finance.tracker.backend.HistoricalMigrationEvidence") }
 }

@@ -29,7 +29,8 @@ private external object ImportFixture {
 }
 
 private const val writeSetPath = "/api/v1/cash-import/write-set"
-private const val receiptPath = "/api/v1/cash-mutations/receipts/by-key"
+private val importReceiptPaths =
+    listOf("/api/v1/cash-import/write-set/receipt", "/api/v1/cash-mutations/receipts/by-key")
 
 private class Statements(private val suite: Suite) {
     private val rows = ImportFixture.ordinaryImportSources()
@@ -340,12 +341,12 @@ private suspend fun Suite.writeImportBenchmarks(files: Statements) {
             } catch (failure: ClientOperationFailure) {
                 check(failure.code == "result_unknown")
             }
-            val original = checkNotNull(host.receiptId(ws.id, batch) as String?)
+            val original = host.waitForReceipt(ws.id, batch).unsafeCast<kotlin.js.Promise<String>>().value()
             val mark = markRequests()
             val result = measure { withCashImport(origin) { it.resume(ws.id, batch) } } as ClientCashImportResume.Committed
             checkCommitted(result.result, batch)
             check(result.result.displayReceipt().receiptId == original)
-            check(requestCount(mark, "POST", writeSetPath) == 0 && requestCount(mark, "GET", receiptPath) == 1)
+            check(requestCount(mark, "POST", writeSetPath) == 0 && importReceiptPaths.sumOf { requestCount(mark, "GET", it) } == 1)
             check(count("receipts", ws.id) == before + 1 && count("rows", ws.id) == 985)
         }
     }
