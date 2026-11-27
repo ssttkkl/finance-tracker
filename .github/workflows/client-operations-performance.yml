@@ -125,8 +125,14 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
+      - name: Allocate isolated Linux memory accounting
+        run: |
+          parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
+          printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
+          sudo chown "$(id -u):$(id -g)" "$parent"
+          printf 'FT_PERF_CGROUP_PARENT=%s\nFT_PERF_CGROUP_SUDO=1\n' "$parent" >> "$GITHUB_ENV"
       - name: Verify subprocess failure handling
-        run: node --test compose/client-operations/perf/{large-measure,request-gate,request-observation}.test.mjs
+        run: node --test compose/client-operations/perf/{large-measure,request-gate,request-observation,service-memory}.test.mjs
       - name: Measure synthetic 19-file import and cold readback
         env:
           FT_PERF_REPLICA: ${{ matrix.replica }}
