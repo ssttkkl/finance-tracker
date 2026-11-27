@@ -11,7 +11,10 @@ import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { measureCommand } from './large-measure.mjs';
-import { openProxy, verifyPreparedFiles } from './large-support.mjs';
+import {
+    collectConfirmObservations, inspectLostConfirmation, observedTime, openProxy, sampleConfirmDatabase, verifyPreparedFiles,
+} from './large-support.mjs';
+import { collectRunnerFacts } from './large-telemetry.mjs';
 
 const perfDirectory = dirname(fileURLToPath(import.meta.url));
 const checkout = resolve(perfDirectory, '../../..');
@@ -118,6 +121,7 @@ async function main() {
     let proxy;
     const observed = [];
     const raw = [];
+    const processes = [];
     const checks = {};
     const evidencePath = join(evidenceDir, 'large-details.json');
     const evidence = {
@@ -129,7 +133,7 @@ async function main() {
             git: tool('git', ['-C', checkout, 'rev-parse', 'HEAD']).trim(),
             dirty: tool('git', ['-C', checkout, 'status', '--porcelain']).trim() !== '',
         },
-        measurements: raw, checks,
+        runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks,
     };
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
@@ -160,6 +164,18 @@ async function main() {
             { cwd: install });
         const ft = join(install, 'node_modules/.bin/ft');
         evidence.cliVersion = tool(ft, ['--version']).trim();
+        const installedHost = join(install, 'node_modules/finance-tracker-cli/lib/host.mjs');
+        const installedHostBytes = await readFile(installedHost);
+        const installedSource = installedHostBytes.toString('utf8');
+        const bulkTest = /\bconst\s+bulk\s*=([\s\S]*?);/.exec(installedSource)?.[1];
+        const timeout = /AbortSignal\.timeout\(\s*bulk\s*\?\s*(\d[\d_]*)\s*:\s*(\d[\d_]*)\s*\)/.exec(installedSource);
+        evidence.installedTransport = {
+            sha256: createHash('sha256').update(installedHostBytes).digest('hex'),
+            cashImportWriteSetInBulk: bulkTest ? /['"]\/api\/v1\/cash-import\/write-set['"]/.test(bulkTest) : null,
+            timeoutExpression: timeout?.[0] ?? null,
+            bulkTimeoutMs: timeout ? Number(timeout[1].replaceAll('_', '')) : null,
+            regularTimeoutMs: timeout ? Number(timeout[2].replaceAll('_', '')) : null,
+        };
 
         tool('python3', [join(perfDirectory, 'fixtures/large-cash.py'), '--output', fixture, '--backend-install', backend]);
         const manifest = JSON.parse(await readFile(join(fixture, 'manifest.json'), 'utf8'));
@@ -207,10 +223,21 @@ async function main() {
         delete cliEnv.NODE_OPTIONS;
         delete cliEnv.NODE_TLS_REJECT_UNAUTHORIZED;
         let sequence = 0;
-        const run = (args, { input, state = primaryState } = {}) => measureCommand(ft, [...args, '--json'], {
-            outputDir, label: `${++sequence}-${args[0]}-${args[1]}`, timeoutMs: 300_000, input,
-            env: { ...cliEnv, FT_CLI_STATE_DIR: state },
-        });
+        const run = async (args, { input, state = primaryState } = {}) => {
+            const label = `${++sequence}-${args[0]}-${args[1]}`;
+            try {
+                const measured = await measureCommand(ft, [...args, '--json'], {
+                    outputDir, label, timeoutMs: 300_000, input,
+                    collectGc: args[0] === 'import' && args[1] === 'review',
+                    env: { ...cliEnv, FT_CLI_STATE_DIR: state },
+                });
+                processes.push({ label, ...measured.process });
+                return measured;
+            } catch (error) {
+                processes.push({ label, error: error.message, ...error.measurement });
+                throw error;
+            }
+        };
 
         const email = `synthetic-${randomUUID()}@example.test`;
         const name = 'Synthetic large cash import';
@@ -284,9 +311,48 @@ async function main() {
         });
         assert.deepEqual(review.value.item_counts, { confirmed: 9729, pending: 0 });
         assert.equal(mutatingRequests(reviewStart).length, 0);
-        await record('large.review', review, { summary: review.value.summary, itemCounts: review.value.item_counts });
+        await record('large.review', review, {
+            summary: review.value.summary, itemCounts: review.value.item_counts,
+            gcObserver: review.process.gc?.available ?? false,
+        });
 
-        const confirm = await run(['import', 'confirm', batch, '--review', review.value.review_revision, ...scope]);
+        const confirmation = {
+            workspace, originalKey: batch, started: observedTime(), ended: null,
+            posts: [], databaseDuring: [], databaseAfterFailure: [],
+        };
+        checks.confirm = confirmation;
+        const sampleDatabase = () => sampleConfirmDatabase(psqlArgs, workspace, email, batch);
+        const monitorController = new AbortController();
+        const monitor = collectConfirmObservations(sampleDatabase, confirmation.databaseDuring, monitorController.signal);
+        let confirm;
+        try {
+            confirm = await run(['import', 'confirm', batch, '--review', review.value.review_revision, ...scope]);
+            confirmation.ended = observedTime();
+            confirmation.process = confirm.process;
+        } catch (error) {
+            confirmation.ended = observedTime();
+            confirmation.failure = error.message;
+            confirmation.process = error.measurement ?? null;
+            monitorController.abort();
+            await monitor;
+            const post = writeRequests().find(attempt => attempt.key === batch);
+            const bodyForwarded = post?.events.find(event => event.event === 'proxy_forwarded_body');
+            const activeWindow = bodyForwarded
+                ? confirmation.databaseDuring.filter(entry => entry.started?.monotonicMs >= bodyForwarded.monotonicMs)
+                : [];
+            try {
+                confirmation.recovery = await inspectLostConfirmation(
+                    sampleDatabase, confirmation.databaseAfterFailure, activeWindow, post ? {} : { waitMs: 0 },
+                );
+            } catch (recoveryError) {
+                confirmation.recovery = { state: 'diagnostics_failed', error: recoveryError.message };
+            }
+            throw error;
+        } finally {
+            monitorController.abort();
+            await monitor;
+            confirmation.posts = writeRequests();
+        }
         const receipt = archiveAssertions(confirm.value, batch);
         const serverFacts = JSON.parse(psql([
             '-v', `workspace=${workspace}`, '-v', `receipt=${receipt.receipt_id}`,
@@ -384,6 +450,7 @@ async function main() {
         throw error;
     } finally {
         try {
+            evidence.runnerFactsAfter = collectRunnerFacts();
             await writeFile(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
         } finally {
             await closeServer(proxy);

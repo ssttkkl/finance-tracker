@@ -7,7 +7,7 @@ import { Agent, get } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { measureCommand, parsePeakRss } from './large-measure.mjs';
+import { measureCommand, parsePeakRss, parseProcessResources } from './large-measure.mjs';
 import { openProxy, verifyPreparedFiles } from './large-support.mjs';
 
 test('the command timer normalizes GNU KiB and BSD byte measurements', () => {
@@ -16,6 +16,36 @@ test('the command timer normalizes GNU KiB and BSD byte measurements', () => {
     assert.throws(() => parsePeakRss('', 'linux'), /missing peak RSS/);
     assert.throws(() => parsePeakRss('0\n', 'linux'), /missing peak RSS/);
     assert.throws(() => parsePeakRss('100\n200\n', 'linux'), /missing peak RSS/);
+});
+
+test('raw GNU and BSD timers preserve CPU, elapsed and memory resources', () => {
+    assert.deepEqual(parseProcessResources('Command exited non-zero\nft-process 100 95.25 31.00 1.00 0 200 0 10 2\n', 'linux'), {
+        rssBytes: 102400, timerWallMs: 95250, userCpuMs: 31000, systemCpuMs: 1000,
+        majorFaults: 0, minorFaults: 200, swaps: 0, involuntaryContextSwitches: 10, voluntaryContextSwitches: 2,
+    });
+    const bsd = parseProcessResources('1.50 real 1.20 user 0.10 sys\n111  maximum resident set size\n', 'darwin');
+    assert.equal(bsd.timerWallMs, 1500);
+    assert.equal(bsd.userCpuMs, 1200);
+    assert.equal(bsd.systemCpuMs, 100);
+    assert.equal(bsd.rssBytes, 111);
+});
+
+test('phase and GC evidence is observable on a real Node subprocess', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'ft-perf-process-'));
+    try {
+        const outcome = await measureCommand(process.execPath, ['--expose-gc', '-e', [
+            'process.stderr.write("ft import: read_files\\n");',
+            'global.gc();',
+            'setImmediate(() => console.log("{}"));',
+        ].join('')], { outputDir, label: 'phases', timeoutMs: 5_000, collectGc: true, env: process.env });
+        assert.equal(outcome.process.phases[0].phase, 'read_files');
+        assert.ok(outcome.process.userCpuMs >= 0);
+        assert.ok(outcome.process.phases[0].pressure.utc);
+        assert.equal(outcome.process.gc.available, true);
+        assert.ok(outcome.process.gc.samples.some(event => event.durationMs > 0));
+    } finally {
+        rmSync(outputDir, { recursive: true, force: true });
+    }
 });
 
 test('preparation reports interrupted, missing or failed files without admitting a partial batch', () => {
