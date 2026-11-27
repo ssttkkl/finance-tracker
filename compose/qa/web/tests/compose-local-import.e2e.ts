@@ -394,11 +394,13 @@ test(scenario === "cancel-confirmation" ? "异步现金导入可停止等待并�
   let diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404] });
   const oldImportRequests: string[] = [];
   const writeKeys: string[] = [];
-  const receiptLookups: string[] = [];
+  const receiptLookupKeys: string[] = [];
+  const statusLookupKeys: string[] = [];
   const observeRequests = (target: Page) => target.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (/\/cash-import\/(sessions|plans)(?:\/|$)/.test(path)) oldImportRequests.push(path);
-    if (path === "/api/v1/cash-import/write-set/receipt") receiptLookups.push(request.url());
+    if (path === "/api/v1/cash-import/write-set/receipt") receiptLookupKeys.push(request.headers()["idempotency-key"] ?? "");
+    if (path === "/api/v1/cash-import/write-set/status") statusLookupKeys.push(request.headers()["idempotency-key"] ?? "");
     if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
       writeKeys.push(request.headers()["idempotency-key"] ?? "");
     }
@@ -592,7 +594,8 @@ test(scenario === "cancel-confirmation" ? "异步现金导入可停止等待并�
     await expect(page.locator('[id="cash.import.preview-too-large"]:visible').last())
       .toHaveText("本次导入内容过多，请减少文件后重试。", { timeout: 30_000 });
     expect(writeKeys).toHaveLength(1);
-    expect(receiptLookups.filter((url) => new URL(url).searchParams.get("key") === writeKeys[0]).length).toBeGreaterThanOrEqual(2);
+    expect(statusLookupKeys).toEqual(writeKeys);
+    expect(receiptLookupKeys).toEqual(writeKeys);
     await expect(page.getByText("synthetic.csv", { exact: true }).last()).toBeAttached();
     await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath("local-csv-size-refusal.png") });
@@ -825,7 +828,7 @@ test(scenario === "cancel-confirmation" ? "异步现金导入可停止等待并�
     await expect.poll(() => page.evaluate(() =>
       (window as Window & { recoveryWorkerOps: string[] }).recoveryWorkerOps.includes("inspectSubmission"))).toBe(true);
     expect(writeKeys).toHaveLength(1);
-    expect(receiptLookups).toHaveLength(1);
+    expect(receiptLookupKeys).toHaveLength(1);
   }
   if (interruptCompletion) {
     const result = page.locator('[id="cash.import.result"]:visible').last();
