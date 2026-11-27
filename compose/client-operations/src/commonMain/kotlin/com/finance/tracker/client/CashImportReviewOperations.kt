@@ -74,9 +74,11 @@ fun rebaseCashImportReview(
     review: LocalCashImportReview,
     requireActive: () -> Unit,
 ): CashWriteSetRequestDto {
+    val evaluatedAt = Clock.System.now()
     val result = review.recalculate(snapshot) { facts, choices, previous, ids ->
-        calculateLocalCashImportBusinessPlan(files, facts, choices, previous, ids, requireActive, now = Clock.System::now)
+        calculateLocalCashImportBusinessPlan(files, facts, choices, previous, ids, requireActive, now = { evaluatedAt })
     }
+    requireActive()
     if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
     return CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes)
 }

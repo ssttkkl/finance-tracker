@@ -119,11 +119,13 @@ fun LocalCashImportReview.rebindEntries(source: LedgerSnapshotDto, plan: Map<Str
     if (relations.owner !== this || relations.workspace != source.workspaceId || relations.sequence != source.ledgerSeq || source.rulesVersion != CASH_RULES_VERSION) changed()
     val document = Json.parseToJsonElement(encode()).jsonObject
     val bindings = document.getValue("bindings").jsonObject
+    val originalChoices = document.getValue("input").jsonObject.objects("entry_choices")
+    if (originalChoices.isEmpty()) return relations
     val keys = localCashImportChoiceKeys(source, freezeLocalCashImportPreviewPlan(plan), changes).getValue("entries").jsonObject
     val byMembers = keys.entries.groupBy { it.value }
     val targets = plan.getValue("entry_targets") as Map<*, *>
     val selectedTargets = linkedMapOf<String, Any?>()
-    val choices = document.getValue("input").jsonObject.objects("entry_choices").map { choice ->
+    val choices = originalChoices.map { choice ->
         val expected = bindings.getValue("entries").jsonObject.getValue(choice.text("edit_ref")!!)
         val current = byMembers[expected]?.singleOrNull()?.key ?: changed()
         if (current in selectedTargets) changed()

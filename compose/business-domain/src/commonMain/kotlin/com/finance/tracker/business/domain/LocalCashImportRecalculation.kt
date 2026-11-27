@@ -14,12 +14,16 @@ fun LocalCashImportReview.recalculate(source: LedgerSnapshotDto,
 ): LocalCashImportRecalculation {
     val original = conclusion() ?: throw CashImportPlanError("plan_changed")
     val undecided = JsonObject(inputJson() + mapOf("relation_choices" to JsonArray(emptyList()), "entry_choices" to JsonArray(emptyList())))
-    val fresh = calculate(source, undecided, previousPlan(), recordIds())
+    val previous = previousPlan()
+    val fresh = calculate(source, undecided, previous, recordIds())
     val relations = rebindRelations(source, fresh.first, fresh.second)
-    val decided = calculate(source, relations.inputJson(), relations.previousPlan(), recordIds())
+    val relationInput = relations.inputJson()
+    val relationPrevious = relations.previousPlan()
+    val decided = if (relationInput == undecided && relationPrevious == previous) fresh
+        else calculate(source, relationInput, relationPrevious, recordIds())
     val entries = rebindEntries(source, decided.first, decided.second, relations)
-    val input = entries.inputJson()
-    val final = calculate(source, input, entries.previousPlan(), recordIds())
+    val input = if (entries === relations) relationInput else entries.inputJson()
+    val final = if (entries === relations) decided else calculate(source, input, entries.previousPlan(), recordIds())
     val current = localCashImportConclusion(source, freezeLocalCashImportPreviewPlan(final.first), final.second)
     return LocalCashImportRecalculation(input, final.first, final.second, current == original)
 }
