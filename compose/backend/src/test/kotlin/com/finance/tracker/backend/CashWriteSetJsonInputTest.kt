@@ -23,6 +23,40 @@ class CashWriteSetJsonInputTest {
         }
     }
 
+    @Test fun reusedUtf8BufferKeepsCanonicalBytesAndExactLimitsAcrossChunks() {
+        val tail = "界😀".repeat(12_000)
+        val uncopied = JsonPrimitive(tail).toString()
+        val unicode = CashWriteSetCanonicalDigest(uncopied.encodeToByteArray().size)
+        unicode.quoted(tail)
+        assertEquals(com.finance.tracker.business.domain.sha256Hex(uncopied), unicode.finish())
+        val raw = "界😀\t\n\u0001\\\"$tail"
+        val escaped = JsonPrimitive(raw).toString()
+        val canonical = """{"a":[-0,1E+003,9007199254740993,$escaped],"z":false}"""
+        val reordered = """{"z":false,"a":[-0,1E+003,9007199254740993,$escaped]}"""
+        val input = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        val expected = com.finance.tracker.business.domain.sha256Hex(canonical)
+        assertEquals(expected, cashWriteSetRequestBody(input).digest)
+        assertEquals(expected, cashWriteSetRequestBody(input, canonicalTree = false).digest)
+        assertEquals(canonical, canonicalQueuedCashWriteSet(input))
+
+        val limit = canonical.encodeToByteArray().size
+        fun digest(cap: Int): String {
+            val writer = CashWriteSetCanonicalDigest(cap)
+            writer.append("""{"a":[-0,1E+003,9007199254740993,""")
+            writer.quoted(raw)
+            writer.append("""],"z":false}""")
+            return writer.finish()
+        }
+        assertEquals(expected, digest(limit))
+        assertEquals("write_set_payload_invalid", assertFailsWith<CashWriteSetSubmissionFailure> { digest(limit - 1) }.code)
+        for (bad in listOf("\ud800", "\udc00", "x\ud800x")) {
+            val failure = assertFailsWith<CashWriteSetSubmissionFailure> {
+                cashWriteSetRequestBody(buildJsonObject { put("bad", bad) }, canonicalTree = false)
+            }
+            assertEquals("write_set_payload_invalid", failure.code)
+        }
+    }
+
     @Test fun standardJsonNumbersRemainExactTokensWithoutHostNumericConversion() {
         val numbers = listOf("1.2300", "-0", "0.0", "1E+003", "9007199254740993", "1e9999999999", "9".repeat(4301))
         for (number in numbers) {
