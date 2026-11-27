@@ -9,20 +9,29 @@ fun prepareLocalCashImportOperations(files: List<ParsedImportFile>, snapshot: Le
     accountSelections: JsonElement = JsonArray(emptyList()), rowChoices: JsonElement = JsonArray(emptyList()),
     recordIds: Map<String, String> = emptyMap(),
     wireValues: Boolean = true): PreparedCashImportOperations {
-    fun input(value: JsonElement): List<Any?> = decodeLocalCashValue(value) as? List<*>
-        ?: throw CashImportPlanError("plan_input_invalid")
-    val rules = CashImportOperationRules(
+    return localCashImportOperationRules(snapshot, ::scanLocalCashFunding).prepare(files, cashImportChoices(accountSelections),
+        cashImportChoices(rowChoices), recordIds, null, wireValues)
+}
+
+internal fun prepareOwnedLocalCashImportOperations(files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto,
+    accountSelections: JsonElement, rowChoices: JsonElement, recordIds: Map<String, String>,
+): OwnedCashImportOperations = localCashImportOperationRules(snapshot, ::scanLocalCashFundingForOperations)
+    .prepareOwned(files, cashImportChoices(accountSelections), cashImportChoices(rowChoices), recordIds).first
+
+private fun cashImportChoices(value: JsonElement): List<Any?> = decodeLocalCashValue(value) as? List<*>
+    ?: throw CashImportPlanError("plan_input_invalid")
+
+private fun localCashImportOperationRules(snapshot: LedgerSnapshotDto, scanFunding: (List<ParsedImportFile>) -> CashFundingScan) =
+    CashImportOperationRules(
         reads = LocalCashImportOperationRead(snapshot), recordValues = LocalCashRecordValues,
         previewInput = { accounts, rows -> prepareLocalCashImportInput(encodeLocalCashValue(accounts), encodeLocalCashValue(rows), JsonArray(emptyList())) },
-        scanFunding = ::scanLocalCashFunding,
+        scanFunding = scanFunding,
         resolveFunding = { scan, selections, accounts -> resolveLocalCashFunding(scan, encodeLocalCashValue(selections), encodeLocalCashValue(accounts)) },
         postingValidator = { LocalCashRecordValues::validateForPosting }, wireValue = ::wireLocalCashOperation,
         digestValues = ::localCashSourceDigest, allocateRecordId = ::allocateLocalCashSourceRecordId,
         issueValue = { code, field, after -> cashImportIssue(code, fieldPath = field, afterImportAction = after) },
         integerValue = { it },
     )
-    return rules.prepare(files, input(accountSelections), input(rowChoices), recordIds, null, wireValues)
-}
 
 private fun localCashReadIds(values: Collection<Any?>): Set<String> = values.mapNotNull { value ->
     val text = if (value is String) value.takeIf { it.isNotEmpty() && it.all { char -> char in '0'..'9' } }

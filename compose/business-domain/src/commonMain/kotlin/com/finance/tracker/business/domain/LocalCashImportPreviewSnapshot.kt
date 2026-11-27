@@ -34,13 +34,11 @@ fun buildLocalCashImportPreviewSnapshot(
 internal fun buildOwnedLocalCashImportPreviewSnapshot(
     source: LedgerSnapshotDto,
     context: CashRelationReadContext<Long, Instant>,
-    operations: List<Map<String, Any?>>,
-    rows: List<Map<String, Any?>>,
+    operations: MutableList<MutableMap<String, Any?>>,
+    rows: MutableList<MutableMap<String, Any?>>,
     now: () -> Instant,
-): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> = localCashImportPreviewSnapshot(
-    source, context, operations.mapTo(arrayListOf()) { it.toMutableMap() },
-    rows.mapTo(arrayListOf()) { it.toMutableMap() }, now,
-)
+): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> =
+    localCashImportPreviewSnapshot(source, context, operations, rows, now)
 
 private fun localCashImportPreviewSnapshot(
     source: LedgerSnapshotDto,

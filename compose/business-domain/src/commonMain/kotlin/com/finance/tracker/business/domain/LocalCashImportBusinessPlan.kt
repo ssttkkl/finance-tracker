@@ -82,12 +82,12 @@ private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: L
         }
     }
     retainedIds.putAll(recordIds)
-    val operations = prepareLocalCashImportOperations(files, source, input["account_selections"] ?: empty,
-        input["row_choices"] ?: empty, retainedIds, wireValues = false)
+    val operations = prepareOwnedLocalCashImportOperations(files, source, input["account_selections"] ?: empty,
+        input["row_choices"] ?: empty, retainedIds)
     @Suppress("UNCHECKED_CAST") val entries = choices["entry_choices"] as List<Map<String, Any?>>
-    val prepared = LocalCashImportPreviewPreparation(source, requireActive).prepare(
+    val prepared = LocalCashImportPreviewPreparation(source, requireActive).prepareOwned(
         operations.operations, operations.source.rows.rows, entries, previous)
-    val preview = buildOwnedLocalCashImportPreviewSnapshot(source, prepared.context, prepared.operations, operations.rows, now)
+    val preview = buildOwnedLocalCashImportPreviewSnapshot(source, prepared.context, operations.operations, operations.rows, now)
     val seeds = cashImportPreviewDiscoverySeeds(preview)
     progress(CashImportPlanningStage.DISCOVER_RELATIONS)
     val proposals = if (seeds.isEmpty()) emptyList() else discoverLocalCashImportRelations(

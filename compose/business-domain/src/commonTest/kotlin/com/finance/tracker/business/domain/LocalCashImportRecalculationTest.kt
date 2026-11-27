@@ -8,6 +8,35 @@ import kotlin.time.Instant
 class LocalCashImportRecalculationTest {
     private fun fixture(strong: Boolean = false) = LocalCashImportRebindingTest().Fixture(strong)
 
+    @Test fun localPreviewConsumesOnlyItsOriginalMutableOperationRows() {
+        val fixture = fixture()
+        val selections = fixture.input.getValue("account_selections")
+        val original = prepareLocalCashImportOperations(fixture.files, fixture.source, selections, wireValues = false)
+        val data = prepareOwnedLocalCashImportOperations(fixture.files, fixture.source, selections, JsonArray(emptyList()), emptyMap())
+        assertEquals(original.operations, data.operations)
+        assertEquals(original.rows, data.rows)
+        assertEquals(original.candidateSets, data.candidateSets)
+        val compactScan = scanLocalCashFundingForOperations(fixture.files)
+        assertEquals(original.scan.groups, compactScan.groups)
+        assertTrue(original.scan.rows.any { "source_payload" in it.fields })
+        assertTrue(compactScan.rows.none { "source_payload" in it.fields || "note" in it.fields })
+
+        val prepare = LocalCashImportPreviewPreparation(fixture.source) {}
+        val expected = prepare.prepare(original.operations, original.source.rows.rows)
+        val owned = prepare.prepareOwned(data.operations, data.source.rows.rows, emptyList(), null)
+        assertEquals(expected.operations, owned.operations)
+        assertEquals(expected.candidateIds, owned.candidateIds)
+        assertSame(data.operations.single(), owned.operations.single())
+        val at = { Instant.parse("2026-10-03T09:00:00Z") }
+        val external = buildLocalCashImportPreviewSnapshot(fixture.source, expected.context, expected.operations, original.rows, at)
+        val preview = buildOwnedLocalCashImportPreviewSnapshot(fixture.source, owned.context, data.operations, data.rows, at)
+        assertEquals(external.operations, preview.operations)
+        assertEquals(external.rows, preview.rows)
+        assertSame(data.operations.single(), preview.operations.single())
+        assertSame(data.rows.single(), preview.rows.single())
+        assertFalse("preview_transaction_id" in expected.operations.single())
+    }
+
     @Test fun oneSnapshotRestoresBothDecisionsAndComparesTheActualCompleteResult() {
         val f = fixture(); val (review, original) = f.confirmed(); val frozen = review.encode(); val current = f.observed()
         val inputs = mutableListOf<JsonObject>()
