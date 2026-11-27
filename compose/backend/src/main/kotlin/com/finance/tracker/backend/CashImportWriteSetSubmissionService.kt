@@ -35,13 +35,15 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
             })
 
     internal fun execute(grant: CashImportExecutionGrant, key: String, body: CashWriteSetRequestBody,
-        verifyClaim: (Connection) -> Unit, completeClaim: (Connection) -> Unit): JsonObject =
-        transact(grant.workspace, key, { body }, verifyClaim, completeClaim, sharedAuthorizationLock = true) { connection, lock ->
+        verifyClaim: (Connection) -> Unit, verifyRunning: (Connection) -> Unit,
+        completeClaim: (Connection) -> Unit): JsonObject =
+        transact(grant.workspace, key, { body }, verifyClaim, verifyRunning, completeClaim, sharedAuthorizationLock = true) { connection, lock ->
             reads.importGrantContext(connection, grant, lock)
         }
 
     private fun transact(expectedWorkspace: String, key: String, prepared: () -> CashWriteSetRequestBody,
-        verifyClaim: (Connection) -> Unit = {}, completeClaim: (Connection) -> Unit = {}, sharedAuthorizationLock: Boolean = false,
+        verifyClaim: (Connection) -> Unit = {}, verifyRunning: ((Connection) -> Unit)? = null,
+        completeClaim: (Connection) -> Unit = {}, sharedAuthorizationLock: Boolean = false,
         context: (Connection, Boolean) -> Principal): JsonObject {
         val boundary = CashImportCommitBoundary(afterStep)
         try {
@@ -84,10 +86,13 @@ internal class CashImportWriteSetSubmissionService(private val database: Databas
                     if (request.baseLedgerSeq != baseText) throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf("base_ledger_seq"))
                     val context = CashSqlContext(c, expectedWorkspace, database.sqlite, { java.util.UUID.randomUUID().toString() }, now)
                     fun <T> stage(name: String, action: () -> T): T {
+                        verifyRunning?.invoke(c)
                         boundary.enter(name)
                         return action().also { boundary.done(name) }
                     }
-                    val originalSources = stage("sources") { saveCashImportWriteSetSources(context, request.changes) }
+                    val originalSources = stage("sources") {
+                        saveCashImportWriteSetSources(context, request.changes, verifyRunning?.let { verify -> { verify(c) } })
+                    }
                     val appliedRelations = stage("relation_identities") { resolveCashImportWriteSetRelationIdentities(context, originalSources) }
                     val sources = originalSources.withoutAppliedRelations(context, appliedRelations.keys)
                     validateCashImportWriteSetEntryTopology(sources.changes, sources.before, sources.aliases)

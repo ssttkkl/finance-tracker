@@ -122,7 +122,8 @@ internal class CashImportConfirmationService(
         try {
             val prepared = database.read { repository(it).load(claim) } ?: throw CashImportClaimLost()
             submissions.execute(prepared.first, claim.identity.key, prepared.second,
-                verifyClaim = { repository(it).verify(claim, nowMillis()) }, completeClaim = {
+                verifyClaim = { repository(it).verify(claim, nowMillis()) },
+                verifyRunning = { repository(it).verifyRunning(claim) }, completeClaim = {
                     if (!repository(it).finish(claim, "committed")) throw CashImportClaimLost()
                 })
         } catch (_: CashImportClaimLost) {

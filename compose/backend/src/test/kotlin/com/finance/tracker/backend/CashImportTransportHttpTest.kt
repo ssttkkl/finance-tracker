@@ -125,11 +125,12 @@ class CashImportTransportHttpTest(private val backend: String) {
         val input = json.encodeToString(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account)))
         val executing = CountDownLatch(1)
         val finish = CountDownLatch(1)
+        val laterStages = java.util.concurrent.ConcurrentLinkedQueue<String>()
         val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { step ->
             if (step == "sources") {
                 executing.countDown()
                 check(finish.await(12, TimeUnit.SECONDS)) { "test held the write transaction too long" }
-            }
+            } else laterStages.add(step)
         })
         testApplication {
             application { financeModule(db, clock = clock, writeSetSubmissions = service) }
@@ -175,6 +176,7 @@ class CashImportTransportHttpTest(private val backend: String) {
                 current
             }
             assertEquals("cancelled", terminal)
+            assertTrue(laterStages.isEmpty(), "cancelled operation continued into ${laterStages.toList()}")
             assertEquals(base, sequence(db, ws))
             val receipt = client.get("/api/v1/cash-mutations/receipts/by-key?workspace_id=$ws&key=$key") { bearerAuth(token) }
             assertEquals(404, receipt.status.value, receipt.bodyAsText())

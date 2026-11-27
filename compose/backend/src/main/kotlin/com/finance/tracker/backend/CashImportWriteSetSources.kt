@@ -43,9 +43,11 @@ internal class CashImportWriteSetSourceResult(
 }
 
 /** Source values and source identity only: caller owns authorization, baseline and complete effects/receipt. */
-internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: CashWriteSetDto): CashImportWriteSetSourceResult {
+internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: CashWriteSetDto,
+    verifyRunning: (() -> Unit)? = null): CashImportWriteSetSourceResult {
     context.requireTransactionStamp()
     val identities = resolveCashImportWriteSetSourceIdentities(context, changes)
+    verifyRunning?.invoke()
     val before = identities.before
     val aliases = identities.aliases(context)
     val prepared = prepareCashImportWriteSetSourceValues(changes, before, aliases)
@@ -56,7 +58,8 @@ internal fun saveCashImportWriteSetSources(context: CashSqlContext, changes: Cas
     val balances = mutableListOf<Pair<Map<String, Any?>?, Map<String, Any?>>>()
     val affected = linkedSetOf<Long>()
     val writer = CashRecordValueWriter(context)
-    for (row in prepared.transactions) {
+    for ((position, row) in prepared.transactions.withIndex()) {
+        if (position % 256 == 0) verifyRunning?.invoke()
         val reference = row.target.reference
         identities.transactions[reference]?.let { id ->
             transactions[reference] = id
