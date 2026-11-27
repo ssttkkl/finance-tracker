@@ -141,6 +141,36 @@ class CompatibleReadPageAssemblyTest {
     }
 
     @Test
+    fun sourceCoverageSharesOnlyTheExactlyEncodedValueWithinAnAssembledSnapshot() {
+        val sections = LedgerSnapshotSection.entries.map { it.wireName }
+        val exact = """{"kind":"overlap","amounts":[1e0,-0],"note":"账😀"}"""
+        val otherOrder = """{"note":"账😀","kind":"overlap","amounts":[1e0,-0]}"""
+        val otherNumbers = """{"kind":"overlap","amounts":[1,0],"note":"账😀"}"""
+        val large = """{"note":"${"x".repeat(8192)}"}"""
+        val deep = (1..10).fold("true") { child, _ -> "[$child]" }
+        val raw = listOf(exact, exact, otherOrder, otherNumbers, large, large, deep, deep)
+        val assembly = LedgerSnapshotAssembly("fixture-workspace", 1)
+        for ((index, section) in sections.withIndex()) {
+            val items = if (section == "cash_source_bindings") raw.mapIndexed { i, coverage ->
+                val fact = LedgerSourceBindingFactDto((i + 1).toString(), "1", "alipay", "workspace", "owner",
+                    "document", "binding-$i", "strong", null, "v1", Json.parseToJsonElement(coverage), "1",
+                    "2026-11-27T01:00:00Z", "2026-11-27T01:00:00Z")
+                Json.encodeToJsonElement(fact)
+            } else emptyList()
+            val next = sections.getOrNull(index + 1)?.let { ReadPagePosition(it, 0) }
+            assembly.append(LedgerSnapshotReadPage("fixture-workspace", "1", "rules", "0",
+                ReadPageChunk(ReadPagePosition(section, 0), items.size, items, null, next)))
+        }
+        val bindings = assembly.complete().facts.cashSourceBindings
+        assertEquals(raw, bindings.map { it.coverage.toString() })
+        assertSame(bindings[0].coverage, bindings[1].coverage)
+        assertNotSame(bindings[0].coverage, bindings[2].coverage)
+        assertNotSame(bindings[0].coverage, bindings[3].coverage)
+        assertNotSame(bindings[4].coverage, bindings[5].coverage)
+        assertNotSame(bindings[6].coverage, bindings[7].coverage)
+    }
+
+    @Test
     fun fragmentOffsetsAndCollectionTotalsAreVerifiedBeforeAnElementIsExposed() {
         val read = mutableListOf<JsonElement>()
         val assembly = ReadPageAssembly(listOf("facts", "other")) { _, value -> read += value }

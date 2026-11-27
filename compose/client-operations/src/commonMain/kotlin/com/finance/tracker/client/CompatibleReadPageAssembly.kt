@@ -76,11 +76,12 @@ internal class ReadPageAssembly(
     }
 }
 
-private class ReadPageRows<T>(private val serializer: KSerializer<T>) {
+private class ReadPageRows<T>(private val serializer: KSerializer<T>, private val retain: (T) -> T = { it }) {
     val values = mutableListOf<T>()
     fun add(value: JsonElement) {
-        values += try { clientJson.decodeFromJsonElement(serializer, value) }
+        val decoded = try { clientJson.decodeFromJsonElement(serializer, value) }
         catch (_: SerializationException) { invalidReadPage() }
+        values += retain(decoded)
     }
 }
 
@@ -91,7 +92,12 @@ internal class LedgerSnapshotAssembly(private val workspace: String, private val
     private val categories = ReadPageRows(LedgerCategoryFactDto.serializer())
     private val transactions = ReadPageRows(LedgerCashTransactionFactDto.serializer())
     private val components = ReadPageRows(LedgerCashComponentFactDto.serializer())
-    private val sourceBindings = ReadPageRows(LedgerSourceBindingFactDto.serializer())
+    private val sourceCoverage = HashMap<String, JsonElement>()
+    private val sourceBindings = ReadPageRows(LedgerSourceBindingFactDto.serializer()) { binding ->
+        val coverage = binding.coverage
+        val retained = sharedCoverage(coverage)
+        if (retained === coverage) binding else binding.copy(coverage = retained)
+    }
     private val emptyPages = ReadPageRows(LedgerSourceEmptyPageFactDto.serializer())
     private val relations = ReadPageRows(LedgerCashRelationFactDto.serializer())
     private val relationCandidates = ReadPageRows(LedgerRelationCandidateFactDto.serializer())
@@ -111,6 +117,15 @@ internal class LedgerSnapshotAssembly(private val workspace: String, private val
     private var metadata: SnapshotPageMetadata? = null
     val position: ReadPagePosition? get() = pages.expected
     val ledgerSeq: String? get() = metadata?.ledgerSeq
+
+    private fun sharedCoverage(coverage: JsonElement): JsonElement {
+        if (!isSmallCoverage(coverage)) return coverage
+        val encoded = coverage.toString()
+        if (encoded.length > 4096) return coverage
+        return sourceCoverage[encoded] ?: coverage.also {
+            if (sourceCoverage.size < 64) sourceCoverage[encoded] = coverage
+        }
+    }
 
     fun append(page: LedgerSnapshotReadPage) {
         val presented = SnapshotPageMetadata(page.ledgerSeq, page.rulesVersion, page.categoryDirectoryRevision)
@@ -132,6 +147,25 @@ internal class LedgerSnapshotAssembly(private val workspace: String, private val
     }
 
     private data class SnapshotPageMetadata(val ledgerSeq: String, val rulesVersion: String, val categoryDirectoryRevision: String)
+}
+
+private fun isSmallCoverage(value: JsonElement): Boolean {
+    var units = 4096
+    fun visit(node: JsonElement, depth: Int): Boolean {
+        if (--units < 0 || depth > 8) return false
+        return when (node) {
+            is JsonPrimitive -> {
+                units -= node.content.length
+                units >= 0
+            }
+            is JsonArray -> node.all { visit(it, depth + 1) }
+            is JsonObject -> node.entries.all { (key, item) ->
+                units -= key.length
+                visit(item, depth + 1)
+            }
+        }
+    }
+    return visit(value, 0)
 }
 
 internal class CashImportReceiptAssembly(private val workspace: String) {
