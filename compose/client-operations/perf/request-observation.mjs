@@ -67,11 +67,11 @@ export function joinClientRequestClocks(observed, clocks) {
     });
 }
 
-export function openSerialRssWindows(pid) {
+export function openSerialRssWindows(start) {
     let active = false;
     return function begin() {
         if (active) throw new Error('isolated HTTP measurement must be serial');
-        const recording = startPeakRss(pid);
+        const recording = start();
         active = true;
         let closed = false;
         return {
@@ -80,8 +80,8 @@ export function openSerialRssWindows(pid) {
                 closed = true;
                 active = false;
                 return {
-                    method: recording.method, baselineRssBytes: recording.baselineRssBytes,
-                    peakRssBytes: recording.readPeakBytes(),
+                    method: recording.method, baselineServiceBytes: recording.baselineBytes,
+                    peakServiceBytes: recording.finish(),
                 };
             },
         };
@@ -89,7 +89,10 @@ export function openSerialRssWindows(pid) {
 }
 
 export function createIsolatedRssRecorder(pid) {
-    const begin = openSerialRssWindows(pid);
+    const begin = openSerialRssWindows(() => {
+        const rss = startPeakRss(pid);
+        return { method: rss.method, baselineBytes: rss.baselineRssBytes, finish: rss.readPeakBytes };
+    });
     return async function measureRequest(sendAndAssert) {
         const window = begin();
         let sample;

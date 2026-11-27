@@ -94,5 +94,5 @@ test('isolated replay records a real backend process peak without a timer tick',
     });
     assert.equal(sample.method, 'linux-vmhwm');
     assert.equal(sample.asserted, true);
-    assert.ok(sample.peakRssBytes - sample.baselineRssBytes >= 16 * 1024 ** 2);
+    assert.ok(sample.peakServiceBytes - sample.baselineServiceBytes >= 16 * 1024 ** 2);
 });

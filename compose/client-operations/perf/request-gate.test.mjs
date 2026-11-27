@@ -5,10 +5,10 @@ import { evaluateImportRequests } from './request-gate.mjs';
 const routes = {
     upload: { method: 'POST', template: '/cash-import/write-set', maxServerMs: 8_000,
         maxRequestWireBytes: 64 * 1024 ** 2, maxRequestDecodedBytes: 64 * 1024 ** 2,
-        maxResponseWireBytes: 2048, maxResponseDecodedBytes: 2048, maxPeakRssBytes: 10_000, maxRssIncreaseBytes: 2_000 },
+        maxResponseWireBytes: 2048, maxResponseDecodedBytes: 2048, maxPeakServiceBytes: 10_000, maxServiceIncreaseBytes: 2_000 },
     poll: { method: 'GET', template: '/cash-import/operations/{key}', maxServerMs: 8_000,
         maxRequestWireBytes: 0, maxRequestDecodedBytes: 0, maxResponseWireBytes: 2048,
-        maxResponseDecodedBytes: 2048, maxPeakRssBytes: 10_000, maxRssIncreaseBytes: 1_000 },
+        maxResponseDecodedBytes: 2048, maxPeakServiceBytes: 10_000, maxServiceIncreaseBytes: 1_000 },
 };
 const flows = { confirm: { upload: { minimum: 1, maximum: 1, statuses: [202] },
     poll: { minimum: 2, statuses: [200], concurrent: true } } };
@@ -21,9 +21,9 @@ const requests = [request(1, 'upload', 202, 1024, 2048, false), request(2, 'poll
 const replays = requests.map(({ sequence, route, status, requestWireBytes, requestDecodedBytes,
     responseWireBytes, responseDecodedBytes }) => ({
     sequence, route, status, requestWireBytes, requestDecodedBytes, responseWireBytes, responseDecodedBytes,
-    serverMs: 15, asserted: true, isolated: true, prewarmed: true, method: 'linux-vmhwm', baselineRssBytes: 5000, peakRssBytes: 5500,
+    serverMs: 15, asserted: true, isolated: true, prewarmed: true, method: 'linux-cgroup-v2-memory-peak', baselineServiceBytes: 5000, peakServiceBytes: 5500,
 }));
-const report = { requests, replays, concurrentProcessPeakRssBytes: 5500, concurrentSamplingMethod: 'linux-vmhwm' };
+const report = { requests, replays, concurrentServicePeakBytes: 5500, concurrentSamplingMethod: 'linux-cgroup-v2-memory-peak' };
 const check = (sample = report, budget = routes) => evaluateImportRequests(budget, flows, sample);
 const change = (field, index, values) => ({ ...report,
     [field]: report[field].map((row, i) => i === index ? { ...row, ...values } : row) });
@@ -45,7 +45,7 @@ test('missing, duplicated, unclassified, failed and unobserved requests fail clo
         change('requests', 1, { clientMs: undefined }),
         change('requests', 1, { serverMs: NaN }),
         change('requests', 1, { concurrent: false }),
-        { ...report, concurrentProcessPeakRssBytes: undefined },
+        { ...report, concurrentServicePeakBytes: undefined },
         { ...report, replays: replays.slice(0, 2) },
     ]) assert.equal(check(invalid).ok, false);
 });
@@ -57,9 +57,9 @@ test('wire bytes, decompressed bytes and request-window memory each have an inde
         change('requests', 1, { requestWireBytes: 1 }),
         change('requests', 1, { responseDecodedBytes: 2049 }),
         change('requests', 1, { responseWireBytes: 2049 }),
-        change('replays', 0, { peakRssBytes: 10001 }),
-        change('replays', 1, { peakRssBytes: 6001 }),
-        change('replays', 2, { peakRssBytes: undefined }),
+        change('replays', 0, { peakServiceBytes: 10001 }),
+        change('replays', 1, { peakServiceBytes: 6001 }),
+        change('replays', 2, { peakServiceBytes: undefined }),
         change('replays', 2, { requestDecodedBytes: 1 }),
         change('replays', 2, { isolated: false }),
         change('replays', 2, { prewarmed: false }),
@@ -67,7 +67,7 @@ test('wire bytes, decompressed bytes and request-window memory each have an inde
 });
 
 test('uncalibrated budgets collect valid samples but cannot pass the gate', () => {
-    const result = check(report, { ...routes, poll: { ...routes.poll, maxPeakRssBytes: null } });
+    const result = check(report, { ...routes, poll: { ...routes.poll, maxPeakServiceBytes: null } });
     assert.equal(result.valid, true);
     assert.equal(result.ok, false);
     assert.match(result.errors.join('\n'), /uncalibrated/);

@@ -42,7 +42,7 @@ const requestLimits = Object.fromEntries(Object.entries(flows).flatMap(([flow, r
         const limit = method === 'GET' ? 0 : id === 'submit' ? 64 * 1024 ** 2 : null;
         return [workloadRoute(flow, id), {
             method, template, maxServerMs: 8000, maxRequestWireBytes: limit, maxRequestDecodedBytes: limit,
-            maxResponseWireBytes: null, maxResponseDecodedBytes: null, maxPeakRssBytes: null, maxRssIncreaseBytes: null,
+            maxResponseWireBytes: null, maxResponseDecodedBytes: null, maxPeakServiceBytes: null, maxServiceIncreaseBytes: null,
         }];
     })));
 
@@ -101,7 +101,7 @@ export function evaluateMaximumHttpGate(details, replayDetails) {
         // Variable polling frequency can repeat the same route and state. Reuse its measured window
         // and preserve the replay sequence in the report.
         const replayed = original.route === 'status' ? candidatesForRequest.reduce((peak, row) =>
-            row.peakRssBytes > peak.peakRssBytes ? row : peak) : candidatesForRequest.shift();
+            row.peakServiceBytes > peak.peakServiceBytes ? row : peak) : candidatesForRequest.shift();
         matches.push({
             ...replayed, sequence: original.sequence, replaySequence: replayed.sequence,
             asserted: replayDetails.checks.completed === true,
@@ -109,7 +109,7 @@ export function evaluateMaximumHttpGate(details, replayDetails) {
     }
 
     const result = evaluateImportRequests(requestLimits, coverage, {
-        requests: real.requests, replays: matches, concurrentProcessPeakRssBytes: details?.concurrentProcessPeakRssBytes,
+        requests: real.requests, replays: matches, concurrentServicePeakBytes: details?.concurrentServicePeakBytes,
         concurrentSamplingMethod: details?.concurrentSamplingMethod,
     });
     return {

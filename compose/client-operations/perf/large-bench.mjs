@@ -15,7 +15,7 @@ import {
     collectConfirmObservations, inspectLostConfirmation, observedTime, openProxy, sampleConfirmDatabase, verifyPreparedFiles,
 } from './large-support.mjs';
 import { holdCashWriteLock, waitForCashWriter } from './postgres-lock.mjs';
-import { startPeakRss } from './peak-rss.mjs';
+import { createServiceMemory } from './service-memory.mjs';
 import { ordinaryLedgerCsv } from './cli-fixture.mjs';
 import { readEvents } from './gate.mjs';
 import { joinClientRequestClocks, openSerialRssWindows } from './request-observation.mjs';
@@ -128,6 +128,7 @@ async function main() {
         }
     };
     const logs = await open(join(evidenceDir, 'large-backend.log'), 'w');
+    let serviceMemory;
     let server;
     let worker;
     let beginRequestRss;
@@ -135,7 +136,7 @@ async function main() {
     const isolated = process.env.FT_PERF_ISOLATED_BACKEND === '1';
     const legacyComparison = process.env.FT_PERF_LEGACY_COMPARISON === '1';
     assert.ok(!isolated || !legacyComparison);
-    if (isolated) assert.equal(process.platform, 'linux');
+    if (isolated) assert.ok(process.env.FT_PERF_CGROUP_PARENT, 'isolated replay requires a delegated memory cgroup');
     const observed = [];
     let requestFlow;
     const requestReports = [];
@@ -236,14 +237,19 @@ async function main() {
             return service;
         };
         const backendPort = await localPort();
+        if (!legacyComparison && process.env.FT_PERF_CGROUP_PARENT) {
+            serviceMemory = createServiceMemory(process.env.FT_PERF_CGROUP_PARENT, `ktor-${process.pid}`);
+        }
+        const startMeasured = (bin, args, extraEnv) =>
+            startBackend(...(serviceMemory ? serviceMemory.command(bin, args) : [bin, args]), backendPort, logs, extraEnv);
         const productionEntry = join(backend, 'bin/backend');
         if (isolated) {
             const classpath = (await readFile(join(checkout, 'compose/backend/build/performance/replay-classpath'), 'utf8')).trim();
-            server = await startBackend(java, ['-cp', classpath, 'com.finance.tracker.backend.PerformanceReplayServerKt'],
-                backendPort, logs, { FT_PERF_REPLAY: '1' });
+            server = await startMeasured(java, ['-cp', classpath, 'com.finance.tracker.backend.PerformanceReplayServerKt'],
+                { FT_PERF_REPLAY: '1' });
             worker = await startBackend(productionEntry, [], await localPort(), logs);
         } else {
-            server = await startBackend(productionEntry, [], backendPort, logs);
+            server = await startMeasured(productionEntry, []);
         }
         proxy = openProxy(await readFile(certPath), await readFile(keyPath), backendPort, observed, () => requestFlow);
         const proxyPort = await listen(proxy);
@@ -312,7 +318,7 @@ async function main() {
         if (isolated) {
             // Authenticate and read representative ledger headers before measuring the isolated server.
             for (let i = 0; i < 5; i++) await run(['account', 'list', ...scope]);
-            beginRequestRss = openSerialRssWindows(server.pid);
+            beginRequestRss = openSerialRssWindows(() => serviceMemory.start());
         }
         const snapshotPath = '/api/v1/ledger/snapshot';
         const snapshots = after => observed.slice(after)
@@ -354,7 +360,7 @@ async function main() {
 
             const cancellable = await prepareControl('cancel');
             const exclusive = await holdCashWriteLock(psqlArgs);
-            const memory = !isolated && process.platform === 'linux' ? startPeakRss(server.pid) : undefined;
+            const memory = !isolated ? serviceMemory?.start() : undefined;
             let cancelledId;
             try {
                 const accepted = await run(cancellable.args, { flow: 'confirm-no-wait' });
@@ -390,7 +396,7 @@ async function main() {
                 await pause(300);
             } while (performance.now() < deadlineForCancellation);
             if (memory) {
-                evidence.concurrentProcessPeakRssBytes = memory.readPeakBytes();
+                evidence.concurrentServicePeakBytes = memory.finish();
                 evidence.concurrentSamplingMethod = memory.method;
             }
             assert.equal(terminal, 'cancelled');
@@ -621,8 +627,12 @@ async function main() {
                 const finished = once(service, 'exit');
                 process.kill(-service.pid, 'SIGTERM');
                 await Promise.race([finished, pause(5_000, undefined, { ref: false })]);
-                if (service.exitCode === null && service.signalCode === null) process.kill(-service.pid, 'SIGKILL');
+                if (service.exitCode === null && service.signalCode === null) {
+                    process.kill(-service.pid, 'SIGKILL');
+                    await finished;
+                }
             }
+            serviceMemory?.remove();
             await logs.close();
             await rm(work, { recursive: true, force: true });
         }
