@@ -8,11 +8,14 @@ import com.finance.tracker.business.contracts.ReadPagePosition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.parseHeaderValue
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.http.content.suppressCompression
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
+import java.io.ByteArrayOutputStream
 import java.util.Base64
+import java.util.zip.GZIPOutputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
@@ -53,11 +56,44 @@ internal fun ApplicationCall.readPageRequest(pinName: String, sections: List<Str
     return ReadPageRequest(workspace, pin, position)
 }
 
-internal suspend fun ApplicationCall.respondReadPage(body: ByteArray, limit: Int) {
-    check(body.size in 1..limit)
+internal data class EncodedReadPage(val body: ByteArray, val gzip: Boolean)
+
+internal class ReadPageEncoding(private val gzipQuality: Double, private val identityQuality: Double) {
+    fun encode(body: ByteArray, limit: Int): EncodedReadPage {
+        check(body.size in 1..limit)
+        if (gzipQuality > 0 && gzipQuality >= identityQuality &&
+            (gzipQuality > identityQuality || body.size >= 1024)) {
+            val compressed = gzipReadPage(body)
+            if (compressed.size <= limit && (gzipQuality > identityQuality || compressed.size < body.size))
+                return EncodedReadPage(compressed, gzip = true)
+        }
+        if (identityQuality == 0.0) throw ReadPageFailure("read_encoding_not_acceptable", HttpStatusCode.NotAcceptable)
+        return EncodedReadPage(body, gzip = false)
+    }
+}
+
+internal fun ApplicationCall.readPageEncoding(): ReadPageEncoding {
+    val preferences = request.headers.getAll(HttpHeaders.AcceptEncoding).orEmpty().flatMap(::parseHeaderValue)
+    fun quality(name: String): Double? = preferences.filter { it.value.equals(name, ignoreCase = true) }.maxOfOrNull { it.quality }
+    val wildcard = quality("*")
+    val identity = quality("identity") ?: if (wildcard == 0.0) 0.0 else 1.0
+    val gzip = quality("gzip") ?: wildcard ?: 0.0
+    if (gzip == 0.0 && identity == 0.0) throw ReadPageFailure("read_encoding_not_acceptable", HttpStatusCode.NotAcceptable)
+    return ReadPageEncoding(gzip, identity)
+}
+
+internal suspend fun ApplicationCall.respondReadPage(page: EncodedReadPage) {
     suppressCompression()
     response.header(HttpHeaders.CacheControl, "no-store, no-transform")
-    respondBytes(body, ContentType.Application.Json)
+    response.header(HttpHeaders.Vary, HttpHeaders.AcceptEncoding)
+    if (page.gzip) response.header(HttpHeaders.ContentEncoding, "gzip")
+    respondBytes(page.body, ContentType.Application.Json)
+}
+
+private fun gzipReadPage(body: ByteArray): ByteArray {
+    val buffer = ByteArrayOutputStream(minOf(body.size, 64 * 1024))
+    GZIPOutputStream(buffer).use { it.write(body) }
+    return buffer.toByteArray()
 }
 
 internal fun boundedReadPageChunk(

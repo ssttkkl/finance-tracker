@@ -142,7 +142,7 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
             CASH_IMPORT_RECEIPT_PAGE_PATH -> CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
             else -> 0
         }
-        if (maxResponseBytes != 0) headers["Accept-Encoding"] = "identity"
+        if (maxResponseBytes != 0) headers["Accept-Encoding"] = "gzip, identity"
         val result = NodeHost.request(origin, request.method, request.path, request.token, body, headers, maxResponseBytes).await()
         val status = result.status as Int
         if (status == 0) throw ClientNetworkUnavailable(IllegalStateException(result.diagnostic as String))

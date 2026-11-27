@@ -86,7 +86,11 @@ async function readPageBody(response, limit) {
     let body = '';
     let bytes = 0;
     try {
-        if ((encoding && encoding !== 'identity') || (length !== null && Number(length) > limit)) throw new InvalidReadPage();
+        if (encoding && encoding !== 'gzip' && encoding !== 'identity') throw new InvalidReadPage();
+        if ((encoding === 'gzip' && length === null) ||
+            (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > limit))) {
+            throw new InvalidReadPage();
+        }
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;

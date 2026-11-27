@@ -1,6 +1,5 @@
 package com.finance.tracker.backend
 
-import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LedgerSnapshotSection
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.call
@@ -34,8 +33,9 @@ internal fun Route.ledgerReadRoutes(service: LedgerReadService, principalKey: At
         val page = call.readPageRequest("ledger_seq", LedgerSnapshotSection.entries.map { it.wireName })
         if (page.workspace != request.workspaceId) throw AccessFailure(true)
         val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-        val body = runInterruptible(Dispatchers.IO) { service.snapshotPage(token, request, page) }
-        call.respondReadPage(body, LEDGER_SNAPSHOT_PAGE_MAX_BYTES)
+        val encoding = call.readPageEncoding()
+        val body = runInterruptible(Dispatchers.IO) { service.snapshotPage(token, request, page, encoding) }
+        call.respondReadPage(body)
     }
 
 }

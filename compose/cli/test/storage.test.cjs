@@ -201,6 +201,8 @@ test('paged HTTP responses bound the body and decode split UTF-8 without treatin
     const { gzipSync } = require('node:zlib');
     const { request } = await import('../build/npm/lib/host.mjs');
     const value = Buffer.from('{"page":"账😀"}');
+    const zipped = gzipSync(value);
+    const expansion = gzipSync(Buffer.alloc(2048, 97));
     const server = createServer((incoming, response) => {
         if (incoming.url === '/identity') {
             response.setHeader('X-FT-Read-Pages', '1');
@@ -213,8 +215,15 @@ test('paged HTTP responses bound the body and decode split UTF-8 without treatin
             response.write(value);
             response.end(value);
         } else if (incoming.url === '/gzip') {
+            response.writeHead(200, { 'Content-Encoding': 'gzip', 'Content-Length': zipped.length });
+            response.end(zipped);
+        } else if (incoming.url === '/gzip-no-length') {
             response.writeHead(200, { 'Content-Encoding': 'gzip' });
-            response.end(gzipSync(value));
+            response.write(zipped);
+            response.end();
+        } else if (incoming.url === '/gzip-expansion') {
+            response.writeHead(200, { 'Content-Encoding': 'gzip', 'Content-Length': expansion.length });
+            response.end(expansion);
         } else if (incoming.url === '/invalid-utf8') {
             response.end(Buffer.from([0xc3, 0x28]));
         } else if (incoming.url === '/denied') {
@@ -233,10 +242,13 @@ test('paged HTTP responses bound the body and decode split UTF-8 without treatin
         const valid = await send('/identity', value.length);
         assert.equal(valid.body, value.toString());
         assert.equal(valid.readPages, '1');
+        assert.equal((await send('/gzip', zipped.length)).body, value.toString());
         for (const [path, limit] of [
             ['/oversize', value.length - 1],
             ['/oversize-without-length', value.length],
             ['/gzip', value.length],
+            ['/gzip-no-length', zipped.length],
+            ['/gzip-expansion', expansion.length + 1],
             ['/invalid-utf8', value.length],
         ]) assert.equal((await send(path, limit)).status, -2, path);
         assert.equal((await send('/denied', 1)).status, 403);

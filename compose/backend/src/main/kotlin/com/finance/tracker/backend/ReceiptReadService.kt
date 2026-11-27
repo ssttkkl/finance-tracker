@@ -52,7 +52,7 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             publicReceipt(receipt)
         }
 
-    internal fun importReceiptPage(token: String?, key: String, page: ReadPageRequest): ByteArray =
+    internal fun importReceiptPage(token: String?, key: String, page: ReadPageRequest, encoding: ReadPageEncoding): EncodedReadPage =
         context(token, lock = false, expectedWorkspace = page.workspace, snapshot = true) { connection, principal ->
             val section = CashImportReceiptSection.entries.singleOrNull { it.wireName == page.position.section }
                 ?: throw ReadPageFailure()
@@ -86,7 +86,7 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             val chunk = boundedReadPageChunk(page.position, CashImportReceiptSection.entries.map { it.wireName },
                 stored.count, items.asSequence(), importReceiptReadPageTargetBytes)
             val result = CashImportReceiptReadPage(page.workspace, stored.id, stored.version, chunk)
-            compatibleReadPageJson.encodeToString(result).encodeToByteArray()
+            encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES)
         }
 
     internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null,

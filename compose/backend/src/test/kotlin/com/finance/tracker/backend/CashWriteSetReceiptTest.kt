@@ -7,6 +7,7 @@ import com.finance.tracker.business.contracts.CashImportReceiptSection
 import com.finance.tracker.business.contracts.LedgerSnapshotSection
 import com.finance.tracker.business.contracts.ReadPageChunk
 import java.util.Base64
+import java.util.zip.GZIPInputStream
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.HttpStatusCode
@@ -120,10 +121,17 @@ class CashWriteSetReceiptTest(private val backend: String) {
                 do {
                     val response = read("$path/pages", continuation)
                     assertEquals(HttpStatusCode.OK, response.status)
-                    assertNull(response.headers["Content-Encoding"])
-                    val text = response.bodyAsText()
-                    assertTrue(text.encodeToByteArray().size <= limit)
-                    val envelope = Json.parseToJsonElement(text).jsonObject
+                    val encoded = response.bodyAsBytes()
+                    assertTrue(encoded.size <= limit)
+                    val encoding = response.headers["Content-Encoding"]
+                    val decoded = when (encoding) {
+                        "gzip" -> GZIPInputStream(encoded.inputStream()).use { it.readBytes() }
+                        null -> encoded
+                        else -> error("Unexpected page encoding")
+                    }
+                    assertEquals(encoded.size, response.headers["Content-Length"]?.toIntOrNull())
+                    assertTrue(decoded.size <= limit)
+                    val envelope = Json.parseToJsonElement(decoded.decodeToString()).jsonObject
                     val position = Json.decodeFromJsonElement<ReadPageChunk>(envelope.getValue("chunk"))
                     val fields = JsonObject(envelope - "chunk")
                     if (first == null) first = fields else assertEquals(first, fields)
@@ -178,6 +186,28 @@ class CashWriteSetReceiptTest(private val backend: String) {
         }
     }
 
+    @Test fun pageEncodingRespectsQualityRefusalAndRepeatedFields() = authenticated { db, ws, token, _ ->
+        testApplication {
+            application { financeModule(db, runCashImportWorker = false) }
+            suspend fun page(vararg values: String): HttpResponse = client.get("/api/v1/ledger/snapshot/pages") {
+                bearerAuth(token)
+                parameter("workspace_id", ws)
+                values.forEach { header("Accept-Encoding", it) }
+            }
+            val preferredIdentity = page("gzip;q=0.2", "identity")
+            assertEquals(HttpStatusCode.OK, preferredIdentity.status)
+            assertNull(preferredIdentity.headers["Content-Encoding"])
+            val forcedGzip = page("gzip", "identity;q=0")
+            assertEquals(HttpStatusCode.OK, forcedGzip.status)
+            assertEquals("gzip", forcedGzip.headers["Content-Encoding"])
+            val wire = forcedGzip.bodyAsBytes()
+            assertEquals(wire.size, forcedGzip.headers["Content-Length"]?.toInt())
+            val plain = GZIPInputStream(wire.inputStream()).use { it.readBytes() }
+            assertContentEquals(preferredIdentity.bodyAsBytes(), plain)
+            assertEquals(HttpStatusCode.NotAcceptable, page("gzip;q=0, identity;q=0").status)
+        }
+    }
+
     @Test fun snapshotPageFragmentsOneLargeFactAtATime() = authenticated { db, ws, token, _ ->
         val largeText = "账😀".repeat(750_000)
         db.write { c ->
@@ -201,7 +231,7 @@ class CashWriteSetReceiptTest(private val backend: String) {
                     parameter("section", "cash_transactions")
                     parameter("offset", offset)
                     parameter("fragment_offset", fragment)
-                    header("Accept-Encoding", "gzip")
+                    header("Accept-Encoding", "gzip;q=0")
                 }
                 assertEquals(HttpStatusCode.OK, response.status)
                 assertNull(response.headers["Content-Encoding"])

@@ -13674,7 +13674,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One version-pinned identity-encoded page, at most 33554432 bytes including the JSON envelope. Null next marks the complete representation.",
+            "description": "One version-pinned page encoded as identity or negotiated gzip, at most 33554432 bytes including the JSON envelope. Null next marks the complete representation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13714,6 +13714,9 @@
           },
           "403": {
             "description": "Selected workspace is not accessible"
+          },
+          "406": {
+            "description": "No acceptable page encoding could stay within the byte limit."
           },
           "409": {
             "description": "The pinned snapshot version or original receipt identity changed.",
@@ -14582,7 +14585,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One version-pinned identity-encoded page, at most 2097152 bytes including the JSON envelope. Null next marks the complete representation.",
+            "description": "One version-pinned page encoded as identity or negotiated gzip, at most 2097152 bytes including the JSON envelope. Null next marks the complete representation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14646,6 +14649,9 @@
               }
             },
             "description": "Not Found"
+          },
+          "406": {
+            "description": "No acceptable page encoding could stay within the byte limit."
           },
           "409": {
             "description": "The pinned snapshot version or original receipt identity changed.",

@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
+import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LedgerVersionDto
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.contracts.LedgerSnapshotReadPage
@@ -44,7 +45,7 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
         return snapshot
     }
 
-    internal fun snapshotPage(token: String?, request: Principal, page: ReadPageRequest): ByteArray {
+    internal fun snapshotPage(token: String?, request: Principal, page: ReadPageRequest, encoding: ReadPageEncoding): EncodedReadPage {
         val section = LedgerSnapshotSection.entries.singleOrNull { it.wireName == page.position.section }
             ?: throw ReadPageFailure()
         val (principal, result) = database.read { connection ->
@@ -62,9 +63,10 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
             current to LedgerSnapshotReadPage(workspace, version.toString(), CASH_RULES_VERSION,
                 repository.categoryDirectoryRevision(), chunk)
         }
+        val bytes = encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), LEDGER_SNAPSHOT_PAGE_MAX_BYTES)
         afterRead()
         same(principal, reads.currentContext(token))
-        return compatibleReadPageJson.encodeToString(result).encodeToByteArray()
+        return bytes
     }
 
 }
