@@ -191,7 +191,7 @@ function measure(prepared, phase, selected, enforceBudget) {
     if (job === 'maximum') {
       const details = JSON.parse(readFileSync(join(out, 'large-details.json')));
       if (enforceBudget) {
-        const http = evaluateMaximumHttpGate(details);
+        const http = evaluateMaximumHttpGate(details, manifest.http);
         writeReport(`${phase}-http.json`, http);
         if (!http.ok) {
           console.error(`HTTP performance: ${http.errors.length} errors (see ${phase}-http.json)`);

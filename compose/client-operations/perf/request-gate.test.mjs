@@ -24,7 +24,7 @@ const replays = requests.map(({ sequence, route, status, requestWireBytes, reque
     serverMs: 15, asserted: true, isolated: true, prewarmed: true, method: 'linux-cgroup-v2-memory-peak', baselineServiceBytes: 5000, peakServiceBytes: 5500,
 }));
 const report = { requests, replays, concurrentServicePeakBytes: 5500, concurrentSamplingMethod: 'linux-cgroup-v2-memory-peak' };
-const check = (sample = report, budget = routes) => evaluateImportRequests(budget, flows, sample);
+const check = (sample = report, budget = routes) => evaluateImportRequests(budget, flows, sample, 768 * 1024 ** 2);
 const change = (field, index, values) => ({ ...report,
     [field]: report[field].map((row, i) => i === index ? { ...row, ...values } : row) });
 
@@ -66,11 +66,11 @@ test('wire bytes, decompressed bytes and request-window memory each have an inde
     ]) assert.equal(check(invalid).ok, false);
 });
 
-test('uncalibrated budgets collect valid samples but cannot pass the gate', () => {
+test('missing fixed budgets invalidate the report', () => {
     const result = check(report, { ...routes, poll: { ...routes.poll, maxPeakServiceBytes: null } });
-    assert.equal(result.valid, true);
+    assert.equal(result.valid, false);
     assert.equal(result.ok, false);
-    assert.match(result.errors.join('\n'), /uncalibrated/);
+    assert.match(result.errors.join('\n'), /missing or invalid/);
 });
 
 test('a repeated isolated poll still blocks on its own memory peak', () => {
@@ -79,4 +79,14 @@ test('a repeated isolated poll still blocks on its own memory peak', () => {
     const result = check({ ...report, rawReplays });
     assert.equal(result.ok, false);
     assert.match(result.errors.join('\n'), /isolated confirm\/poll #4: peakServiceBytes/);
+});
+
+test('the concurrent service group is allowed at 768 MiB and fails one byte above it', () => {
+    const limit = 768 * 1024 ** 2;
+    const at = evaluateImportRequests(routes, flows, { ...report, concurrentServicePeakBytes: limit }, limit);
+    assert.equal(at.ok, true);
+    const above = evaluateImportRequests(routes, flows, { ...report, concurrentServicePeakBytes: limit + 1 }, limit);
+    assert.equal(above.valid, true);
+    assert.equal(above.ok, false);
+    assert.match(above.errors.join('\n'), /concurrent service peak/);
 });

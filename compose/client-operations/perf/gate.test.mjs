@@ -50,7 +50,7 @@ test('an ordinary operation requires a measured peak even during calibration', (
   const withoutPeak = events.map((event, index) => index === 10 ? { ...event, rssBytes: undefined } : event);
   assert.equal(evaluate([{ ...scenario, maxRssBytes: undefined }], withoutPeak).valid, false);
   const candidate = { ...scenario, maxRssBytes: null };
-  assert.equal(evaluate([candidate], events).valid, true);
+  assert.equal(evaluate([candidate], events).valid, false);
   assert.equal(evaluate([candidate], events).ok, false);
   for (const invalid of [undefined, 0, -1, Infinity]) {
     const changed = events.map((event, index) => index === 10 ? { ...event, rssBytes: invalid } : event);

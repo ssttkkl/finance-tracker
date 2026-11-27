@@ -1,4 +1,4 @@
-import { importRequestRoutes } from './import-request-routes.mjs';
+import { requestLimits } from './http-budgets.mjs';
 import { evaluateImportRequests } from './request-gate.mjs';
 
 const expectation = (minimum, maximum, statuses = [200]) => ({ minimum, maximum, statuses });
@@ -34,21 +34,11 @@ function workloadRoute(flow, route) {
     return route;
 }
 
-const requestLimits = Object.fromEntries(Object.entries(flows).flatMap(([flow, requirements]) =>
-    Object.keys(requirements).map((id) => {
-        const [method, template] = importRequestRoutes[id];
-        const limit = method === 'GET' ? 0 : id === 'submit' ? 64 * 1024 ** 2 : null;
-        return [workloadRoute(flow, id), {
-            method, template, maxServerMs: 8000, maxRequestWireBytes: limit, maxRequestDecodedBytes: limit,
-            maxResponseWireBytes: null, maxResponseDecodedBytes: null, maxPeakServiceBytes: null, maxServiceIncreaseBytes: null,
-        }];
-    })));
-
 const coverage = Object.fromEntries(Object.entries(flows).map(([flow, requirements]) => [
     flow, Object.fromEntries(Object.entries(requirements).map(([route, expected]) => [workloadRoute(flow, route), expected])),
 ]));
 
-export function evaluateMaximumHttpGate(details) {
+export function evaluateMaximumHttpGate(details, http) {
     const traced = details.requestReports ?? [];
     const collectionErrors = [];
     const requests = [];
@@ -63,10 +53,10 @@ export function evaluateMaximumHttpGate(details) {
             requests.push({ ...row, route: workloadRoute(run.flow, row.route), sequence: requests.length + 1 });
         }
     }
-    const result = evaluateImportRequests(requestLimits, coverage, {
+    const result = evaluateImportRequests(requestLimits(http, flows, workloadRoute), coverage, {
         requests, replays: details.requestReplays, concurrentServicePeakBytes: details.concurrentServicePeakBytes,
         concurrentSamplingMethod: details.concurrentSamplingMethod,
-    });
+    }, http.maxConcurrentServiceBytes);
     return {
         ...result, ok: result.ok && collectionErrors.length === 0, valid: result.valid && collectionErrors.length === 0,
         errors: [...collectionErrors, ...result.errors],

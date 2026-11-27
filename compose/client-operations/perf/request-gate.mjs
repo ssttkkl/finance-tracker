@@ -9,7 +9,7 @@ const size = (value) => Number.isSafeInteger(value) && value >= 0;
 const time = (value) => Number.isFinite(value) && value > 0;
 const peak = (value) => size(value) && value > 0;
 
-export function evaluateImportRequests(routes, flows, report) {
+export function evaluateImportRequests(routes, flows, report, maxConcurrentServiceBytes) {
     const errors = [];
     const budgetErrors = [];
     const routeUsage = new Set();
@@ -24,9 +24,7 @@ export function evaluateImportRequests(routes, flows, report) {
         const maxima = maxByRoute[route] ??= {};
         maxima[name] = Math.max(maxima[name] ?? 0, value);
         const limit = routes[route][limitName];
-        if (limit === null) {
-            budgetErrors.push(`${route}: uncalibrated ${limitName}`);
-        } else if (!validate(limit)) {
+        if (!validate(limit)) {
             errors.push(`${route}: missing or invalid ${limitName}`);
         } else if (value > limit) {
             budgetErrors.push(`${label}: ${name} ${value} exceeds ${limit}`);
@@ -79,9 +77,15 @@ export function evaluateImportRequests(routes, flows, report) {
             }
         }
     }
-    if ([...originals.values()].some((row) => row.concurrent) &&
-        (!peak(report.concurrentServicePeakBytes) || report.concurrentSamplingMethod !== 'linux-cgroup-v2-memory-peak')) {
-        errors.push('missing concurrent backend process peak RSS');
+    if ([...originals.values()].some((row) => row.concurrent)) {
+        const concurrent = report.concurrentServicePeakBytes;
+        if (!peak(concurrent) || report.concurrentSamplingMethod !== 'linux-cgroup-v2-memory-peak') {
+            errors.push('missing concurrent service memory peak');
+        } else if (!peak(maxConcurrentServiceBytes)) {
+            errors.push('invalid concurrent service memory budget');
+        } else if (concurrent > maxConcurrentServiceBytes) {
+            budgetErrors.push(`concurrent service peak ${concurrent} exceeds ${maxConcurrentServiceBytes} B`);
+        }
     }
 
     const replayed = new Set();
