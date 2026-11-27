@@ -153,11 +153,14 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
 private const val largeImportRequestLength = 1024 * 1024
 
 private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore {
+    private var observedLedger: ObservedLedger? = null
     private var observedBatch: ObservedBatch? = null
     private var savedConfirmation: SavedConfirmation? = null
     private var checkpointedConfirmation: SavedConfirmation? = null
 
     private data class SavedConfirmation(val key: String, val stamp: String, val batch: ClientCashImportBatch)
+
+    private data class ObservedLedger(val slot: String, val stamp: String, val state: dynamic)
 
     private data class ObservedBatch(
         val key: String, val parentStamp: String?, val reviewedStamp: String?, val batch: dynamic,
@@ -187,11 +190,20 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private fun sameState(first: ClientStoredSession?, second: ClientStoredSession?): Boolean =
         first?.token == second?.token && first?.session == second?.session
 
-    override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState =
-        (read<ClientLedgerState>(slot(session, workspaceId)) ?: ClientLedgerState()).also {
-            if (it.ledger?.snapshot?.workspaceId?.let { id -> id != workspaceId } == true)
-                throw ClientOperationFailure("local_state_unreadable")
+    override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState {
+        val key = slot(session, workspaceId)
+        val stamp = readLocalState { stateStamp(key) }
+        val previous = observedLedger
+        if (previous?.slot == key && previous.stamp == stamp) {
+            val cached = previous.state.deref() as ClientLedgerState?
+            if (cached != null) return cached
         }
+        val state = read<ClientLedgerState>(key) ?: ClientLedgerState()
+        if (state.ledger?.snapshot?.workspaceId?.let { it != workspaceId } == true)
+            throw ClientOperationFailure("local_state_unreadable")
+        observedLedger = stamp?.let { ObservedLedger(key, it, weakReference(state)) }
+        return state
+    }
 
     override suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean {
         val workspaceId = ledger.snapshot.workspaceId
@@ -202,6 +214,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
             val next: () -> String? = { if (cursor.hasNext()) cursor.next() else null }
             next
         })
+        observedLedger = null
         return true
     }
 
@@ -361,6 +374,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         observedBatch = null
         checkpointedConfirmation = null
         val version = if (saved != null) database.dataVersion() as Int else null
+        observedLedger = null
         database.checkpoint()
         if (saved != null && version == database.dataVersion() as Int) checkpointedConfirmation = saved
     }
@@ -385,8 +399,11 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private inline fun <reified T> read(slot: String): T? =
         readState(slot) { Json.decodeFromString<T>(it) }
 
-    private inline fun <T> readState(slot: String, decode: (String) -> T): T? = try {
-        (database.read(slot) as String?)?.let(decode)
+    private inline fun <T> readState(slot: String, decode: (String) -> T): T? =
+        readLocalState { (database.read(slot) as String?)?.let(decode) }
+
+    private inline fun <T> readLocalState(read: () -> T): T = try {
+        read()
     } catch (failure: Throwable) {
         throw ClientOperationFailure("local_state_unreadable", cause = failure)
     }
