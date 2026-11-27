@@ -7,6 +7,9 @@ import kotlin.time.Instant
 
 enum class CashImportPlanningStage { PREPARE_SOURCES, DISCOVER_RELATIONS, BUILD_WRITE_SET }
 
+private val cashImportWritePlanFields = setOf("can_commit", "operations", "row_decisions", "source_candidate_sets",
+    "relation_groups", "entry_edits")
+
 /** Compute the complete file-import plan locally; preserve calculated types until the final plan encoding boundary. */
 fun buildLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>? = null, recordIds: Map<String, String> = emptyMap(), requireActive: () -> Unit,
@@ -21,7 +24,14 @@ fun calculateLocalCashImportBusinessPlan(files: List<ParsedImportFile>, source: 
     val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
-    return plan to buildLocalCashImportWriteSet(source, files, sources, freezeLocalCashImportPreviewPlan(plan),
+    val writePlan = buildJsonObject {
+        for ((key, value) in plan) {
+            // Validate the entire plan before producing writes, retaining only the fields used below.
+            val field = freezeLocalCashImportPreviewPlan(mapOf(key to value)).getValue(key)
+            if (key in cashImportWritePlanFields) put(key, field)
+        }
+    }
+    return plan to buildLocalCashImportWriteSet(source, files, sources, writePlan,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
 }
 

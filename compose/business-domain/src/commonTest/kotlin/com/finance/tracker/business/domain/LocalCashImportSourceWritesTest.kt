@@ -23,10 +23,12 @@ class LocalCashImportSourceWritesTest {
     private fun choice(action: String, ref: String = "f:r1", patch: JsonObject = empty) = buildJsonArray {
         add(buildJsonObject { put("row_ref", ref); put("action", action); put("patch", patch) })
     }
-    private fun calculate(source: LedgerSnapshotDto, files: List<ParsedImportFile>, choices: JsonArray = array): Pair<PreparedCashImportOperations, JsonObject> {
-        val selections = JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
+    private fun selections(files: List<ParsedImportFile>): JsonArray =
+        JsonArray(scanLocalCashFunding(files).groups.map { group -> buildJsonObject {
             put("source_account_ref", group.sourceAccountRef); put("account_id", "10"); put("expected_account_revision", 9007199254740993L)
         } })
+    private fun calculate(source: LedgerSnapshotDto, files: List<ParsedImportFile>, choices: JsonArray = array): Pair<PreparedCashImportOperations, JsonObject> {
+        val selections = selections(files)
         val operations = prepareLocalCashImportOperations(files, source, selections, choices, wireValues = false)
         val prepared = LocalCashImportPreviewPreparation(source) {}.prepareOperations(operations.operations)
         val state = buildLocalCashImportPreviewSnapshot(source, prepared.context, prepared.operations, operations.rows) { Instant.parse(time) }
@@ -37,6 +39,16 @@ class LocalCashImportSourceWritesTest {
     private fun writes(source: LedgerSnapshotDto = snapshot(), files: List<ParsedImportFile> = files(), choices: JsonArray = array): CashWriteSetDto {
         val (prepared, plan) = calculate(source, files, choices)
         return buildLocalCashImportSourceWrites(source, files, prepared.source, plan, choices)
+    }
+    private fun productionWrites(source: LedgerSnapshotDto, files: List<ParsedImportFile>): CashWriteSetDto {
+        val choices = buildJsonObject {
+            put("account_selections", selections(files)); put("row_choices", array); put("relation_choices", array); put("entry_choices", array)
+        }
+        val (plan, result) = calculateLocalCashImportBusinessPlan(files, source, choices, requireActive = {}) { Instant.parse(time) }
+        val previousWrites = buildLocalCashImportWriteSet(source, files, prepareLocalCashImportSources(files, source),
+            freezeLocalCashImportPreviewPlan(plan))
+        assertEquals(previousWrites, result)
+        return result
     }
     private fun coverage(value: CashSourceCoverage) = encodeLocalCashValue(cashSourceCoverageFields(value) +
         ("page_total" to value.pageTotal?.let(::SourceJsonInteger)))
@@ -206,7 +218,7 @@ class LocalCashImportSourceWritesTest {
             parent.copy(id = "2", sourceType = "ccb_debit", recordId = "legacy-2", rowRevision = "9223372036854775807"))
         val parts = old.facts.cashTransactionComponents + old.facts.cashTransactionComponents.map { it.copy(id = "12", cashTransactionId = "2") }
         val source = old.copy(facts = old.facts.copy(cashTransactions = parents, cashTransactionComponents = parts, cashSourceBindings = emptyList()))
-        val result = writes(source, files("ccb_debit"))
+        val result = productionWrites(source, files("ccb_debit"))
         val issue = result.issues.single()
         assertEquals("source_identity_ambiguous", issue.code)
         assertEquals("import:bebfd30b43411e18d27e4f9720ffeed74b80e72f464ec3bd093cf56b12c1727f", issue.issueKey)
@@ -238,7 +250,7 @@ class LocalCashImportSourceWritesTest {
     }
 
     @Test fun emptyDocumentPageAndPerRowCoverageUseTheOriginalPageSelection() {
-        val files = listOf(documentFile()); val result = writes(files = files)
+        val files = listOf(documentFile()); val result = productionWrites(snapshot(), files)
         val page = result.sourceEmptyPages.single()
         assertEquals(2, page.pageNumber)
         val proof = decodeStoredCashSourceCoverage(page.coverage)
@@ -281,7 +293,7 @@ class LocalCashImportSourceWritesTest {
         val source = snapshot(); val (prepared, plan) = calculate(source, all)
         assertEquals(2, plan.getValue("row_decisions").jsonArray.count { it.jsonObject["planned_action"] == JsonPrimitive("skip") })
         assertTrue(cashImportSourceEvidenceGroups(all, prepared.source, decodeLocalCashValue(plan) as Map<String, Any?>).isEmpty())
-        val result = buildLocalCashImportSourceWrites(source, all, prepared.source, plan)
+        val result = productionWrites(source, all)
         assertEquals(1, result.transactions.size)
         assertTrue(result.sourceEmptyPages.isEmpty())
     }

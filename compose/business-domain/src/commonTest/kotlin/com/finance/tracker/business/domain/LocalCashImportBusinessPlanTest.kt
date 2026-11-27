@@ -222,10 +222,25 @@ class LocalCashImportBusinessPlanTest {
             }
         val first = calculate(source, input, null, emptyMap())
         assertEquals(2, first.second.transactions.size); assertEquals(1, first.second.relations.size)
+        val completePlan = freezeLocalCashImportPreviewPlan(first.first)
+        val writesFromCompletePlan = buildLocalCashImportWriteSet(source, files, prepareLocalCashImportSources(files, source),
+            completePlan, input.getValue("row_choices").jsonArray, input.getValue("relation_choices").jsonArray)
+        assertEquals(writesFromCompletePlan, first.second)
+        assertTrue(completePlan.getValue("items").jsonArray.isNotEmpty())
         val review = LocalCashImportReview.freeze(input, first.first, source, first.second)
         val result = review.recalculate(source.copy(ledgerSeq = "1")) { snapshot, input, previous, ids -> calculate(snapshot, input, previous, ids) }
         assertTrue(result.conclusionUnchanged)
         assertEquals(first.second, result.changes)
         assertTrue(times.distinct().size > 1)
+    }
+
+    @Test fun writingStillRejectsInvalidFieldsOfTheCompletePreview() {
+        val file = files().single().copy(diagnostic = mapOf("total_locations" to -1))
+        val files = listOf(file)
+        assertFailsWith<InvalidCashValue> {
+            calculateLocalCashImportBusinessPlan(files, source(), input(files), requireActive = {}) {
+                Instant.parse("2026-10-01T00:00:00Z")
+            }
+        }
     }
 }
