@@ -163,7 +163,8 @@ private suspend fun <T> lookupImportOperation(read: suspend () -> T?): T? =
     } catch (failure: ClientNetworkUnavailable) {
         throw unknownImport(failure)
     } catch (failure: ClientOperationFailure) {
-        if (failure.status in setOf(401, 403)) throw failure
+        if (failure.status in setOf(401, 403) || failure.status == null && failure.code == "workspace_conflict")
+            throw failure
         throw unknownImport(failure, failure.status)
     }
 
