@@ -95,6 +95,8 @@ internal class LedgerSessionRestoration(
         readReady { it.page(filters, timeZoneId, cursor, startIndex, expectedLedgerSeq, limit) }
     override suspend fun ledgerVersion() = readReady { it.ledgerVersion() }
 
+    override suspend fun cashCreationJournal() = readReady { it.cashCreationJournal() }
+
     override suspend fun imports(): LedgerSessionImports? = readReady { owner ->
         LedgerSessionImports(owner, { _ ->
             requireCurrent()

@@ -1,0 +1,2714 @@
+{
+  "version": 1,
+  "latencyUnit": "ms",
+  "peakRssUnit": "bytes",
+  "http": {
+    "maxPeakServiceBytes": 536870912,
+    "maxConcurrentServiceBytes": 805306368,
+    "routes": {
+      "session": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "version": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "status": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "accountReceipt": {
+        "maxServerMs": 500,
+        "maxServiceIncreaseBytes": 16777216,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 262144
+      },
+      "createAccount": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 65536,
+        "maxResponseBytes": 262144
+      },
+      "cancel": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 65536,
+        "maxResponseBytes": 262144
+      },
+      "receipt": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "receiptRows": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "receiptRelations": {
+        "maxServerMs": 1000,
+        "maxServiceIncreaseBytes": 33554432,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 2097152
+      },
+      "snapshot": {
+        "maxServerMs": 2000,
+        "maxServiceIncreaseBytes": 67108864,
+        "maxRequestBytes": 0,
+        "maxResponseBytes": 33554432
+      },
+      "pdf": {
+        "maxServerMs": 5000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 8388608,
+        "maxResponseBytes": 8388608
+      },
+      "xls": {
+        "maxServerMs": 5000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 8388608,
+        "maxResponseBytes": 8388608
+      },
+      "submit": {
+        "maxServerMs": 8000,
+        "maxServiceIncreaseBytes": 134217728,
+        "maxRequestBytes": 67108864,
+        "maxResponseBytes": 262144
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "session.register",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "Ktor password hash and published session",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.login",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "Ktor password verification and correct principal",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.status",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "principal and workspace membership",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.logout",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "session revoked and local binding removed",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.current",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "active workspace ID and role",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.workspace-create",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "new workspace exists once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.workspace-switch",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "published session bound to target workspace",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.workspace-rename",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "name persisted for correct workspace",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.invitation-preview",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "workspace and granted role",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.invitation-create",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "one usable scoped grant",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.invitation-accept",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "target membership created once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.members",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "50-member list and roles",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.member-role",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "correct member role changed once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.member-remove",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "20 workspaces, 50 members and real Ktor auth",
+      "checks": "correct membership removed",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 750,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.workspace-delete",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 active sessions, 1000 transactions, 50 accounts",
+      "checks": "scope removed, surviving workspace intact",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "session.workspace-delete-server",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 active sessions, 1000 transactions, 50 accounts",
+      "checks": "service removes test scope and its owned facts",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.directory",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "50 account IDs and currencies",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.selection",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "eligible target and account revision",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.detail",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "scoped typed account detail",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.balances",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "exact per-currency totals",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.receipt",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "stored receipt and unchanged ledger",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.receipt-key",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "original receipt by idempotency key with zero writes",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.create",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "one scoped account and receipt",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.edit",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "new revision and correct values",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.currencies",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "one valid currency addition",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "account.currencies-noop",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "50 accounts, 3000 loaded transactions",
+      "checks": "same revision and version with zero writes",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 100,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "cash.first-page",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "first 20 stable entries and correct version",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cash.next-page",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "non-overlapping stable entries",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 150,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.filter",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "correct filter, total and ordered rows",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.summary",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "exact monthly and per-currency totals",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cash.detail",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "same entry and source identity",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 150,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.current-group",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "correct live group members",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 150,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.evidence",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "actual source references for matching cash row",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 150,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.locate",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3000 loaded rows across 12 months, page size 20",
+      "checks": "100 exact stable projection references",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.add",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "one actual row, exact amount and receipt",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.transfer",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "exact two ends, one atomic receipt",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.pending",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "expected original operation identity",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.maintenance-preview",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "current revision, concrete affected item",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.maintenance-plan",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "same scoped plan and revision",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.maintenance-confirm",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "one committed plan with actual ledger change",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.maintenance-resume",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "original receipt and zero re-POST",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.resume",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "original manual cash receipt after lost response, no repeated POST or new ledger row",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "cash.association-candidates",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "Scoped ledger with persisted initial state and Ktor",
+      "checks": "correct association candidates and amounts",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 500,
+      "maxRssBytes": 201326592
+    },
+    {
+      "id": "category.directory",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "1000 valid category IDs",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.create",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "node created once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.edit",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "updated node revision",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.reorder",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "updated sibling order",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.delete-impact",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "category and affected facts counted",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.delete",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "only selected category removed",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.batch-classify",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "100 selected entries assigned once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.batch-delete",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "100 selected entries deleted once",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "category.cash-delete-impact",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "1000 categories, 10000 cash rows, batch size 100",
+      "checks": "100 scoped entries and exact deletion impact",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1500,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.batches",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "original batch metadata and scope",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.prepare",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "three parsed files and 1000 source rows",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 5000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.add-file",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "new file in original batch with new revision",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.replace-file",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "selected file replaced with revision guard",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.remove-file",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "only intended file removed",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.map-accounts",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "correct account mapping and original workspace",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.create-account",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "one ledger account and scoped effect",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.extend-account",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "current revision with currency change",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.undo-account",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "one compensation with original effect preserved",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.cancel",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "original staged batch removed",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.cancel-keep-accounts",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "batch removed and opted-in account retained",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 2000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.review",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "can commit and exact 1000-row counts",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "import.rebase",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "same conclusion and strictly newer base",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.confirm",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "one atomic write-set and complete receipt",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.resume",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "original receipt, zero repeat requests",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "import.result",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "archived original result and complete items",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.items",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "correct first or following reviewed page",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.item",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "current reviewed item and source identity",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.processing",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "readable statuses and matching item IDs",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "import.result-input",
+      "job": "ordinary",
+      "mode": "warm",
+      "workload": "3 deterministic files / 1000 rows and a usable scoped account",
+      "checks": "review result captures matching references",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 250,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "cli.help",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, 3000 rows, 12 months",
+      "checks": "installed ft help contains production operation commands",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 300,
+      "maxRssBytes": 100663296,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cli.cash-list",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, 3000 rows, 12 months",
+      "checks": "20 real projection entries, expected version and source",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cli.cash-summary",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, 3000 rows, 12 months",
+      "checks": "12 accurate month totals across selected currencies",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cli.import-items",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, production re-review of 3 files / 1000 rows",
+      "checks": "actual updated review and page, expected IDs and totals",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cli.import-item",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, production re-review of 3 files / 1000 rows",
+      "checks": "actual updated review and stable source content",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "cli.import-processing",
+      "job": "ordinary",
+      "mode": "cold",
+      "workload": "new installed-ft process, production re-review of 3 files / 1000 rows",
+      "checks": "actual updated review and status details",
+      "warmups": 5,
+      "samples": 30,
+      "budgetMs": 1000,
+      "maxRssBytes": 201326592,
+      "relativeFloorMs": 100
+    },
+    {
+      "id": "large.prepare",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "19 files parsed; three PDF passwords via stdin",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 15000,
+      "maxRssBytes": 268435456
+    },
+    {
+      "id": "large.review",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "12724 posted, 1700 duplicate, 2995 accepted",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 30000,
+      "maxRssBytes": 536870912,
+      "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.confirm",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "one write-set POST and complete original receipt",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 60000,
+      "maxRssBytes": 536870912
+    },
+    {
+      "id": "large.result",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "same receipt and its exact item page",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728
+    },
+    {
+      "id": "large.cash-online",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "online same-version cached read",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
+      "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.cash-offline",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "new offline process, same version and rows",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
+      "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.cash-first",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "first authoritative snapshot in fresh local state",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
+      "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.cash-refresh",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "19 files, 12724 posted, distinct source members and mixed currencies",
+      "checks": "changed-version refreshed snapshot with new data",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 3000,
+      "maxRssBytes": 268435456,
+      "relativeFloorMs": 2000
+    },
+    {
+      "id": "large.confirm-no-wait",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "持久受理同一操作，首条提交仅一次",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 8000,
+      "maxRssBytes": 268435456,
+      "requiresAsync": true
+    },
+    {
+      "id": "large.confirmation-status",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "后台工作已进入写事务且返回原键运行状态",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 1000,
+      "maxRssBytes": 134217728,
+      "requiresAsync": true
+    },
+    {
+      "id": "large.cancel-confirmation",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "后台运行时请求取消，核实终态零入账",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 3000,
+      "maxRssBytes": 134217728,
+      "requiresAsync": true
+    },
+    {
+      "id": "large.resume",
+      "job": "maximum",
+      "mode": "cold",
+      "workload": "独立合成批次与 PostgreSQL",
+      "checks": "另起安装包进程按原键取得唯一完整收据",
+      "warmups": 0,
+      "samples": 1,
+      "budgetMs": 5000,
+      "maxRssBytes": 268435456,
+      "requiresAsync": true
+    }
+  ],
+  "entrypoints": [
+    {
+      "signature": "CashImportReviewOperations.Review.items|items(kotlin.String?;kotlin.Int;kotlin.String){}",
+      "scenarios": [
+        "import.items",
+        "cli.import-items"
+      ]
+    },
+    {
+      "signature": "CashImportReviewOperations.Review.item|item(kotlin.String){}",
+      "scenarios": [
+        "import.item",
+        "cli.import-item"
+      ]
+    },
+    {
+      "signature": "CashImportReviewOperations.Review.processing|processing(kotlin.String?;kotlin.Int){}",
+      "scenarios": [
+        "import.processing",
+        "cli.import-processing"
+      ]
+    },
+    {
+      "signature": "CashImportReviewOperations.Review.resultInput|resultInput(){}",
+      "scenarios": [
+        "import.result-input"
+      ]
+    },
+    {
+      "signature": "CashImportReviewOperations.review|review(com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlin.String;kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.business.domain.ParsedImportFile>;com.finance.tracker.business.contracts.CashImportPreviewInput;com.finance.tracker.business.domain.LocalCashImportReview?;kotlin.Function1<com.finance.tracker.business.domain.CashImportPlanningStage,kotlin.Unit>;kotlin.Function0<kotlin.Unit>){}",
+      "scenarios": [
+        "import.review"
+      ]
+    },
+    {
+      "signature": "CashLedgerCalendar.bounds|bounds(kotlin.String?;kotlin.String?;kotlin.String?){}",
+      "disposition": "spi",
+      "reason": "Host calendar and time-zone adapter used by ledger and import operations"
+    },
+    {
+      "signature": "CashLedgerCalendar.monthAt|monthAt(kotlin.time.Instant;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host calendar and time-zone adapter used by ledger and import operations"
+    },
+    {
+      "signature": "CashLedgerCalendar.offsetSeconds|offsetSeconds(kotlin.time.Instant;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host calendar and time-zone adapter used by ledger and import operations"
+    },
+    {
+      "signature": "CashLedgerCalendar.validateImportZone|validateImportZone(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host calendar and time-zone adapter used by ledger and import operations"
+    },
+    {
+      "signature": "CashLedgerOperations.currentGroup|currentGroup(kotlin.String){}",
+      "scenarios": [
+        "cash.current-group"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.evidence|evidence(kotlin.String){}",
+      "scenarios": [
+        "cash.evidence"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.page|page(com.finance.tracker.business.contracts.CashFiltersDto;com.finance.tracker.business.domain.CashLedgerDateBounds;kotlin.String?;kotlin.Int?;kotlin.Long?;kotlin.Int){}",
+      "scenarios": [
+        "cash.first-page",
+        "cash.next-page",
+        "cash.filter"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.page|page(com.finance.tracker.business.contracts.CashFiltersDto;kotlin.String?;kotlin.String?;kotlin.Int?;kotlin.Long?;kotlin.Int){}",
+      "scenarios": [
+        "cash.first-page",
+        "cash.next-page",
+        "cash.filter"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.projectionRefs|projectionRefs(kotlin.collections.List<kotlin.String>){}",
+      "scenarios": [
+        "cash.locate"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.record|record(kotlin.String;kotlin.Boolean){}",
+      "scenarios": [
+        "cash.detail"
+      ]
+    },
+    {
+      "signature": "CashLedgerOperations.summary|summary(com.finance.tracker.business.contracts.CashFiltersDto;kotlin.String?){}",
+      "scenarios": [
+        "cash.summary"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.acceptInvitation|acceptInvitation(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.invitation-accept"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.createInvitation|createInvitation(kotlin.String?;kotlin.String?;com.finance.tracker.business.contracts.Role){}",
+      "scenarios": [
+        "session.invitation-create"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.createWorkspace|createWorkspace(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-create"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.deleteWorkspace|deleteWorkspace(kotlin.String?;kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-delete",
+        "session.workspace-delete-server"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.login|login(kotlin.String;kotlin.String;kotlin.String?){}",
+      "scenarios": [
+        "session.login"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.logout|logout(kotlin.String?;kotlin.coroutines.SuspendFunction0<kotlin.Unit>){}",
+      "scenarios": [
+        "session.logout"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.members|members(kotlin.String?;kotlin.String?){}",
+      "scenarios": [
+        "session.members"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.previewInvitation|previewInvitation(kotlin.String){}",
+      "scenarios": [
+        "session.invitation-preview"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.register|register(kotlin.String;kotlin.String;kotlin.String?){}",
+      "scenarios": [
+        "session.register"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.removeMember|removeMember(kotlin.String?;kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.member-remove"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.renameWorkspace|renameWorkspace(kotlin.String?;kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-rename"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.selectWorkspace|selectWorkspace(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-switch"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.session|session(kotlin.String?){}",
+      "scenarios": [
+        "session.status"
+      ]
+    },
+    {
+      "signature": "ClientAccessOperations.setRole|setRole(kotlin.String?;kotlin.String?;kotlin.String;com.finance.tracker.business.contracts.Role){}",
+      "scenarios": [
+        "session.member-role"
+      ]
+    },
+    {
+      "signature": "ClientAccountOperations.Companion.create|create(kotlin.String;kotlin.String;kotlin.collections.List<kotlin.String>;kotlin.String){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "ClientAccountOperations.Companion.currencyRequirements|currencyRequirements(kotlin.collections.List<com.finance.tracker.business.contracts.ImportCurrencyRequirementDto>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "ClientAccountOperations.Companion.delete|delete(kotlin.String;kotlin.Long;kotlin.String;kotlin.Function1<kotlin.String,kotlin.String>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "ClientAccountOperations.Companion.update|update(kotlin.String;kotlin.Long;kotlinx.serialization.json.JsonObject;kotlin.String;kotlin.Function1<kotlin.String,kotlin.String>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "ClientAccountOperations.edit|edit(com.finance.tracker.client.ClientAccountRequest){}",
+      "scenarios": [
+        "account.edit"
+      ]
+    },
+    {
+      "signature": "ClientAccountOperations.ensureCurrencies|ensureCurrencies(com.finance.tracker.client.ClientAccountRequest){}",
+      "scenarios": [
+        "account.currencies"
+      ]
+    },
+    {
+      "signature": "ClientAccountOperations.read|read(kotlin.String){}",
+      "scenarios": [
+        "account.detail"
+      ]
+    },
+    {
+      "signature": "ClientAccountOperations.receiptByKey|receiptByKey(kotlin.String){}",
+      "scenarios": [
+        "account.receipt-key"
+      ]
+    },
+    {
+      "signature": "ClientAccountOperations.receipt|receipt(kotlin.String){}",
+      "scenarios": [
+        "account.receipt"
+      ]
+    },
+    {
+      "signature": "ClientAccountTransport.send|send(com.finance.tracker.client.ClientAccountRequest;kotlinx.serialization.DeserializationStrategy<0:0>){0§<kotlin.Any?>}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashCommandStore.checkpoint|checkpoint(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashCommandStore.commands|commands(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashCommandStore.command|command(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashCommandStore.saveCommand|saveCommand(com.finance.tracker.client.ClientStoredSession;kotlin.String;com.finance.tracker.client.ClientPendingCommand?;com.finance.tracker.client.ClientPendingCommand;com.finance.tracker.client.ClientCashImportBatch?){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportBatch.listing|listing(){}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "ClientCashImportOperations.addFiles|addFiles(kotlin.String?;kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.client.CashImportFileSource>){}",
+      "scenarios": [
+        "import.add-file"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.batches|batches(kotlin.String?){}",
+      "scenarios": [
+        "import.batches"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.cancel|cancel(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "import.cancel"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.confirm|confirm(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "import.confirm",
+        "large.confirm"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.mapAccounts|mapAccounts(kotlin.String?;kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.business.contracts.CashImportAccountInput>;kotlin.String){}",
+      "scenarios": [
+        "import.map-accounts"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.prepare|prepare(kotlin.String?;kotlin.collections.List<com.finance.tracker.client.CashImportFileSource>){}",
+      "scenarios": [
+        "import.prepare",
+        "large.prepare"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.removeFile|removeFile(kotlin.String?;kotlin.String;kotlin.Long;kotlin.String){}",
+      "scenarios": [
+        "import.remove-file"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.replaceFile|replaceFile(kotlin.String?;kotlin.String;kotlin.Long;com.finance.tracker.client.CashImportFileSource){}",
+      "scenarios": [
+        "import.replace-file"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.result|result(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "import.result",
+        "large.result"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.resume|resume(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "import.resume",
+        "import.rebase"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.review|review(kotlin.String?;kotlin.String;kotlin.String;com.finance.tracker.business.contracts.CashImportPreviewInput?){}",
+      "scenarios": [
+        "import.review",
+        "large.review"
+      ]
+    },
+    {
+      "signature": "ClientCashImportStore.batches|batches(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportStore.checkpoint|checkpoint(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportStore.compareAndDelete|compareAndDelete(com.finance.tracker.client.ClientStoredSession;kotlin.String;com.finance.tracker.client.ClientCashImportBatch){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportStore.compareAndSave|compareAndSave(com.finance.tracker.client.ClientStoredSession;kotlin.String;com.finance.tracker.client.ClientCashImportBatch?;com.finance.tracker.client.ClientCashImportBatch;com.finance.tracker.client.ClientCapturedCashImportFile?;kotlin.collections.List<kotlin.String>){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportStore.readFile|readFile(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashImportStore.read|read(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.associationTargets|associationTargets(kotlin.String?;kotlin.String;com.finance.tracker.client.CashAssociationQuery){}",
+      "scenarios": [
+        "cash.association-candidates"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.categorize|categorize(kotlin.String?;kotlin.collections.List<kotlin.String>;kotlin.Long;kotlin.String?){}",
+      "scenarios": [
+        "category.batch-classify"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.categoryDeletionImpact|categoryDeletionImpact(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "category.delete-impact"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.createCategory|createCategory(kotlin.String?;com.finance.tracker.client.EditCashCategory){}",
+      "scenarios": [
+        "category.create"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.deleteCategory|deleteCategory(kotlin.String?;kotlin.String;kotlin.Long;kotlin.Long;kotlin.Int){}",
+      "scenarios": [
+        "category.delete"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.delete|delete(kotlin.String?;kotlin.collections.List<kotlin.String>;kotlin.Long){}",
+      "scenarios": [
+        "category.batch-delete"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.deletionImpact|deletionImpact(kotlin.String?;kotlin.collections.List<kotlin.String>;kotlin.Long){}",
+      "scenarios": [
+        "category.cash-delete-impact"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.plan|plan(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "cash.maintenance-plan"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.preview|preview(kotlin.String?;com.finance.tracker.business.contracts.CashMaintenanceInput){}",
+      "scenarios": [
+        "cash.maintenance-preview"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.reorderCategory|reorderCategory(kotlin.String?;kotlin.String;kotlin.String;kotlin.Long;kotlin.String?){}",
+      "scenarios": [
+        "category.reorder"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.resolve|resolve(kotlin.String?;kotlin.String;kotlin.String){}",
+      "scenarios": [
+        "cash.maintenance-resume"
+      ]
+    },
+    {
+      "signature": "ClientCashMaintenanceOperations.updateCategory|updateCategory(kotlin.String?;kotlin.String;com.finance.tracker.client.CashCategoryPatch){}",
+      "scenarios": [
+        "category.edit"
+      ]
+    },
+    {
+      "signature": "ClientCashWorkspaceTransport.request|request(kotlin.String?;kotlin.String;kotlin.String;kotlinx.serialization.json.JsonObject?;kotlin.Boolean;kotlin.Boolean;kotlinx.serialization.DeserializationStrategy<0:0>){0§<kotlin.Any?>}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientCashWriteOperations.add|add(kotlin.String?;com.finance.tracker.client.NewCashRecord){}",
+      "scenarios": [
+        "cash.add"
+      ]
+    },
+    {
+      "signature": "ClientCashWriteOperations.commitMaintenance|commitMaintenance(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "cash.maintenance-confirm"
+      ]
+    },
+    {
+      "signature": "ClientCashWriteOperations.createAccount|createAccount(kotlin.String?;kotlin.String;com.finance.tracker.client.CashAccountType;kotlin.collections.List<kotlin.String>){}",
+      "scenarios": [
+        "account.create"
+      ]
+    },
+    {
+      "signature": "ClientCashWriteOperations.pending|pending(kotlin.String?){}",
+      "scenarios": [
+        "cash.pending"
+      ]
+    },
+    {
+      "signature": "ClientCashWriteOperations.resume|resume(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "cash.maintenance-resume",
+        "cash.resume"
+      ]
+    },
+    {
+      "signature": "ClientCashWriteOperations.transfer|transfer(kotlin.String?;com.finance.tracker.client.NewCashTransfer){}",
+      "scenarios": [
+        "cash.transfer"
+      ]
+    },
+    {
+      "signature": "ClientHttp.request|request(com.finance.tracker.client.ClientHttpRequest){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientHttp|null",
+      "disposition": "compiler",
+      "reason": "Kotlin functional interface constructor"
+    },
+    {
+      "signature": "ClientImportAccountOperations.cancel|cancel(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "import.cancel-keep-accounts"
+      ]
+    },
+    {
+      "signature": "ClientImportAccountOperations.create|create(kotlin.String?;kotlin.String;kotlin.Long;kotlin.String;com.finance.tracker.client.CashAccountType;kotlin.collections.List<kotlin.String>){}",
+      "scenarios": [
+        "import.create-account"
+      ]
+    },
+    {
+      "signature": "ClientImportAccountOperations.ensureCurrencies|ensureCurrencies(kotlin.String?;kotlin.String;kotlin.Long;kotlin.String;kotlin.Long;kotlin.collections.List<kotlin.String>){}",
+      "scenarios": [
+        "import.extend-account",
+        "account.currencies-noop"
+      ]
+    },
+    {
+      "signature": "ClientImportAccountOperations.undo|undo(kotlin.String?;kotlin.String;kotlin.Long){}",
+      "scenarios": [
+        "import.undo-account"
+      ]
+    },
+    {
+      "signature": "ClientImportSubmissionHost.awaitNextAttempt|awaitNextAttempt(kotlin.Int){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.complete|complete(com.finance.tracker.business.contracts.StoredCashImportSubmission;com.finance.tracker.business.contracts.CashMutationReceiptDto){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.current|current(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.discardRejectedAttempt|discardRejectedAttempt(com.finance.tracker.business.contracts.StoredCashImportSubmission;com.finance.tracker.client.ClientOperationFailure){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.rebase|rebase(com.finance.tracker.business.contracts.StoredCashImportSubmission;com.finance.tracker.client.ClientOperationFailure){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.receipt|receipt(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.recordBaseRejection|recordBaseRejection(com.finance.tracker.business.contracts.StoredCashImportSubmission;com.finance.tracker.client.ClientOperationFailure){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.retriesExhausted|retriesExhausted(com.finance.tracker.client.ClientOperationFailure){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientImportSubmissionHost.submit|submit(com.finance.tracker.business.contracts.StoredCashImportSubmission){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionOperations.acceptInvitation|acceptInvitation(kotlin.String){}",
+      "scenarios": [
+        "session.invitation-accept"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.accountDetails|accountDetails(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "account.detail",
+        "account.balances"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.accounts|accounts(kotlin.String?){}",
+      "scenarios": [
+        "account.directory"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.account|account(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "account.detail"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.createInvitation|createInvitation(kotlin.String?;com.finance.tracker.business.contracts.Role){}",
+      "scenarios": [
+        "session.invitation-create"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.createWorkspace|createWorkspace(kotlin.String){}",
+      "scenarios": [
+        "session.workspace-create"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.currentWorkspace|currentWorkspace(){}",
+      "scenarios": [
+        "session.current"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.deleteWorkspace|deleteWorkspace(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-delete"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.ledger|ledger(kotlin.String?){}",
+      "scenarios": [
+        "cash.first-page",
+        "large.cash-first",
+        "large.cash-online",
+        "large.cash-offline",
+        "large.cash-refresh"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.login|login(kotlin.String;kotlin.String){}",
+      "scenarios": [
+        "session.login"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.logout|logout(){}",
+      "scenarios": [
+        "session.logout"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.members|members(kotlin.String?){}",
+      "scenarios": [
+        "session.members"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.register|register(kotlin.String;kotlin.String){}",
+      "scenarios": [
+        "session.register"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.removeMember|removeMember(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.member-remove"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.renameWorkspace|renameWorkspace(kotlin.String?;kotlin.String){}",
+      "scenarios": [
+        "session.workspace-rename"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.request|request(kotlin.String?;kotlin.String;kotlin.String;kotlinx.serialization.json.JsonObject?;kotlin.Boolean;kotlin.Boolean;kotlinx.serialization.DeserializationStrategy<0:0>){0§<kotlin.Any?>}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionOperations.selectWorkspace|selectWorkspace(kotlin.String){}",
+      "scenarios": [
+        "session.workspace-switch"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.setRole|setRole(kotlin.String?;kotlin.String;com.finance.tracker.business.contracts.Role){}",
+      "scenarios": [
+        "session.member-role"
+      ]
+    },
+    {
+      "signature": "ClientSessionOperations.status|status(){}",
+      "scenarios": [
+        "session.status"
+      ]
+    },
+    {
+      "signature": "ClientSessionStore.authenticate|authenticate(com.finance.tracker.client.ClientStoredSession?;com.finance.tracker.client.ClientStoredSession){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.clear|clear(com.finance.tracker.client.ClientStoredSession){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.forgetWorkspace|forgetWorkspace(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.ledgerState|ledgerState(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.saveLedger|saveLedger(com.finance.tracker.client.ClientStoredSession;kotlin.String?;com.finance.tracker.client.ClientStoredLedger){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.session|session(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientSessionStore.verify|verify(com.finance.tracker.client.ClientStoredSession;com.finance.tracker.client.ClientStoredSession){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientStatementParser.parse|parse(com.finance.tracker.client.ClientLedgerRead;com.finance.tracker.business.domain.CashStatementFormat;com.finance.tracker.client.CashImportFileInput){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ClientStatementParser|null",
+      "disposition": "compiler",
+      "reason": "Kotlin functional interface constructor"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.apply|apply(com.finance.tracker.client.ImportAccountEffect;com.finance.tracker.client.AccountCompensationAction){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.canSubmit|canSubmit(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.chains|chains(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.fail|fail(com.finance.tracker.client.ImportAccountEffect;kotlin.String;kotlin.Boolean){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.hasUnresolvedWrite|hasUnresolvedWrite(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.read|read(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.requireActive|requireActive(){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "ImportAccountCompensationHost.succeeded|succeeded(com.finance.tracker.client.ImportAccountEffect;kotlin.Boolean){}",
+      "disposition": "spi",
+      "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
+    },
+    {
+      "signature": "accountReceiptEvidence|accountReceiptEvidence(com.finance.tracker.business.contracts.CashMutationReceiptDto;0:0){0§<kotlin.Any?>}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "accountResponseEvidence|accountResponseEvidence(com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.String;0:0){0§<kotlin.Any?>}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "calculateCashImportReview|calculateCashImportReview(kotlin.collections.List<com.finance.tracker.business.domain.ParsedImportFile>;com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlinx.serialization.json.JsonObject;com.finance.tracker.business.domain.LocalCashImportReview?;kotlin.Boolean;kotlin.Function1<com.finance.tracker.business.domain.CashImportPlanningStage,kotlin.Unit>;kotlin.Function0<kotlin.Unit>){}",
+      "scenarios": [
+        "import.review",
+        "large.review"
+      ]
+    },
+    {
+      "signature": "cancelPreparedCashImport|cancelPreparedCashImport(kotlin.Boolean;kotlin.Boolean;kotlin.coroutines.SuspendFunction0<kotlin.Unit>){}",
+      "scenarios": [
+        "import.cancel"
+      ]
+    },
+    {
+      "signature": "captureCashImportFile|captureCashImportFile(com.finance.tracker.client.CashImportFileInput;kotlin.Boolean){}",
+      "scenarios": [
+        "import.prepare"
+      ]
+    },
+    {
+      "signature": "cashAccountDirectory|cashAccountDirectory(kotlin.collections.List<com.finance.tracker.business.contracts.LedgerAccountFactDto>){}",
+      "scenarios": [
+        "account.directory"
+      ]
+    },
+    {
+      "signature": "cashAccountFact|cashAccountFact(kotlin.collections.List<com.finance.tracker.business.contracts.LedgerAccountFactDto>;kotlin.String){}",
+      "scenarios": [
+        "account.detail"
+      ]
+    },
+    {
+      "signature": "cashAccountSelection|cashAccountSelection(com.finance.tracker.business.contracts.LedgerAccountFactDto;kotlin.Boolean){}",
+      "scenarios": [
+        "account.selection"
+      ]
+    },
+    {
+      "signature": "cashCategoryDirectory|cashCategoryDirectory(com.finance.tracker.business.contracts.LedgerSnapshotDto){}",
+      "scenarios": [
+        "category.directory"
+      ]
+    },
+    {
+      "signature": "cashImportPlanReader|cashImportPlanReader(kotlinx.serialization.json.JsonObject;com.finance.tracker.client.CashLedgerCalendar){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "cashMaintenanceRecovery|cashMaintenanceRecovery(kotlin.String;0:0?){0§<kotlin.Any?>}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "cashWriteWasRejected|cashWriteWasRejected(kotlin.String;kotlin.Int?;kotlin.String;kotlin.String?){}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "changeCashImportFiles|changeCashImportFiles(kotlin.collections.List<0:0>;kotlin.String;com.finance.tracker.client.CashImportFileEdit;0:0?;kotlin.Function1<0:0,kotlin.String>;kotlin.Function2<0:0,0:0,kotlin.Boolean>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "import.replace-file",
+        "import.remove-file"
+      ]
+    },
+    {
+      "signature": "compensateImportAccounts|compensateImportAccounts(com.finance.tracker.client.ImportAccountCompensationHost){}",
+      "scenarios": [
+        "import.undo-account"
+      ]
+    },
+    {
+      "signature": "completeCashImportFile|completeCashImportFile(com.finance.tracker.client.CashImportFileInput;com.finance.tracker.business.domain.ParsedCashDocument){}",
+      "scenarios": [
+        "large.prepare"
+      ]
+    },
+    {
+      "signature": "encodeCashImportRequest|encodeCashImportRequest(com.finance.tracker.business.contracts.CashWriteSetRequestDto){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "executeAccountWrite|executeAccountWrite(com.finance.tracker.client.AccountWriteExpectation;com.finance.tracker.client.AccountWriteAction;kotlin.coroutines.SuspendFunction0<com.finance.tracker.client.AccountWriteEvidence<0:0>?>;kotlin.coroutines.SuspendFunction0<com.finance.tracker.client.AccountWriteEvidence<0:0>>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "account.create"
+      ]
+    },
+    {
+      "signature": "executeCashCommand|executeCashCommand(com.finance.tracker.client.ClientPendingCommand;kotlin.Boolean;kotlin.coroutines.SuspendFunction1<kotlin.String,com.finance.tracker.business.contracts.CashMutationReceiptDto?>;kotlin.coroutines.SuspendFunction1<com.finance.tracker.client.ClientPendingCommand,com.finance.tracker.business.contracts.CashMutationReceiptDto>){}",
+      "scenarios": [
+        "cash.add"
+      ]
+    },
+    {
+      "signature": "freezeCashImportChoices|freezeCashImportChoices(kotlinx.serialization.json.JsonObject){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "freezeCashImportConfirmation|freezeCashImportConfirmation(kotlin.String;kotlin.Boolean;com.finance.tracker.business.contracts.CashWriteSetRequestDto;kotlinx.serialization.json.JsonObject){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "freezeCashRecord|freezeCashRecord(com.finance.tracker.client.NewCashRecord;kotlin.String;kotlin.String){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "freezeCashTransfer|freezeCashTransfer(com.finance.tracker.client.NewCashTransfer;kotlin.String;kotlin.String;kotlin.String){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "freezeMaintenanceCommand|freezeMaintenanceCommand(kotlin.String;kotlin.Long;kotlin.String;kotlin.Function1<kotlin.String,kotlin.String>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "isAccountWriteRefusal|isAccountWriteRefusal(com.finance.tracker.client.ClientOperationFailure;kotlin.Boolean){}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "isSelectableCashAccount|isSelectableCashAccount(com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "lookupImportReceipt|lookupImportReceipt(kotlin.coroutines.SuspendFunction0<com.finance.tracker.business.contracts.CashMutationReceiptDto?>){}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "missingCashAccountCurrencies|missingCashAccountCurrencies(com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.collections.List<kotlin.String>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "rebaseCashImportReview|rebaseCashImportReview(kotlin.collections.List<com.finance.tracker.business.domain.ParsedImportFile>;com.finance.tracker.business.contracts.LedgerSnapshotDto;com.finance.tracker.business.domain.LocalCashImportReview;kotlin.Function0<kotlin.Unit>){}",
+      "scenarios": [
+        "import.rebase"
+      ]
+    },
+    {
+      "signature": "rebaseRejectedCashImport|rebaseRejectedCashImport(kotlin.String;kotlin.String;com.finance.tracker.client.ClientOperationFailure;kotlin.coroutines.SuspendFunction0<com.finance.tracker.business.contracts.CashMutationReceiptDto?>;kotlin.coroutines.SuspendFunction0<0:0>;kotlin.coroutines.SuspendFunction1<0:0?,kotlin.Unit>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "import.rebase"
+      ]
+    },
+    {
+      "signature": "resumeCashImportSubmission|resumeCashImportSubmission(com.finance.tracker.client.ClientImportSubmissionHost<0:0>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "import.resume"
+      ]
+    },
+    {
+      "signature": "resumeCashMaintenance|resumeCashMaintenance(kotlin.Boolean;kotlin.Function0<kotlin.Boolean>;kotlin.coroutines.SuspendFunction0<com.finance.tracker.client.CashMaintenanceRecovery<0:0>>;kotlin.coroutines.SuspendFunction0<0:0>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "cash.maintenance-resume"
+      ]
+    },
+    {
+      "signature": "retainCashImportFileFailure|retainCashImportFileFailure(com.finance.tracker.client.CashImportFileInput;kotlin.Boolean;kotlin.String;kotlin.Int?){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "validCashImportFileRef|validCashImportFileRef(kotlin.String){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "validCashImportFileSelection|validCashImportFileSelection(kotlin.collections.List<kotlin.String>){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    },
+    {
+      "signature": "validateAccountWrite|validateAccountWrite(com.finance.tracker.client.AccountWriteExpectation;com.finance.tracker.client.AccountWriteEvidence<0:0>){0§<kotlin.Any?>}",
+      "disposition": "implementation",
+      "reason": "Evidence or result construction, verified by the owning operation"
+    },
+    {
+      "signature": "validateCashAccountCurrencyChange|validateCashAccountCurrencyChange(com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+      "disposition": "implementation",
+      "reason": "Validation or request construction within the measured operation"
+    }
+  ],
+  "nonOperations": [
+    {
+      "disposition": "binding",
+      "reason": "Constructors bind data or host dependencies before calling an operation.",
+      "signatures": [
+        "AccountCompensationAction.<init>|<init>(com.finance.tracker.client.AccountCompensationKind;com.finance.tracker.business.contracts.AccountCommandViewDto;kotlinx.serialization.json.JsonObject?){}",
+        "AccountWriteEvidence.<init>|<init>(1:0;com.finance.tracker.business.contracts.AccountCommandViewDto?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.Long?;kotlin.Boolean){}",
+        "AccountWriteExpectation.<init>|<init>(kotlin.String?;kotlin.String?;kotlin.Long?){}",
+        "CashAccountBalance.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.Boolean;kotlin.String){}",
+        "CashAccountCurrenciesResult.Unchanged.<init>|<init>(com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+        "CashAccountCurrenciesResult.Updated.<init>|<init>(com.finance.tracker.client.ClientCashWriteResult){}",
+        "CashAccountDetails.<init>|<init>(com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.collections.List<com.finance.tracker.client.CashAccountBalance>){}",
+        "CashAssociationQuery.<init>|<init>(kotlin.String;kotlin.String;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?){}",
+        "CashCategoryParentChange.<init>|<init>(kotlin.String?){}",
+        "CashCategoryPatch.<init>|<init>(kotlin.Long;kotlin.String?;com.finance.tracker.client.CashCategoryParentChange?;kotlin.String?){}",
+        "CashImportCalculation.<init>|<init>(kotlinx.serialization.json.JsonObject;com.finance.tracker.business.domain.LocalCashImportReview;com.finance.tracker.business.contracts.CashWriteSetRequestDto;kotlin.Function1<kotlinx.serialization.json.JsonObject,com.finance.tracker.business.domain.LocalCashImportReview>;kotlinx.serialization.json.JsonElement?;kotlin.String?){}",
+        "CashImportFileCapture.Prepared.<init>|<init>(com.finance.tracker.business.contracts.StoredCashImportFile){}",
+        "CashImportFileCapture.RequiresRemoteParser.<init>|<init>(com.finance.tracker.business.domain.CashStatementFormat){}",
+        "CashImportFileChange.<init>|<init>(1:0?;kotlin.collections.List<1:0>;kotlin.Boolean){}",
+        "CashImportFileInput.<init>|<init>(kotlin.String;kotlin.String;kotlin.Long?;kotlin.ByteArray;kotlin.String?;kotlin.String?;kotlin.String?){}",
+        "CashImportFileSource.<init>|<init>(kotlin.String;kotlin.String;kotlin.coroutines.SuspendFunction0<com.finance.tracker.client.CashImportFileInput>){}",
+        "CashImportPreparedFile.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String?){}",
+        "CashImportReviewOperations.<init>|<init>(kotlin.String;com.finance.tracker.client.CashLedgerCalendar){}",
+        "CashLedgerCalendar.<init>|<init>(kotlin.Function1<kotlin.String,kotlin.Boolean>;kotlin.Function2<kotlin.String,kotlin.String,kotlin.Int>;kotlin.Function2<kotlin.String,kotlin.String,kotlin.time.Instant>){}",
+        "CashLedgerOperations.<init>|<init>(com.finance.tracker.business.contracts.LedgerSnapshotDto;com.finance.tracker.client.CashLedgerCalendar){}",
+        "CashLedgerOperations.<init>|<init>(com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlin.Function2<kotlin.time.Instant,kotlin.String,kotlin.String>;kotlin.Function3<kotlin.String?,kotlin.String?,kotlin.String?,com.finance.tracker.business.domain.CashLedgerDateBounds>?){}",
+        "CashLedgerSummary.<init>|<init>(kotlin.String;kotlin.String;kotlin.collections.Map<kotlin.String,kotlin.String?>;kotlin.collections.List<com.finance.tracker.business.contracts.CashMonthlySummaryDto>;kotlin.Long){}",
+        "CashMaintenanceRecovery.<init>|<init>(com.finance.tracker.client.CashMaintenanceRecoveryStatus;1:0?){}",
+        "ClientAccessOperations.<init>|<init>(com.finance.tracker.client.ClientHttp;kotlin.Function1<kotlin.String,kotlin.String>){}",
+        "ClientAccountOperations.<init>|<init>(com.finance.tracker.client.ClientAccountTransport;kotlin.Function1<kotlin.String,kotlin.String>){}",
+        "ClientAccountRequest.<init>|<init>(kotlin.String;kotlin.String;kotlin.String?;kotlin.String?){}",
+        "ClientCapturedCashImportFile.<init>|<init>(kotlin.String;kotlin.String){}",
+        "ClientCashImportBatch.<init>|<init>(kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.client.ClientCashImportFileRef>;kotlin.String?;kotlin.String?;kotlin.String?;com.finance.tracker.business.contracts.StoredCashImportSubmission?;kotlin.String?;kotlin.Int;com.finance.tracker.client.ClientCashImportReviewedCommand?){}",
+        "ClientCashImportFileRef.<init>|<init>(kotlin.String;kotlin.String){}",
+        "ClientCashImportListing.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.Int){}",
+        "ClientCashImportOperations.<init>|<init>(com.finance.tracker.client.ClientSessionOperations;com.finance.tracker.client.ClientCashImportStore;com.finance.tracker.client.CashLedgerCalendar;kotlin.Function0<kotlin.String>;com.finance.tracker.client.ClientStatementParser;kotlin.Function1<kotlin.String,kotlin.Unit>){}",
+        "ClientCashImportResume.Committed.<init>|<init>(com.finance.tracker.business.domain.CashImportResultContent){}",
+        "ClientCashImportResume.Editable.<init>|<init>(com.finance.tracker.client.PreparedCashImport){}",
+        "ClientCashImportReviewedCommand.<init>|<init>(kotlin.String;kotlin.String;kotlin.String){}",
+        "ClientCashMaintenanceOperations.<init>|<init>(com.finance.tracker.client.ClientCashWorkspaceTransport;kotlin.Function1<kotlin.String,kotlin.String>){}",
+        "ClientCashMaintenanceOperations.<init>|<init>(com.finance.tracker.client.ClientSessionOperations){}",
+        "ClientCashWriteOperations.<init>|<init>(com.finance.tracker.client.ClientSessionOperations;com.finance.tracker.client.ClientCashCommandStore;kotlin.Function0<kotlin.String>){}",
+        "ClientCashWriteResult.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.CashMutationReceiptDto){}",
+        "ClientHttpBody.Json.<init>|<init>(kotlin.String){}",
+        "ClientHttpBody.Statement.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.ByteArray){}",
+        "ClientHttpRequest.<init>|<init>(kotlin.String;kotlin.String;kotlin.String?;com.finance.tracker.client.ClientHttpBody?;kotlin.collections.Map<kotlin.String,kotlin.String>){}",
+        "ClientHttpResponse.<init>|<init>(kotlin.Int;kotlin.String){}",
+        "ClientImportAccountOperations.<init>|<init>(com.finance.tracker.client.ClientCashImportOperations;com.finance.tracker.client.ClientCashWriteOperations;com.finance.tracker.client.ClientSessionOperations){}",
+        "ClientImportSubmissionState.Complete.<init>|<init>(1:0){}",
+        "ClientImportSubmissionState.Pending.<init>|<init>(com.finance.tracker.business.contracts.StoredCashImportSubmission){}",
+        "ClientInvitation.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.Role;kotlin.Int){}",
+        "ClientLedgerState.<init>|<init>(kotlin.String?;com.finance.tracker.client.ClientStoredLedger?){}",
+        "ClientNetworkUnavailable.<init>|<init>(kotlin.Throwable?){}",
+        "ClientOperationFailure.<init>|<init>(kotlin.String;kotlin.Int?;kotlin.Throwable?;kotlin.String?;kotlin.String?){}",
+        "ClientPendingCommand.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.collections.List<kotlin.String>;com.finance.tracker.business.contracts.CashMutationReceiptDto?;kotlin.String;kotlin.String?;com.finance.tracker.business.contracts.AccountCommandViewDto?;kotlin.String?;kotlin.Boolean;kotlin.String?;kotlin.String?){}",
+        "ClientPendingWrite.<init>|<init>(kotlin.String;kotlin.String){}",
+        "ClientSessionOperations.<init>|<init>(com.finance.tracker.client.ClientHttp;com.finance.tracker.client.ClientSessionStore;kotlin.Function1<kotlin.String,kotlin.String>;kotlin.Function0<kotlin.String>){}",
+        "ClientStoredLedger.<init>|<init>(com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlin.String){}",
+        "ClientStoredSession.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.SessionDto){}",
+        "ConfirmedAccountWrite.<init>|<init>(1:0;com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.String){}",
+        "EditCashCategory.<init>|<init>(kotlin.String;kotlin.String?;kotlin.String;kotlin.Long){}",
+        "ImportAccountChangeResult.<init>|<init>(kotlin.String;kotlin.String?;kotlin.String;kotlin.String?){}",
+        "ImportAccountEffect.<init>|<init>(kotlin.String;kotlin.Long;com.finance.tracker.business.contracts.AccountCommandViewDto?;com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+        "ImportAccountEffectChain.<init>|<init>(kotlin.collections.List<com.finance.tracker.client.ImportAccountEffect>;kotlin.Long;kotlin.Boolean){}",
+        "NewCashRecord.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.Boolean;kotlin.String?;kotlin.collections.List<kotlin.String>?){}",
+        "NewCashTransfer.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String?;kotlin.String?){}",
+        "PreparedCashImport.<init>|<init>(kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.client.CashImportPreparedFile>;com.finance.tracker.business.contracts.CashImportSessionDto;kotlin.String?;kotlin.collections.List<kotlin.String>){}"
+      ]
+    },
+    {
+      "disposition": "data-model",
+      "reason": "Data access, structural copies, components and value semantics.",
+      "signatures": [
+        "AccountCompensationAction.component1|component1(){}",
+        "AccountCompensationAction.component2|component2(){}",
+        "AccountCompensationAction.component3|component3(){}",
+        "AccountCompensationAction.copy|copy(com.finance.tracker.client.AccountCompensationKind;com.finance.tracker.business.contracts.AccountCommandViewDto;kotlinx.serialization.json.JsonObject?){}",
+        "AccountCompensationAction.current.<get-current>|<get-current>(){}",
+        "AccountCompensationAction.equals|equals(kotlin.Any?){}",
+        "AccountCompensationAction.hashCode|hashCode(){}",
+        "AccountCompensationAction.kind.<get-kind>|<get-kind>(){}",
+        "AccountCompensationAction.patch.<get-patch>|<get-patch>(){}",
+        "AccountCompensationAction.toString|toString(){}",
+        "AccountCompensationKind.entries.<get-entries>|<get-entries>#static(){}",
+        "AccountWriteAction.entries.<get-entries>|<get-entries>#static(){}",
+        "AccountWriteEvidence.account.<get-account>|<get-account>(){}",
+        "AccountWriteEvidence.accountId.<get-accountId>|<get-accountId>(){}",
+        "AccountWriteEvidence.accountRevision.<get-accountRevision>|<get-accountRevision>(){}",
+        "AccountWriteEvidence.committed.<get-committed>|<get-committed>(){}",
+        "AccountWriteEvidence.component1|component1(){}",
+        "AccountWriteEvidence.component2|component2(){}",
+        "AccountWriteEvidence.component3|component3(){}",
+        "AccountWriteEvidence.component4|component4(){}",
+        "AccountWriteEvidence.component5|component5(){}",
+        "AccountWriteEvidence.component6|component6(){}",
+        "AccountWriteEvidence.component7|component7(){}",
+        "AccountWriteEvidence.copy|copy(1:0;com.finance.tracker.business.contracts.AccountCommandViewDto?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.Long?;kotlin.Boolean){}",
+        "AccountWriteEvidence.equals|equals(kotlin.Any?){}",
+        "AccountWriteEvidence.hashCode|hashCode(){}",
+        "AccountWriteEvidence.kind.<get-kind>|<get-kind>(){}",
+        "AccountWriteEvidence.receiptId.<get-receiptId>|<get-receiptId>(){}",
+        "AccountWriteEvidence.result.<get-result>|<get-result>(){}",
+        "AccountWriteEvidence.toString|toString(){}",
+        "AccountWriteExpectation.accountId.<get-accountId>|<get-accountId>(){}",
+        "AccountWriteExpectation.component1|component1(){}",
+        "AccountWriteExpectation.component2|component2(){}",
+        "AccountWriteExpectation.component3|component3(){}",
+        "AccountWriteExpectation.copy|copy(kotlin.String?;kotlin.String?;kotlin.Long?){}",
+        "AccountWriteExpectation.equals|equals(kotlin.Any?){}",
+        "AccountWriteExpectation.hashCode|hashCode(){}",
+        "AccountWriteExpectation.kind.<get-kind>|<get-kind>(){}",
+        "AccountWriteExpectation.previousRevision.<get-previousRevision>|<get-previousRevision>(){}",
+        "AccountWriteExpectation.toString|toString(){}",
+        "CashAccountBalance.active.<get-active>|<get-active>(){}",
+        "CashAccountBalance.balance.<get-balance>|<get-balance>(){}",
+        "CashAccountBalance.component1|component1(){}",
+        "CashAccountBalance.component2|component2(){}",
+        "CashAccountBalance.component3|component3(){}",
+        "CashAccountBalance.component4|component4(){}",
+        "CashAccountBalance.component5|component5(){}",
+        "CashAccountBalance.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.Boolean;kotlin.String){}",
+        "CashAccountBalance.currency.<get-currency>|<get-currency>(){}",
+        "CashAccountBalance.equals|equals(kotlin.Any?){}",
+        "CashAccountBalance.hashCode|hashCode(){}",
+        "CashAccountBalance.name.<get-name>|<get-name>(){}",
+        "CashAccountBalance.toString|toString(){}",
+        "CashAccountBalance.type.<get-type>|<get-type>(){}",
+        "CashAccountCurrenciesResult.Unchanged.account.<get-account>|<get-account>(){}",
+        "CashAccountCurrenciesResult.Unchanged.component1|component1(){}",
+        "CashAccountCurrenciesResult.Unchanged.copy|copy(com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+        "CashAccountCurrenciesResult.Unchanged.equals|equals(kotlin.Any?){}",
+        "CashAccountCurrenciesResult.Unchanged.hashCode|hashCode(){}",
+        "CashAccountCurrenciesResult.Unchanged.toString|toString(){}",
+        "CashAccountCurrenciesResult.Updated.component1|component1(){}",
+        "CashAccountCurrenciesResult.Updated.copy|copy(com.finance.tracker.client.ClientCashWriteResult){}",
+        "CashAccountCurrenciesResult.Updated.equals|equals(kotlin.Any?){}",
+        "CashAccountCurrenciesResult.Updated.hashCode|hashCode(){}",
+        "CashAccountCurrenciesResult.Updated.toString|toString(){}",
+        "CashAccountCurrenciesResult.Updated.write.<get-write>|<get-write>(){}",
+        "CashAccountDetails.account.<get-account>|<get-account>(){}",
+        "CashAccountDetails.balances.<get-balances>|<get-balances>(){}",
+        "CashAccountDetails.component1|component1(){}",
+        "CashAccountDetails.component2|component2(){}",
+        "CashAccountDetails.copy|copy(com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.collections.List<com.finance.tracker.client.CashAccountBalance>){}",
+        "CashAccountDetails.equals|equals(kotlin.Any?){}",
+        "CashAccountDetails.hashCode|hashCode(){}",
+        "CashAccountDetails.toString|toString(){}",
+        "CashAccountType.entries.<get-entries>|<get-entries>#static(){}",
+        "CashAssociationQuery.accountId.<get-accountId>|<get-accountId>(){}",
+        "CashAssociationQuery.amount.<get-amount>|<get-amount>(){}",
+        "CashAssociationQuery.component1|component1(){}",
+        "CashAssociationQuery.component2|component2(){}",
+        "CashAssociationQuery.component3|component3(){}",
+        "CashAssociationQuery.component4|component4(){}",
+        "CashAssociationQuery.component5|component5(){}",
+        "CashAssociationQuery.component6|component6(){}",
+        "CashAssociationQuery.component7|component7(){}",
+        "CashAssociationQuery.component8|component8(){}",
+        "CashAssociationQuery.copy|copy(kotlin.String;kotlin.String;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?){}",
+        "CashAssociationQuery.cursor.<get-cursor>|<get-cursor>(){}",
+        "CashAssociationQuery.dateFrom.<get-dateFrom>|<get-dateFrom>(){}",
+        "CashAssociationQuery.dateTo.<get-dateTo>|<get-dateTo>(){}",
+        "CashAssociationQuery.equals|equals(kotlin.Any?){}",
+        "CashAssociationQuery.hashCode|hashCode(){}",
+        "CashAssociationQuery.kind.<get-kind>|<get-kind>(){}",
+        "CashAssociationQuery.query.<get-query>|<get-query>(){}",
+        "CashAssociationQuery.timezone.<get-timezone>|<get-timezone>(){}",
+        "CashAssociationQuery.toString|toString(){}",
+        "CashCategoryParentChange.component1|component1(){}",
+        "CashCategoryParentChange.copy|copy(kotlin.String?){}",
+        "CashCategoryParentChange.equals|equals(kotlin.Any?){}",
+        "CashCategoryParentChange.hashCode|hashCode(){}",
+        "CashCategoryParentChange.parentId.<get-parentId>|<get-parentId>(){}",
+        "CashCategoryParentChange.toString|toString(){}",
+        "CashCategoryPatch.component1|component1(){}",
+        "CashCategoryPatch.component2|component2(){}",
+        "CashCategoryPatch.component3|component3(){}",
+        "CashCategoryPatch.component4|component4(){}",
+        "CashCategoryPatch.copy|copy(kotlin.Long;kotlin.String?;com.finance.tracker.client.CashCategoryParentChange?;kotlin.String?){}",
+        "CashCategoryPatch.description.<get-description>|<get-description>(){}",
+        "CashCategoryPatch.equals|equals(kotlin.Any?){}",
+        "CashCategoryPatch.hashCode|hashCode(){}",
+        "CashCategoryPatch.name.<get-name>|<get-name>(){}",
+        "CashCategoryPatch.parent.<get-parent>|<get-parent>(){}",
+        "CashCategoryPatch.revision.<get-revision>|<get-revision>(){}",
+        "CashCategoryPatch.toString|toString(){}",
+        "CashImportCalculation.plan.<get-plan>|<get-plan>(){}",
+        "CashImportCalculation.previewContext.<get-previewContext>|<get-previewContext>(){}",
+        "CashImportCalculation.previousReviewFor.<get-previousReviewFor>|<get-previousReviewFor>(){}",
+        "CashImportCalculation.request.<get-request>|<get-request>(){}",
+        "CashImportCalculation.requestBody.<get-requestBody>|<get-requestBody>(){}",
+        "CashImportCalculation.review.<get-review>|<get-review>(){}",
+        "CashImportFileCapture.Prepared.component1|component1(){}",
+        "CashImportFileCapture.Prepared.copy|copy(com.finance.tracker.business.contracts.StoredCashImportFile){}",
+        "CashImportFileCapture.Prepared.equals|equals(kotlin.Any?){}",
+        "CashImportFileCapture.Prepared.file.<get-file>|<get-file>(){}",
+        "CashImportFileCapture.Prepared.hashCode|hashCode(){}",
+        "CashImportFileCapture.Prepared.toString|toString(){}",
+        "CashImportFileCapture.RequiresRemoteParser.component1|component1(){}",
+        "CashImportFileCapture.RequiresRemoteParser.copy|copy(com.finance.tracker.business.domain.CashStatementFormat){}",
+        "CashImportFileCapture.RequiresRemoteParser.equals|equals(kotlin.Any?){}",
+        "CashImportFileCapture.RequiresRemoteParser.format.<get-format>|<get-format>(){}",
+        "CashImportFileCapture.RequiresRemoteParser.hashCode|hashCode(){}",
+        "CashImportFileCapture.RequiresRemoteParser.toString|toString(){}",
+        "CashImportFileChange.changed.<get-changed>|<get-changed>(){}",
+        "CashImportFileChange.component1|component1(){}",
+        "CashImportFileChange.component2|component2(){}",
+        "CashImportFileChange.component3|component3(){}",
+        "CashImportFileChange.copy|copy(1:0?;kotlin.collections.List<1:0>;kotlin.Boolean){}",
+        "CashImportFileChange.equals|equals(kotlin.Any?){}",
+        "CashImportFileChange.hashCode|hashCode(){}",
+        "CashImportFileChange.previous.<get-previous>|<get-previous>(){}",
+        "CashImportFileChange.selected.<get-selected>|<get-selected>(){}",
+        "CashImportFileChange.toString|toString(){}",
+        "CashImportFileEdit.entries.<get-entries>|<get-entries>#static(){}",
+        "CashImportFileInput.bytes.<get-bytes>|<get-bytes>(){}",
+        "CashImportFileInput.mediaType.<get-mediaType>|<get-mediaType>(){}",
+        "CashImportFileInput.modifiedAtMillis.<get-modifiedAtMillis>|<get-modifiedAtMillis>(){}",
+        "CashImportFileInput.name.<get-name>|<get-name>(){}",
+        "CashImportFileInput.password.<get-password>|<get-password>(){}",
+        "CashImportFileInput.ref.<get-ref>|<get-ref>(){}",
+        "CashImportFileInput.source.<get-source>|<get-source>(){}",
+        "CashImportFileSource.name.<get-name>|<get-name>(){}",
+        "CashImportFileSource.read.<get-read>|<get-read>(){}",
+        "CashImportFileSource.ref.<get-ref>|<get-ref>(){}",
+        "CashImportPreparedFile.code.<get-code>|<get-code>(){}",
+        "CashImportPreparedFile.component1|component1(){}",
+        "CashImportPreparedFile.component2|component2(){}",
+        "CashImportPreparedFile.component3|component3(){}",
+        "CashImportPreparedFile.component4|component4(){}",
+        "CashImportPreparedFile.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.String?){}",
+        "CashImportPreparedFile.equals|equals(kotlin.Any?){}",
+        "CashImportPreparedFile.hashCode|hashCode(){}",
+        "CashImportPreparedFile.name.<get-name>|<get-name>(){}",
+        "CashImportPreparedFile.ref.<get-ref>|<get-ref>(){}",
+        "CashImportPreparedFile.status.<get-status>|<get-status>(){}",
+        "CashImportPreparedFile.toString|toString(){}",
+        "CashImportReviewOperations.Review.calculation.<get-calculation>|<get-calculation>(){}",
+        "CashImportReviewOperations.Review.plan.<get-plan>|<get-plan>(){}",
+        "CashImportReviewOperations.Review.workspaceId.<get-workspaceId>|<get-workspaceId>(){}",
+        "CashLedgerSummary.component1|component1(){}",
+        "CashLedgerSummary.component2|component2(){}",
+        "CashLedgerSummary.component3|component3(){}",
+        "CashLedgerSummary.component4|component4(){}",
+        "CashLedgerSummary.component5|component5(){}",
+        "CashLedgerSummary.copy|copy(kotlin.String;kotlin.String;kotlin.collections.Map<kotlin.String,kotlin.String?>;kotlin.collections.List<com.finance.tracker.business.contracts.CashMonthlySummaryDto>;kotlin.Long){}",
+        "CashLedgerSummary.equals|equals(kotlin.Any?){}",
+        "CashLedgerSummary.filters.<get-filters>|<get-filters>(){}",
+        "CashLedgerSummary.hashCode|hashCode(){}",
+        "CashLedgerSummary.ledgerSeq.<get-ledgerSeq>|<get-ledgerSeq>(){}",
+        "CashLedgerSummary.months.<get-months>|<get-months>(){}",
+        "CashLedgerSummary.pendingItemCount.<get-pendingItemCount>|<get-pendingItemCount>(){}",
+        "CashLedgerSummary.toString|toString(){}",
+        "CashLedgerSummary.workspaceId.<get-workspaceId>|<get-workspaceId>(){}",
+        "CashMaintenanceRecovery.component1|component1(){}",
+        "CashMaintenanceRecovery.component2|component2(){}",
+        "CashMaintenanceRecovery.copy|copy(com.finance.tracker.client.CashMaintenanceRecoveryStatus;1:0?){}",
+        "CashMaintenanceRecovery.equals|equals(kotlin.Any?){}",
+        "CashMaintenanceRecovery.hashCode|hashCode(){}",
+        "CashMaintenanceRecovery.receipt.<get-receipt>|<get-receipt>(){}",
+        "CashMaintenanceRecovery.status.<get-status>|<get-status>(){}",
+        "CashMaintenanceRecovery.toString|toString(){}",
+        "CashMaintenanceRecoveryStatus.entries.<get-entries>|<get-entries>#static(){}",
+        "ClientAccountRequest.body.<get-body>|<get-body>(){}",
+        "ClientAccountRequest.key.<get-key>|<get-key>(){}",
+        "ClientAccountRequest.method.<get-method>|<get-method>(){}",
+        "ClientAccountRequest.path.<get-path>|<get-path>(){}",
+        "ClientCapturedCashImportFile.payload.<get-payload>|<get-payload>(){}",
+        "ClientCapturedCashImportFile.storageId.<get-storageId>|<get-storageId>(){}",
+        "ClientCashImportBatch.attempt.<get-attempt>|<get-attempt>(){}",
+        "ClientCashImportBatch.component10|component10(){}",
+        "ClientCashImportBatch.component1|component1(){}",
+        "ClientCashImportBatch.component2|component2(){}",
+        "ClientCashImportBatch.component3|component3(){}",
+        "ClientCashImportBatch.component4|component4(){}",
+        "ClientCashImportBatch.component5|component5(){}",
+        "ClientCashImportBatch.component6|component6(){}",
+        "ClientCashImportBatch.component7|component7(){}",
+        "ClientCashImportBatch.component8|component8(){}",
+        "ClientCashImportBatch.component9|component9(){}",
+        "ClientCashImportBatch.copy|copy(kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.client.ClientCashImportFileRef>;kotlin.String?;kotlin.String?;kotlin.String?;com.finance.tracker.business.contracts.StoredCashImportSubmission?;kotlin.String?;kotlin.Int;com.finance.tracker.client.ClientCashImportReviewedCommand?){}",
+        "ClientCashImportBatch.equals|equals(kotlin.Any?){}",
+        "ClientCashImportBatch.files.<get-files>|<get-files>(){}",
+        "ClientCashImportBatch.hashCode|hashCode(){}",
+        "ClientCashImportBatch.id.<get-id>|<get-id>(){}",
+        "ClientCashImportBatch.ledgerSeq.<get-ledgerSeq>|<get-ledgerSeq>(){}",
+        "ClientCashImportBatch.planId.<get-planId>|<get-planId>(){}",
+        "ClientCashImportBatch.result.<get-result>|<get-result>(){}",
+        "ClientCashImportBatch.review.<get-review>|<get-review>(){}",
+        "ClientCashImportBatch.reviewed.<get-reviewed>|<get-reviewed>(){}",
+        "ClientCashImportBatch.revision.<get-revision>|<get-revision>(){}",
+        "ClientCashImportBatch.submission.<get-submission>|<get-submission>(){}",
+        "ClientCashImportBatch.toString|toString(){}",
+        "ClientCashImportFileRef.component1|component1(){}",
+        "ClientCashImportFileRef.component2|component2(){}",
+        "ClientCashImportFileRef.copy|copy(kotlin.String;kotlin.String){}",
+        "ClientCashImportFileRef.equals|equals(kotlin.Any?){}",
+        "ClientCashImportFileRef.hashCode|hashCode(){}",
+        "ClientCashImportFileRef.ref.<get-ref>|<get-ref>(){}",
+        "ClientCashImportFileRef.storageId.<get-storageId>|<get-storageId>(){}",
+        "ClientCashImportFileRef.toString|toString(){}",
+        "ClientCashImportListing.batchId.<get-batchId>|<get-batchId>(){}",
+        "ClientCashImportListing.component1|component1(){}",
+        "ClientCashImportListing.component2|component2(){}",
+        "ClientCashImportListing.component3|component3(){}",
+        "ClientCashImportListing.component4|component4(){}",
+        "ClientCashImportListing.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.Int){}",
+        "ClientCashImportListing.equals|equals(kotlin.Any?){}",
+        "ClientCashImportListing.fileCount.<get-fileCount>|<get-fileCount>(){}",
+        "ClientCashImportListing.hashCode|hashCode(){}",
+        "ClientCashImportListing.revision.<get-revision>|<get-revision>(){}",
+        "ClientCashImportListing.status.<get-status>|<get-status>(){}",
+        "ClientCashImportListing.toString|toString(){}",
+        "ClientCashImportResume.Committed.component1|component1(){}",
+        "ClientCashImportResume.Committed.copy|copy(com.finance.tracker.business.domain.CashImportResultContent){}",
+        "ClientCashImportResume.Committed.equals|equals(kotlin.Any?){}",
+        "ClientCashImportResume.Committed.hashCode|hashCode(){}",
+        "ClientCashImportResume.Committed.result.<get-result>|<get-result>(){}",
+        "ClientCashImportResume.Committed.toString|toString(){}",
+        "ClientCashImportResume.Editable.component1|component1(){}",
+        "ClientCashImportResume.Editable.copy|copy(com.finance.tracker.client.PreparedCashImport){}",
+        "ClientCashImportResume.Editable.equals|equals(kotlin.Any?){}",
+        "ClientCashImportResume.Editable.hashCode|hashCode(){}",
+        "ClientCashImportResume.Editable.preparation.<get-preparation>|<get-preparation>(){}",
+        "ClientCashImportResume.Editable.toString|toString(){}",
+        "ClientCashImportReviewedCommand.component1|component1(){}",
+        "ClientCashImportReviewedCommand.component2|component2(){}",
+        "ClientCashImportReviewedCommand.component3|component3(){}",
+        "ClientCashImportReviewedCommand.copy|copy(kotlin.String;kotlin.String;kotlin.String){}",
+        "ClientCashImportReviewedCommand.equals|equals(kotlin.Any?){}",
+        "ClientCashImportReviewedCommand.hashCode|hashCode(){}",
+        "ClientCashImportReviewedCommand.request.<get-request>|<get-request>(){}",
+        "ClientCashImportReviewedCommand.resultInput.<get-resultInput>|<get-resultInput>(){}",
+        "ClientCashImportReviewedCommand.rulesVersion.<get-rulesVersion>|<get-rulesVersion>(){}",
+        "ClientCashImportReviewedCommand.toString|toString(){}",
+        "ClientCashWriteResult.component1|component1(){}",
+        "ClientCashWriteResult.component2|component2(){}",
+        "ClientCashWriteResult.copy|copy(kotlin.String;com.finance.tracker.business.contracts.CashMutationReceiptDto){}",
+        "ClientCashWriteResult.equals|equals(kotlin.Any?){}",
+        "ClientCashWriteResult.hashCode|hashCode(){}",
+        "ClientCashWriteResult.operationId.<get-operationId>|<get-operationId>(){}",
+        "ClientCashWriteResult.receipt.<get-receipt>|<get-receipt>(){}",
+        "ClientCashWriteResult.toString|toString(){}",
+        "ClientHttpBody.Json.text.<get-text>|<get-text>(){}",
+        "ClientHttpBody.Statement.bytes.<get-bytes>|<get-bytes>(){}",
+        "ClientHttpBody.Statement.mediaType.<get-mediaType>|<get-mediaType>(){}",
+        "ClientHttpBody.Statement.metadata.<get-metadata>|<get-metadata>(){}",
+        "ClientHttpBody.Statement.name.<get-name>|<get-name>(){}",
+        "ClientHttpBody.Statement.ref.<get-ref>|<get-ref>(){}",
+        "ClientHttpRequest.body.<get-body>|<get-body>(){}",
+        "ClientHttpRequest.headers.<get-headers>|<get-headers>(){}",
+        "ClientHttpRequest.method.<get-method>|<get-method>(){}",
+        "ClientHttpRequest.path.<get-path>|<get-path>(){}",
+        "ClientHttpRequest.token.<get-token>|<get-token>(){}",
+        "ClientHttpResponse.body.<get-body>|<get-body>(){}",
+        "ClientHttpResponse.component1|component1(){}",
+        "ClientHttpResponse.component2|component2(){}",
+        "ClientHttpResponse.copy|copy(kotlin.Int;kotlin.String){}",
+        "ClientHttpResponse.equals|equals(kotlin.Any?){}",
+        "ClientHttpResponse.hashCode|hashCode(){}",
+        "ClientHttpResponse.status.<get-status>|<get-status>(){}",
+        "ClientHttpResponse.toString|toString(){}",
+        "ClientImportSubmissionState.Complete.component1|component1(){}",
+        "ClientImportSubmissionState.Complete.copy|copy(1:0){}",
+        "ClientImportSubmissionState.Complete.equals|equals(kotlin.Any?){}",
+        "ClientImportSubmissionState.Complete.hashCode|hashCode(){}",
+        "ClientImportSubmissionState.Complete.result.<get-result>|<get-result>(){}",
+        "ClientImportSubmissionState.Complete.toString|toString(){}",
+        "ClientImportSubmissionState.Pending.attempt.<get-attempt>|<get-attempt>(){}",
+        "ClientImportSubmissionState.Pending.component1|component1(){}",
+        "ClientImportSubmissionState.Pending.copy|copy(com.finance.tracker.business.contracts.StoredCashImportSubmission){}",
+        "ClientImportSubmissionState.Pending.equals|equals(kotlin.Any?){}",
+        "ClientImportSubmissionState.Pending.hashCode|hashCode(){}",
+        "ClientImportSubmissionState.Pending.toString|toString(){}",
+        "ClientInvitation.component1|component1(){}",
+        "ClientInvitation.component2|component2(){}",
+        "ClientInvitation.component3|component3(){}",
+        "ClientInvitation.copy|copy(kotlin.String;com.finance.tracker.business.contracts.Role;kotlin.Int){}",
+        "ClientInvitation.equals|equals(kotlin.Any?){}",
+        "ClientInvitation.expiresInDays.<get-expiresInDays>|<get-expiresInDays>(){}",
+        "ClientInvitation.hashCode|hashCode(){}",
+        "ClientInvitation.role.<get-role>|<get-role>(){}",
+        "ClientInvitation.toString|toString(){}",
+        "ClientInvitation.token.<get-token>|<get-token>(){}",
+        "ClientLedgerRead.canWrite.<get-canWrite>|<get-canWrite>(){}",
+        "ClientLedgerRead.ledger.<get-ledger>|<get-ledger>(){}",
+        "ClientLedgerRead.offline.<get-offline>|<get-offline>(){}",
+        "ClientLedgerState.component1|component1(){}",
+        "ClientLedgerState.component2|component2(){}",
+        "ClientLedgerState.copy|copy(kotlin.String?;com.finance.tracker.client.ClientStoredLedger?){}",
+        "ClientLedgerState.equals|equals(kotlin.Any?){}",
+        "ClientLedgerState.generation.<get-generation>|<get-generation>(){}",
+        "ClientLedgerState.hashCode|hashCode(){}",
+        "ClientLedgerState.ledger.<get-ledger>|<get-ledger>(){}",
+        "ClientLedgerState.toString|toString(){}",
+        "ClientOperationFailure.code.<get-code>|<get-code>(){}",
+        "ClientOperationFailure.commitState.<get-commitState>|<get-commitState>(){}",
+        "ClientOperationFailure.operationId.<get-operationId>|<get-operationId>(){}",
+        "ClientOperationFailure.status.<get-status>|<get-status>(){}",
+        "ClientPendingCommand.accountIds.<get-accountIds>|<get-accountIds>(){}",
+        "ClientPendingCommand.batchId.<get-batchId>|<get-batchId>(){}",
+        "ClientPendingCommand.beforeAccount.<get-beforeAccount>|<get-beforeAccount>(){}",
+        "ClientPendingCommand.body.<get-body>|<get-body>(){}",
+        "ClientPendingCommand.completesReversal.<get-completesReversal>|<get-completesReversal>(){}",
+        "ClientPendingCommand.component10|component10(){}",
+        "ClientPendingCommand.component11|component11(){}",
+        "ClientPendingCommand.component12|component12(){}",
+        "ClientPendingCommand.component13|component13(){}",
+        "ClientPendingCommand.component1|component1(){}",
+        "ClientPendingCommand.component2|component2(){}",
+        "ClientPendingCommand.component3|component3(){}",
+        "ClientPendingCommand.component4|component4(){}",
+        "ClientPendingCommand.component5|component5(){}",
+        "ClientPendingCommand.component6|component6(){}",
+        "ClientPendingCommand.component7|component7(){}",
+        "ClientPendingCommand.component8|component8(){}",
+        "ClientPendingCommand.component9|component9(){}",
+        "ClientPendingCommand.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.collections.List<kotlin.String>;com.finance.tracker.business.contracts.CashMutationReceiptDto?;kotlin.String;kotlin.String?;com.finance.tracker.business.contracts.AccountCommandViewDto?;kotlin.String?;kotlin.Boolean;kotlin.String?;kotlin.String?){}",
+        "ClientPendingCommand.equals|equals(kotlin.Any?){}",
+        "ClientPendingCommand.hashCode|hashCode(){}",
+        "ClientPendingCommand.id.<get-id>|<get-id>(){}",
+        "ClientPendingCommand.kind.<get-kind>|<get-kind>(){}",
+        "ClientPendingCommand.method.<get-method>|<get-method>(){}",
+        "ClientPendingCommand.path.<get-path>|<get-path>(){}",
+        "ClientPendingCommand.planId.<get-planId>|<get-planId>(){}",
+        "ClientPendingCommand.receipt.<get-receipt>|<get-receipt>(){}",
+        "ClientPendingCommand.rejection.<get-rejection>|<get-rejection>(){}",
+        "ClientPendingCommand.reverses.<get-reverses>|<get-reverses>(){}",
+        "ClientPendingCommand.toString|toString(){}",
+        "ClientPendingWrite.component1|component1(){}",
+        "ClientPendingWrite.component2|component2(){}",
+        "ClientPendingWrite.copy|copy(kotlin.String;kotlin.String){}",
+        "ClientPendingWrite.equals|equals(kotlin.Any?){}",
+        "ClientPendingWrite.hashCode|hashCode(){}",
+        "ClientPendingWrite.id.<get-id>|<get-id>(){}",
+        "ClientPendingWrite.kind.<get-kind>|<get-kind>(){}",
+        "ClientPendingWrite.toString|toString(){}",
+        "ClientStoredLedger.snapshot.<get-snapshot>|<get-snapshot>(){}",
+        "ClientStoredLedger.syncedAt.<get-syncedAt>|<get-syncedAt>(){}",
+        "ClientStoredSession.session.<get-session>|<get-session>(){}",
+        "ClientStoredSession.token.<get-token>|<get-token>(){}",
+        "ConfirmedAccountWrite.account.<get-account>|<get-account>(){}",
+        "ConfirmedAccountWrite.component1|component1(){}",
+        "ConfirmedAccountWrite.component2|component2(){}",
+        "ConfirmedAccountWrite.component3|component3(){}",
+        "ConfirmedAccountWrite.copy|copy(1:0;com.finance.tracker.business.contracts.AccountCommandViewDto;kotlin.String){}",
+        "ConfirmedAccountWrite.equals|equals(kotlin.Any?){}",
+        "ConfirmedAccountWrite.hashCode|hashCode(){}",
+        "ConfirmedAccountWrite.kind.<get-kind>|<get-kind>(){}",
+        "ConfirmedAccountWrite.result.<get-result>|<get-result>(){}",
+        "ConfirmedAccountWrite.toString|toString(){}",
+        "EditCashCategory.component1|component1(){}",
+        "EditCashCategory.component2|component2(){}",
+        "EditCashCategory.component3|component3(){}",
+        "EditCashCategory.component4|component4(){}",
+        "EditCashCategory.copy|copy(kotlin.String;kotlin.String?;kotlin.String;kotlin.Long){}",
+        "EditCashCategory.description.<get-description>|<get-description>(){}",
+        "EditCashCategory.equals|equals(kotlin.Any?){}",
+        "EditCashCategory.hashCode|hashCode(){}",
+        "EditCashCategory.name.<get-name>|<get-name>(){}",
+        "EditCashCategory.parentId.<get-parentId>|<get-parentId>(){}",
+        "EditCashCategory.revision.<get-revision>|<get-revision>(){}",
+        "EditCashCategory.toString|toString(){}",
+        "ImportAccountChangeResult.accountId.<get-accountId>|<get-accountId>(){}",
+        "ImportAccountChangeResult.code.<get-code>|<get-code>(){}",
+        "ImportAccountChangeResult.component1|component1(){}",
+        "ImportAccountChangeResult.component2|component2(){}",
+        "ImportAccountChangeResult.component3|component3(){}",
+        "ImportAccountChangeResult.component4|component4(){}",
+        "ImportAccountChangeResult.copy|copy(kotlin.String;kotlin.String?;kotlin.String;kotlin.String?){}",
+        "ImportAccountChangeResult.equals|equals(kotlin.Any?){}",
+        "ImportAccountChangeResult.hashCode|hashCode(){}",
+        "ImportAccountChangeResult.operationId.<get-operationId>|<get-operationId>(){}",
+        "ImportAccountChangeResult.status.<get-status>|<get-status>(){}",
+        "ImportAccountChangeResult.toString|toString(){}",
+        "ImportAccountEffect.after.<get-after>|<get-after>(){}",
+        "ImportAccountEffect.before.<get-before>|<get-before>(){}",
+        "ImportAccountEffect.component1|component1(){}",
+        "ImportAccountEffect.component2|component2(){}",
+        "ImportAccountEffect.component3|component3(){}",
+        "ImportAccountEffect.component4|component4(){}",
+        "ImportAccountEffect.copy|copy(kotlin.String;kotlin.Long;com.finance.tracker.business.contracts.AccountCommandViewDto?;com.finance.tracker.business.contracts.AccountCommandViewDto){}",
+        "ImportAccountEffect.equals|equals(kotlin.Any?){}",
+        "ImportAccountEffect.hashCode|hashCode(){}",
+        "ImportAccountEffect.key.<get-key>|<get-key>(){}",
+        "ImportAccountEffect.order.<get-order>|<get-order>(){}",
+        "ImportAccountEffect.toString|toString(){}",
+        "ImportAccountEffectChain.blocked.<get-blocked>|<get-blocked>(){}",
+        "ImportAccountEffectChain.component1|component1(){}",
+        "ImportAccountEffectChain.component2|component2(){}",
+        "ImportAccountEffectChain.component3|component3(){}",
+        "ImportAccountEffectChain.copy|copy(kotlin.collections.List<com.finance.tracker.client.ImportAccountEffect>;kotlin.Long;kotlin.Boolean){}",
+        "ImportAccountEffectChain.effects.<get-effects>|<get-effects>(){}",
+        "ImportAccountEffectChain.equals|equals(kotlin.Any?){}",
+        "ImportAccountEffectChain.hashCode|hashCode(){}",
+        "ImportAccountEffectChain.revision.<get-revision>|<get-revision>(){}",
+        "ImportAccountEffectChain.toString|toString(){}",
+        "NewCashRecord.accountId.<get-accountId>|<get-accountId>(){}",
+        "NewCashRecord.amount.<get-amount>|<get-amount>(){}",
+        "NewCashRecord.categoryId.<get-categoryId>|<get-categoryId>(){}",
+        "NewCashRecord.component10|component10(){}",
+        "NewCashRecord.component11|component11(){}",
+        "NewCashRecord.component12|component12(){}",
+        "NewCashRecord.component1|component1(){}",
+        "NewCashRecord.component2|component2(){}",
+        "NewCashRecord.component3|component3(){}",
+        "NewCashRecord.component4|component4(){}",
+        "NewCashRecord.component5|component5(){}",
+        "NewCashRecord.component6|component6(){}",
+        "NewCashRecord.component7|component7(){}",
+        "NewCashRecord.component8|component8(){}",
+        "NewCashRecord.component9|component9(){}",
+        "NewCashRecord.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.String?;kotlin.Boolean;kotlin.String?;kotlin.collections.List<kotlin.String>?){}",
+        "NewCashRecord.counterparty.<get-counterparty>|<get-counterparty>(){}",
+        "NewCashRecord.counterpartyAccount.<get-counterpartyAccount>|<get-counterpartyAccount>(){}",
+        "NewCashRecord.counterpartyAccountAttributes.<get-counterpartyAccountAttributes>|<get-counterpartyAccountAttributes>(){}",
+        "NewCashRecord.currency.<get-currency>|<get-currency>(){}",
+        "NewCashRecord.equals|equals(kotlin.Any?){}",
+        "NewCashRecord.hashCode|hashCode(){}",
+        "NewCashRecord.includeCategory.<get-includeCategory>|<get-includeCategory>(){}",
+        "NewCashRecord.note.<get-note>|<get-note>(){}",
+        "NewCashRecord.occurredAt.<get-occurredAt>|<get-occurredAt>(){}",
+        "NewCashRecord.recordSubtype.<get-recordSubtype>|<get-recordSubtype>(){}",
+        "NewCashRecord.recordType.<get-recordType>|<get-recordType>(){}",
+        "NewCashRecord.toString|toString(){}",
+        "NewCashTransfer.amount.<get-amount>|<get-amount>(){}",
+        "NewCashTransfer.component1|component1(){}",
+        "NewCashTransfer.component2|component2(){}",
+        "NewCashTransfer.component3|component3(){}",
+        "NewCashTransfer.component4|component4(){}",
+        "NewCashTransfer.component5|component5(){}",
+        "NewCashTransfer.component6|component6(){}",
+        "NewCashTransfer.component7|component7(){}",
+        "NewCashTransfer.component8|component8(){}",
+        "NewCashTransfer.component9|component9(){}",
+        "NewCashTransfer.copy|copy(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.String?;kotlin.String?){}",
+        "NewCashTransfer.date.<get-date>|<get-date>(){}",
+        "NewCashTransfer.equals|equals(kotlin.Any?){}",
+        "NewCashTransfer.fromAccountId.<get-fromAccountId>|<get-fromAccountId>(){}",
+        "NewCashTransfer.fromCurrency.<get-fromCurrency>|<get-fromCurrency>(){}",
+        "NewCashTransfer.hashCode|hashCode(){}",
+        "NewCashTransfer.note.<get-note>|<get-note>(){}",
+        "NewCashTransfer.time.<get-time>|<get-time>(){}",
+        "NewCashTransfer.toAccountId.<get-toAccountId>|<get-toAccountId>(){}",
+        "NewCashTransfer.toAmount.<get-toAmount>|<get-toAmount>(){}",
+        "NewCashTransfer.toCurrency.<get-toCurrency>|<get-toCurrency>(){}",
+        "NewCashTransfer.toString|toString(){}",
+        "PreparedCashImport.batchId.<get-batchId>|<get-batchId>(){}",
+        "PreparedCashImport.component1|component1(){}",
+        "PreparedCashImport.component2|component2(){}",
+        "PreparedCashImport.component3|component3(){}",
+        "PreparedCashImport.component4|component4(){}",
+        "PreparedCashImport.component5|component5(){}",
+        "PreparedCashImport.component6|component6(){}",
+        "PreparedCashImport.context.<get-context>|<get-context>(){}",
+        "PreparedCashImport.copy|copy(kotlin.String;kotlin.Long;kotlin.collections.List<com.finance.tracker.client.CashImportPreparedFile>;com.finance.tracker.business.contracts.CashImportSessionDto;kotlin.String?;kotlin.collections.List<kotlin.String>){}",
+        "PreparedCashImport.equals|equals(kotlin.Any?){}",
+        "PreparedCashImport.files.<get-files>|<get-files>(){}",
+        "PreparedCashImport.hashCode|hashCode(){}",
+        "PreparedCashImport.interruption.<get-interruption>|<get-interruption>(){}",
+        "PreparedCashImport.remainingFiles.<get-remainingFiles>|<get-remainingFiles>(){}",
+        "PreparedCashImport.revision.<get-revision>|<get-revision>(){}",
+        "PreparedCashImport.toString|toString(){}",
+        "cashLedgerTimeZoneIds.<get-cashLedgerTimeZoneIds>|<get-cashLedgerTimeZoneIds>(){}"
+      ]
+    },
+    {
+      "disposition": "compiler",
+      "reason": "Generated serializers and enum factories.",
+      "signatures": [
+        "AccountCompensationKind.valueOf|valueOf#static(kotlin.String){}",
+        "AccountCompensationKind.values|values#static(){}",
+        "AccountWriteAction.valueOf|valueOf#static(kotlin.String){}",
+        "AccountWriteAction.values|values#static(){}",
+        "CashAccountBalance.$serializer.childSerializers|childSerializers(){}",
+        "CashAccountBalance.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "CashAccountBalance.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "CashAccountBalance.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.CashAccountBalance){}",
+        "CashAccountBalance.Companion.serializer|serializer(){}",
+        "CashAccountType.valueOf|valueOf#static(kotlin.String){}",
+        "CashAccountType.values|values#static(){}",
+        "CashImportFileEdit.valueOf|valueOf#static(kotlin.String){}",
+        "CashImportFileEdit.values|values#static(){}",
+        "CashImportPreparedFile.$serializer.childSerializers|childSerializers(){}",
+        "CashImportPreparedFile.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "CashImportPreparedFile.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "CashImportPreparedFile.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.CashImportPreparedFile){}",
+        "CashImportPreparedFile.Companion.serializer|serializer(){}",
+        "CashLedgerSummary.$serializer.childSerializers|childSerializers(){}",
+        "CashLedgerSummary.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "CashLedgerSummary.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "CashLedgerSummary.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.CashLedgerSummary){}",
+        "CashLedgerSummary.Companion.serializer|serializer(){}",
+        "CashMaintenanceRecoveryStatus.valueOf|valueOf#static(kotlin.String){}",
+        "CashMaintenanceRecoveryStatus.values|values#static(){}",
+        "ClientCashImportBatch.$serializer.childSerializers|childSerializers(){}",
+        "ClientCashImportBatch.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientCashImportBatch.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientCashImportBatch.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientCashImportBatch){}",
+        "ClientCashImportBatch.Companion.serializer|serializer(){}",
+        "ClientCashImportFileRef.$serializer.childSerializers|childSerializers(){}",
+        "ClientCashImportFileRef.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientCashImportFileRef.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientCashImportFileRef.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientCashImportFileRef){}",
+        "ClientCashImportFileRef.Companion.serializer|serializer(){}",
+        "ClientCashImportListing.$serializer.childSerializers|childSerializers(){}",
+        "ClientCashImportListing.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientCashImportListing.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientCashImportListing.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientCashImportListing){}",
+        "ClientCashImportListing.Companion.serializer|serializer(){}",
+        "ClientCashImportReviewedCommand.$serializer.childSerializers|childSerializers(){}",
+        "ClientCashImportReviewedCommand.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientCashImportReviewedCommand.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientCashImportReviewedCommand.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientCashImportReviewedCommand){}",
+        "ClientCashImportReviewedCommand.Companion.serializer|serializer(){}",
+        "ClientInvitation.$serializer.childSerializers|childSerializers(){}",
+        "ClientInvitation.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientInvitation.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientInvitation.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientInvitation){}",
+        "ClientInvitation.Companion.serializer|serializer(){}",
+        "ClientLedgerState.$serializer.childSerializers|childSerializers(){}",
+        "ClientLedgerState.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientLedgerState.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientLedgerState.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientLedgerState){}",
+        "ClientLedgerState.Companion.serializer|serializer(){}",
+        "ClientPendingCommand.$serializer.childSerializers|childSerializers(){}",
+        "ClientPendingCommand.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientPendingCommand.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientPendingCommand.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientPendingCommand){}",
+        "ClientPendingCommand.Companion.serializer|serializer(){}",
+        "ClientPendingWrite.$serializer.childSerializers|childSerializers(){}",
+        "ClientPendingWrite.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientPendingWrite.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientPendingWrite.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientPendingWrite){}",
+        "ClientPendingWrite.Companion.serializer|serializer(){}",
+        "ClientStoredLedger.$serializer.childSerializers|childSerializers(){}",
+        "ClientStoredLedger.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientStoredLedger.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientStoredLedger.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientStoredLedger){}",
+        "ClientStoredLedger.Companion.serializer|serializer(){}",
+        "ClientStoredSession.$serializer.childSerializers|childSerializers(){}",
+        "ClientStoredSession.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ClientStoredSession.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ClientStoredSession.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ClientStoredSession){}",
+        "ClientStoredSession.Companion.serializer|serializer(){}",
+        "ImportAccountChangeResult.$serializer.childSerializers|childSerializers(){}",
+        "ImportAccountChangeResult.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}",
+        "ImportAccountChangeResult.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}",
+        "ImportAccountChangeResult.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;com.finance.tracker.client.ImportAccountChangeResult){}",
+        "ImportAccountChangeResult.Companion.serializer|serializer(){}"
+      ]
+    }
+  ]
+}

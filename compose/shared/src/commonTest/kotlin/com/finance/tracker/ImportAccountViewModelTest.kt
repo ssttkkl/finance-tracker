@@ -139,6 +139,26 @@ class ImportAccountViewModelTest {
         assertTrue(recovery.keys().isEmpty())
     } }
 
+    @Test fun anUnavailableCurrencyReceiptDoesNotPermitResendingTheBatch() = runTest { accountTask { vm, repo, recovery ->
+        vm.restore(); advanceUntilIdle()
+        repo.unknownWrite = true
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { fail("No write has been confirmed") }
+        advanceUntilIdle()
+        val original = repo.currencyCalls.single().single()
+        repo.accountReceiptFailure = DomainFailure("storage.connect", 503, FailureCategory.RECOVERABLE)
+        repo.unknownWrite = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { fail("A failed lookup does not authorize a write") }
+        advanceUntilIdle()
+        assertEquals(listOf(listOf(original)), repo.currencyCalls)
+        assertEquals(listOf(original.idempotencyKey), recovery.keys())
+        repo.accountReceiptFailure = null
+        var succeeded = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { succeeded = true }
+        advanceUntilIdle()
+        assertTrue(succeeded)
+        assertEquals(listOf(listOf(original), listOf(original)), repo.currencyCalls)
+    } }
+
     @Test fun creationPersistsKeyBeforeWireThenReadsCurrentAccountWithoutSelectingIt() = runTest { accountTask { vm, repo, recovery ->
         vm.restore(); advanceUntilIdle()
         repo.beforeWrite = { assertTrue(it in recovery.keys()) }
@@ -672,7 +692,11 @@ private class AccountRepository : CashImportLifecycleRepository by TaskRepositor
             ImportCurrencyRequirementResult(requirement.accountId, result.copy(capabilities = emptyMap()), null)
         }
     }
-    override suspend fun receiptByKey(key: String) = receipts[key] ?: throw DomainFailure("receipt_not_found", 404, FailureCategory.RECOVERABLE)
+    var accountReceiptFailure: DomainFailure? = null
+    override suspend fun receiptByKey(key: String): ImportReceipt {
+        accountReceiptFailure?.let { throw it }
+        return receipts[key] ?: throw DomainFailure("receipt_not_found", 404, FailureCategory.RECOVERABLE)
+    }
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount {
         beforeWrite(idempotencyKey); writes += AccountWrite("create", idempotencyKey, name = name, type = type, currencies = currencies)
         writeFailure?.let { throw it }

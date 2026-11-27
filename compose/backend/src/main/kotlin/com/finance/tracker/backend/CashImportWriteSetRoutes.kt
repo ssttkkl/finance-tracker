@@ -34,10 +34,13 @@ internal fun Route.cashImportWriteSetRoutes(service: CashImportWriteSetSubmissio
         val workspace = values.single()
         if (workspace != call.attributes[principalKey].workspaceId) throw AccessFailure(true)
         val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
-        val payload = CashImportProtocol.jsonInput(call, allowGzip = true, validate = CashImportProtocol::writeSetInput)
         try {
+            val payload = CashImportProtocol.jsonInput(call, allowGzip = true, validate = CashImportProtocol::writeSetInput)
             val receipt = withContext(Dispatchers.IO) { service.submit(token, workspace, payload, key) }
             call.respond(receipt)
+        } catch (failure: CashImportProtocolError) {
+            if (failure.code != "payload_too_large") throw failure
+            call.writeSetError(413, failure.code, "本次导入内容超过容量上限，请减少文件后重新核对。", "not_committed")
         } catch (failure: CashWriteSetSubmissionFailure) {
             val conflict = failure.code == "rules_version_changed"
             val message = when (failure.code) {

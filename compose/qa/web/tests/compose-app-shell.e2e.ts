@@ -390,20 +390,33 @@ test("account panel switches workspace, opens management, and signs out", async 
   expect(diagnostics.staticHttpErrors).toEqual([]);
 });
 
-test("手工记账保存失败后从原按钮继续保存", async ({ page }) => {
+for (const scenario of ["missing", "committed", "session-changed"] as const) {
+const name = scenario === "committed" ? "手工记账回包丢失后从原按钮恢复收据" :
+  scenario === "session-changed" ? "手工记账核实期间更换令牌后不再提交" : "手工记账保存失败后从原按钮继续保存";
+test(name, async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 900 });
   await installComposeApiFixtures(page);
   const commands: Array<{ key?: string; workspace?: string; accounts?: string; body: string | null }> = [];
+  const receipt = {
+    receipt_id: "00000000-0000-4000-8000-000000000001", committed: true,
+    operation_kind: "cash_create_manual", created_at: "2026-11-19T00:00:00Z", ledger_seq: "0",
+  };
+  const askedKeys: Array<string | null> = [];
+  await page.route("**/api/v1/cash-mutations/receipts/by-key?**", async route => {
+    askedKeys.push(new URL(route.request().url()).searchParams.get("key"));
+    if (scenario === "committed") return route.fulfill({ json: receipt });
+    if (scenario === "session-changed") {
+      await page.evaluate(() => localStorage.setItem("finance-tracker:session-token", "new-test-session"));
+    }
+    return route.fulfill({ status: 404, json: { error: { code: "receipt_not_found" } } });
+  });
   await page.route("**/api/v1/cash-records/commands", async route => {
     const request = route.request();
     const headers = request.headers();
     commands.push({ key: headers["idempotency-key"], workspace: headers["x-ft-workspace-id"],
       accounts: headers["x-ft-account-ids"], body: request.postData() });
     if (commands.length === 1) return route.fulfill({ status: 503, json: { error: { code: "storage.connect" } } });
-    return route.fulfill({ status: 201, json: {
-      receipt_id: "00000000-0000-4000-8000-000000000001", committed: true,
-      operation_kind: "cash_create_manual", created_at: "2026-11-19T00:00:00Z", ledger_seq: "0",
-    } });
+    return route.fulfill({ status: 201, json: receipt });
   });
   await page.goto("/w/workspace-1");
   const press = (id: string) => clickStableComposeTarget(page, page.locator(`[id="${id}"]:visible`).last());
@@ -414,9 +427,18 @@ test("手工记账保存失败后从原按钮继续保存", async ({ page }) => 
   await expect(page.getByText("保存遇到问题，请重试。")).toBeVisible();
   await page.screenshot({ path: "/tmp/compose-manual-save-retry.png" });
   await press("cash.create.save");
-  await expect.poll(() => commands.length).toBe(2);
+  if (scenario === "session-changed") {
+    await expect.poll(() => askedKeys).toEqual([commands[0].key]);
+    await expect(page.locator('[id="cash.create.save"]:visible').last()).toBeEnabled();
+    expect(commands).toHaveLength(1);
+    return;
+  }
+  await expect(page.locator('[id="cash.create.form"]:visible')).toHaveCount(0);
+  expect(askedKeys).toEqual([commands[0].key]);
+  expect(commands).toHaveLength(scenario === "committed" ? 1 : 2);
   expect(commands[0].key).toBeTruthy();
   expect(commands[0].workspace).toBe("workspace-1");
   expect(commands[0].accounts).toBe("1");
-  expect(commands[1]).toEqual(commands[0]);
+  if (scenario === "missing") expect(commands[1]).toEqual(commands[0]);
 });
+}

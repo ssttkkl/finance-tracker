@@ -385,7 +385,7 @@ class CashImportTaskViewModel(
         mutableState.value = before.copy(needsContextRefresh = true)
         val plan = try { repository.preview(context.sessionId, context.revision ?: invalidTask(), before.plan?.planId ?: context.lastPlanId, choices) }
         catch (failure: DomainFailure) {
-            if (failure.status == 422 && failure.code == "import_session_draft_too_large") {
+            if (failure.status == 422 && failure.code == "import_session_draft_too_large" || failure.isRejectedWriteSetSize()) {
                 if (current(request)) mutableState.value = state.value.rejectOversizedPreview()
                 return
             }
@@ -661,7 +661,8 @@ class CashImportTaskViewModel(
         mutableState.value = state.value.copy(recoveryBatchId = null, frozenCommand = null, submission = ImportSubmissionState.IDLE,
             completionRetryExhausted = false)
         adoptContext(request, context)
-        if (current(request)) mutableState.value = state.value.copy(errorCode = failure.reason.code, errorDiagnostic = failure.reason.diagnostic)
+        if (current(request)) mutableState.value = if (failure.reason.isRejectedWriteSetSize()) state.value.rejectOversizedPreview()
+            else state.value.copy(errorCode = failure.reason.code, errorDiagnostic = failure.reason.diagnostic)
     }
 
     private suspend fun adoptContext(request: ImportTaskRequest, context: ImportContext) {
@@ -795,6 +796,8 @@ class CashImportTaskViewModel(
         }
     }
 }
+
+private fun DomainFailure.isRejectedWriteSetSize(): Boolean = code == "payload_too_large" && commitState == "not_committed"
 
 private const val MAX_CONCURRENT_IMPORT_UPLOADS = 3
 private val FATAL_IMPORT_UPLOAD_CODES = setOf("session_closed", "session_committed", "session_expired", "session_not_found", "workspace_forbidden")

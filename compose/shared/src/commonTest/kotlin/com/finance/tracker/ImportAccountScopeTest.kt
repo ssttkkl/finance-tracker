@@ -108,6 +108,21 @@ class ImportAccountScopeTest {
             } finally { client.close() }
         }
     }
+
+    @Test fun aCurrencyRequirementWithoutAnOriginalAccountDoesNotReachTransport() = runTest {
+        var requests = 0
+        val client = FinanceApiClient({ "unused" }, Store(), MockEngine {
+            requests++
+            respond("""{"results":[]}""", headers = headers)
+        })
+        try {
+            val api = ImportAccountApi(client, scope)
+            assertFailsWith<ApiFailure> {
+                api.ensureCurrencies(listOf(ImportCurrencyRequirementDto("original-key", "", 2, listOf("CNY"))))
+            }
+            assertEquals(0, requests)
+        } finally { client.close() }
+    }
     @Test fun rejectedOriginalIdentityNeverReadsOrClearsTheLaterToken() = runTest {
         for (status in listOf(401, 403)) {
             val store = Store()

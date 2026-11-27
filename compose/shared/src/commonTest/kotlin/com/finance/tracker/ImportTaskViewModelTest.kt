@@ -46,6 +46,19 @@ class ImportTaskViewModelTest {
         assertTrue(repo.confirmations.isEmpty())
     } }
 
+    @Test fun restoringAnExplicitSizeRefusalLetsTheUserAdjustTheSameBatch() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.LocalBatch("batch")
+        val context = repo.current.copy(sessionId = "batch", origin = ImportContextOrigin.LOCAL)
+        repo.batchHandler = { batch, _ -> throw ImportReviewRequired(batch, context,
+            DomainFailure("payload_too_large", 413, FailureCategory.RECOVERABLE, commitState = "not_committed")) }
+        vm.restore(); advanceUntilIdle()
+        assertEquals(context, vm.state.value.context)
+        assertEquals("import_session_draft_too_large", vm.state.value.errorCode)
+        assertTrue(vm.state.value.canAdjustRejectedPreviewFiles)
+        assertFalse(vm.state.value.canConfirm)
+        assertEquals(ImportRecoveryPointer.LocalBatch("batch"), store.pointer)
+    } }
+
     @Test fun aRetiredRequestForAnotherBatchCannotUnlockTheCurrentSubmission() = runTest { task { vm, repo, store ->
         store.pointer = ImportRecoveryPointer.LocalBatch("batch")
         val context = repo.current.copy(sessionId = "other", origin = ImportContextOrigin.LOCAL)
@@ -1158,7 +1171,7 @@ class ImportTaskViewModelTest {
         val before = vm.state.value.context
         var previews = 0
         repo.beforePreview = { previews++ }
-        repo.previewFailure = DomainFailure("import_session_draft_too_large", 422, FailureCategory.RECOVERABLE)
+        repo.previewFailure = DomainFailure("payload_too_large", 0, FailureCategory.RECOVERABLE, commitState = "not_committed")
         vm.preview(); advanceUntilIdle()
         assertEquals(ImportTaskPhase.PREPARE, vm.state.value.phase)
         assertTrue(vm.state.value.canEdit)

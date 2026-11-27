@@ -21,6 +21,23 @@ class CashImportPreviewPresentationTest {
     }
     private fun build(preview: CashImportPreviewSnapshot<Long, Instant>) = preview.build()
 
+    @Test fun parentIndexReadsEachGroupOnceAndPreservesMatchingPositions() {
+        var reads = 0
+        val first = mapOf("parent_ids" to listOf("x", "x"), "name" to "first")
+        val both = mapOf("parent_ids" to listOf("y", "x"), "name" to "both")
+        val last = mapOf("parent_ids" to listOf("y"), "name" to "last")
+        val groups = listOf(first, both, first.toMap(), last)
+        val index = CashImportParentIndex(groups) { group ->
+            reads++
+            (group.getValue("parent_ids") as List<*>).map { it.toString() }.toSet()
+        }
+        assertEquals(groups, index.matching(setOf("y", "x")))
+        assertEquals(listOf(first, both, first), index.matching(setOf("x")))
+        assertEquals(emptyList(), index.matching(setOf("absent")))
+        assertEquals(emptyList(), index.matching(emptySet()))
+        assertEquals(groups.size, reads)
+    }
+
     @Test fun unchangedRecordsOnlyAppearWhenTouchedAndKeepDraftOrderingAndStableEntryTargets() {
         val preview = preview()
         val file = ParsedImportFile("file", "digest", "parsed", filename = "账单.csv", diagnostic = mapOf("message" to "detail"))
@@ -40,6 +57,23 @@ class CashImportPreviewPresentationTest {
         assertFalse("client_file_ref" in publicFile)
         assertEquals(before, preview.values)
         assertEquals(emptyList<Any?>(), rules().present(emptyList(), preview, build(preview), emptyList(), emptyList(), emptyMap())["items"])
+    }
+
+    @Test fun previewKeepsRepeatedFailuresInSourceOrderForEachAffectedItem() {
+        val preview = preview()
+        fun failure(code: String, vararg ids: String) = mapOf("code" to code, "parent_ids" to ids.toList())
+        val shared = failure("relation_pending", "1", "2", "1")
+        val failures = listOf(shared, failure("fixed_field_conflict", "2"), shared)
+        val result = rules().present(emptyList(), preview, build(preview), emptyList(), failures, emptyMap(),
+            entryParentIds = setOf("1", "2"))
+        val items = (result.getValue("items") as List<*>).map { it as Map<*, *> }
+        val reasons = items.associate { item ->
+            val member = (item["member_refs"] as List<*>).single() as Map<*, *>
+            member["transaction_id"] to (item["attention_reasons"] as List<*>)
+                .map { (it as Map<*, *>)["code"] }.filter { it in setOf("relation_pending", "fixed_field_conflict") }
+        }
+        assertEquals(listOf("relation_pending", "relation_pending"), reasons["1"])
+        assertEquals(listOf("relation_pending", "fixed_field_conflict", "relation_pending"), reasons["2"])
     }
 
     @Test fun frozenMemberFieldsStripOnlyVirtualComponentIdsAndChoicesHaveStableReferences() {

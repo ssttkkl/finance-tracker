@@ -509,7 +509,7 @@ export async function installComposeApiFixtures(
       };
       return json(state.session);
     }
-    if (pathname === "/api/v1/auth/workspace" && method === "GET") return json(workspaceMembers(state.workspaceName));
+    if ((pathname === "/api/v1/auth/workspace" || pathname === "/api/v1/auth/members") && method === "GET") return json(workspaceMembers(state.workspaceName));
     if (pathname === "/api/v1/auth/workspace" && method === "PUT") {
       state.workspaceName = String(JSON.parse(body ?? "{}").name ?? state.workspaceName);
       if (state.session) state.session = { ...state.session, workspaces: state.session.workspaces.map((item) => ({ ...item, name: state.workspaceName })) };
@@ -519,7 +519,7 @@ export async function installComposeApiFixtures(
       state.session = noWorkspaceSession;
       return json(noWorkspaceSession);
     }
-    if (pathname === "/api/v1/auth/invitations" && method === "POST") return json({ token: "invite-e2e-token" });
+    if (pathname === "/api/v1/auth/invitations" && method === "POST") return json({ token: "invite-e2e-token", role: JSON.parse(body ?? "{}").role, expires_in_days: 7 });
     if (/^\/api\/v1\/auth\/invitations\/[^/]+$/.test(pathname) && method === "GET") {
       return json({ workspace: { name: "共享账本" }, role: "editor", valid: true });
     }
@@ -527,7 +527,7 @@ export async function installComposeApiFixtures(
       state.session = activeSession;
       return json(activeSession);
     }
-    if (/^\/api\/v1\/auth\/members\/[^/]+$/.test(pathname) && method === "PUT") return json({});
+    if (/^\/api\/v1\/auth\/members\/[^/]+$/.test(pathname) && method === "PUT") return json(workspaceMembers(state.workspaceName));
     if (/^\/api\/v1\/auth\/members\/[^/]+$/.test(pathname) && method === "DELETE") return json({ ok: true });
 
     if (pathname === "/api/v1/accounts" && method === "GET") {

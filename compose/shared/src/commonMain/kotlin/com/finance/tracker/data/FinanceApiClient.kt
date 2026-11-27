@@ -1,5 +1,8 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.client.ClientHttp
+import com.finance.tracker.client.ClientHttpBody
+import com.finance.tracker.client.ClientHttpResponse
 import com.finance.tracker.core.TokenStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
@@ -42,7 +45,7 @@ internal object NoRequestBody
 internal class FrozenJsonBody(val text: String, val gzip: ByteArray? = null, val compressInBrowser: Boolean = false)
 
 /** An immutable request identity; an explicit null must not pick up a later login. */
-internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String)
+internal class ApiCredentialSnapshot(val token: String?, val apiOrigin: String, val workspaceId: String? = null)
 
 class FinanceApiClient private constructor(
     internal val baseUrl: () -> String,
@@ -53,13 +56,16 @@ class FinanceApiClient private constructor(
     internal val boundCredentials: ApiCredentialSnapshot?,
     internal val expectedWorkspace: String?,
     internal val expectedPrincipalEmail: String?,
+    internal val requireCurrentRequest: suspend () -> Unit,
 ) {
     constructor(baseUrl: () -> String, tokenStore: TokenStore, engine: HttpClientEngine? = null, allowInsecureHttp: Boolean = false) :
-        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null, null)
+        this(baseUrl, tokenStore, engine, allowInsecureHttp, null, null, null, null, {})
 
-    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String, principalEmail: String? = null): FinanceApiClient {
+    internal fun boundTo(credentials: ApiCredentialSnapshot, workspaceId: String, principalEmail: String? = null,
+        requireCurrentRequest: suspend () -> Unit = {}): FinanceApiClient {
         require(workspaceId.isNotEmpty())
-        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail)
+        return FinanceApiClient({ credentials.apiOrigin }, tokenStore, null, allowInsecureHttp, this, credentials, workspaceId, principalEmail,
+            requireCurrentRequest)
     }
 
     internal val allowsBrowserJsonTransport: Boolean = shared?.allowsBrowserJsonTransport ?: (engine == null)
@@ -99,23 +105,8 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     val fixedCredentials = credentials ?: boundCredentials
     val origin = normalizeApiOrigin(fixedCredentials?.apiOrigin ?: baseUrl(), allowInsecureHttp)
     val token = if (fixedCredentials == null) readToken() else fixedCredentials.token
-    check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
-    var rejectedStatus: Int? = null
     val readPayload: suspend (Int, String) -> T = readPayload@{ status, responseText ->
-        if (status !in 200..299) {
-            val code = apiErrorCode(status, responseText) ?: "request_failed"
-            val receiptId = runCatching {
-                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                    ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
-            }.getOrNull()
-            val commitState = runCatching {
-                ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                    ?.takeIf { it in setOf("unknown", "not_committed") }
-            }.getOrNull()
-            val failure = ApiFailure(code, status, receiptId = receiptId, commitState = commitState,
-                diagnostic = apiErrorDiagnostic(responseText))
-            rejectHttpFailure(failure, token, clearUnauthorizedToken)
-        }
+        if (status !in 200..299) rejectApiPayload(status, responseText, token, clearUnauthorizedToken)
         if (status == HttpStatusCode.NoContent.value || responseText.isBlank()) {
             if (requireResponseBody) throw ApiFailure("request_failed", status,
                 cause = kotlinx.serialization.SerializationException("response_body_required"))
@@ -130,6 +121,63 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             throw ApiFailure("request_failed", status, cause = failure)
         }
     }
+    return exchange(method, path, origin, token, body, extraHeaders, bodyContentType, clearUnauthorizedToken,
+        preserveHttpRejectionOnBodyFailure, browserJson, beforeSend, readPayload)
+}
+
+internal fun FinanceApiClient.clientHttp(
+    credentials: ApiCredentialSnapshot, clearUnauthorizedToken: Boolean = true,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
+): ClientHttp = ClientHttp { request ->
+    check(request.token == credentials.token) { "request_token_scope_invalid" }
+    val body = when (val supplied = request.body) {
+        null -> NoRequestBody
+        is ClientHttpBody.Json -> FrozenJsonBody(supplied.text)
+        is ClientHttpBody.Statement -> error("Statement requests use the platform statement transport")
+    }
+    exchange(HttpMethod.parse(request.method), request.path,
+        normalizeApiOrigin(credentials.apiOrigin, allowInsecureHttp), request.token, body, request.headers,
+        clearUnauthorizedToken = clearUnauthorizedToken, preserveHttpRejectionOnBodyFailure = preserveHttpRejectionOnBodyFailure) { status, response ->
+        if (status !in 200..299) rejectApiPayload(status, response, request.token, clearUnauthorizedToken)
+        ClientHttpResponse(status, response)
+    }
+}
+
+internal suspend fun FinanceApiClient.rejectApiPayload(
+    status: Int, responseText: String, token: String?, clearUnauthorizedToken: Boolean,
+): Nothing {
+    val code = apiErrorCode(status, responseText) ?: "request_failed"
+    val receiptId = runCatching {
+        ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
+    }.getOrNull()
+    val commitState = runCatching {
+        ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { it in setOf("unknown", "not_committed") }
+    }.getOrNull()
+    val failure = ApiFailure(code, status, receiptId = receiptId, commitState = commitState,
+        diagnostic = apiErrorDiagnostic(responseText))
+    return rejectHttpFailure(failure, token, clearUnauthorizedToken)
+}
+
+@PublishedApi
+internal suspend fun <T> FinanceApiClient.exchange(
+    method: HttpMethod,
+    path: String,
+    origin: String,
+    token: String?,
+    body: Any?,
+    extraHeaders: Map<String, String>,
+    bodyContentType: ContentType? = null,
+    clearUnauthorizedToken: Boolean = true,
+    preserveHttpRejectionOnBodyFailure: Boolean = false,
+    browserJson: Boolean = false,
+    beforeSend: suspend () -> Unit = {},
+    readPayload: suspend (Int, String) -> T,
+): T {
+    check(extraHeaders.keys.none { it.equals("X-FT-Workspace-ID", ignoreCase = true) }) { "workspace_header_override" }
+    val checkBeforeSend: suspend () -> Unit = { beforeSend(); requireCurrentRequest() }
+    var rejectedStatus: Int? = null
     return try {
         if (browserJson && allowsBrowserJsonTransport) {
             val headers = buildMap {
@@ -141,7 +189,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             val jsonBody = if (body === NoRequestBody) null else (body as FrozenJsonBody).text
             val browserBody = body as? FrozenJsonBody
             val response = fetchLargeBrowserJson(origin + path, method.value, headers, jsonBody,
-                browserBody?.compressInBrowser == true, beforeSend) { status ->
+                browserBody?.compressInBrowser == true, checkBeforeSend) { status ->
                 if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
             }
             if (response != null) return readPayload(response.status, response.text)
@@ -171,7 +219,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             if (preserveHttpRejectionOnBodyFailure && status !in 200..299) rejectedStatus = status
             readPayload(status, response.bodyAsText())
         }
-        beforeSend()
+        checkBeforeSend()
         if (preserveHttpRejectionOnBodyFailure) statement.execute(readResponse)
         else readResponse(statement.execute())
     } catch (cancelled: CancellationException) {

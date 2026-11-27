@@ -50,7 +50,9 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
                 PlatformControlAccessibility("cash.create.save", ControlAccessibilityState.Button(canSave))
                 Button(onClick = {
                     if (canSave) {
-                        val preflight = if (draft.mode == CashCreationMode.TRANSFER) {
+                        val preflight = if (state.canResumeSave) {
+                            emptyList()
+                        } else if (draft.mode == CashCreationMode.TRANSFER) {
                             validateCashTransferCreation(draft.transfer, accounts, getLocalTimeZoneId())
                         } else {
                             validateCashOrdinaryCreation(draft.ordinary, accounts, getLocalTimeZoneId())

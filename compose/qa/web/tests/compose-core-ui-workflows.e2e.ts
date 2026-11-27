@@ -1,8 +1,97 @@
-import { test, expect, type Page } from "@playwright/test";
+import { chromium, test, expect, type Page } from "@playwright/test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { activeSession, clickStableComposeTarget, installComposeApiFixtures, typeIntoComposeInput } from "./compose-fixtures";
 
 const byId = (page: Page, id: string) => page.locator(`[id="${id}"]:visible`).last();
 const click = (page: Page, id: string) => clickStableComposeTarget(page, byId(page, id));
+
+test("手工转账写入时退出浏览器，冷启动核实原收据", async ({ request, baseURL }) => {
+  const email = `cash-recovery-${crypto.randomUUID()}@example.invalid`;
+  const authentication = await request.post(`${baseURL}/api/v1/auth/register`, {
+    data: { email, password: "Synthetic recovery password" },
+  });
+  expect(authentication.ok()).toBe(true);
+  const { access_token: token } = await authentication.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const created = await request.post(`${baseURL}/api/v1/auth/workspaces`, {
+    headers, data: { name: "原转账恢复验证" },
+  });
+  expect(created.ok()).toBe(true);
+  const { active_workspace_id: workspace } = await created.json();
+  const accounts = [];
+  for (const name of ["转出账户", "转入账户"]) {
+    const account = await request.post(`${baseURL}/api/v1/accounts`, {
+      headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      data: { name, type: "cash", currencies: ["CNY"] },
+    });
+    expect(account.ok()).toBe(true);
+    accounts.push(await account.json());
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), "ft-cold-transfer-"));
+  const launch = () => chromium.launchPersistentContext(directory, {
+    headless: true, viewport: { width: 1100, height: 950 }, locale: "zh-CN", timezoneId: "Asia/Shanghai",
+    ...(process.env.PLAYWRIGHT_CHROME_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH } : {}),
+  });
+  let context = await launch();
+  try {
+    let page = context.pages()[0] ?? await context.newPage();
+    await page.addInitScript(value => localStorage.setItem("finance-tracker:session-token", value), token);
+    await page.goto(`${baseURL}/w/${workspace}/`);
+    await click(page, "ledger.empty-create");
+    await expect.poll(async () => {
+      if (await byId(page, "cash.create.from-amount").isVisible()) return true;
+      await click(page, "cash.create.mode-transfer");
+      return byId(page, "cash.create.from-amount").isVisible();
+    }).toBe(true);
+    await typeIntoComposeInput(page, '[id="cash.create.from-amount"]', "5.80");
+    let wrote!: (value: { key: string; receiptId: string }) => void;
+    const stored = new Promise<{ key: string; receiptId: string }>(resolve => { wrote = resolve; });
+    await page.route("**/api/v1/cashflow/transfer/commands", async route => {
+      const response = await route.fetch();
+      expect(response.ok(), await response.text()).toBe(true);
+      const { receipt_id } = await response.json();
+      wrote({ key: route.request().headers()["idempotency-key"], receiptId: receipt_id });
+      await route.abort("failed").catch(() => {});
+    });
+    await click(page, "cash.create.save");
+    const original = await stored;
+    await context.close();
+    const from = accounts[0];
+    const disabled = await request.patch(`${baseURL}/api/v1/accounts/by-id/${from.account_id}?workspace_id=${workspace}`, {
+      headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      data: { expected_revision: from.account_revision, patch: { active: false } },
+    });
+    expect(disabled.ok()).toBe(true);
+
+    context = await launch();
+    page = context.pages()[0] ?? await context.newPage();
+    await page.goto(`${baseURL}/w/${workspace}/`);
+    await click(page, "ledger.actions-fab");
+    await click(page, "ledger.add");
+    await expect(byId(page, "cash.create.from-amount")).toHaveText("5.80");
+    const replays: string[] = [];
+    page.on("request", pending => {
+      if (pending.method() === "POST" && new URL(pending.url()).pathname === "/api/v1/cashflow/transfer/commands")
+        replays.push(pending.headers()["idempotency-key"]);
+    });
+    const verified = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/v1/cash-mutations/receipts/by-key" && url.searchParams.get("key") === original.key;
+    });
+    await click(page, "cash.create.save");
+    const recovery = await verified;
+    expect((await recovery.json()).receipt_id).toBe(original.receiptId);
+    expect(replays).toEqual([]);
+    const snapshot = await request.get(`${baseURL}/api/v1/ledger/snapshot?workspace_id=${workspace}`, { headers });
+    expect((await snapshot.json()).facts.cash_transactions.map((item: { amount: string }) => item.amount).sort()).toEqual(["-5.80", "5.80"]);
+  } finally {
+    await context.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("首笔记账内创建账户后保留金额并选中新账户", async ({ page, baseURL }, info) => {
   const email = `first-booking-${crypto.randomUUID()}@example.invalid`;
@@ -37,29 +126,65 @@ test("首笔记账内创建账户后保留金额并选中新账户", async ({ pa
     });
     return (await response.json()).facts.cash_transactions[0]?.amount;
   }).toBe("-15.80");
+
+  const snapshot = await page.request.get(`${baseURL}/api/v1/ledger/snapshot?workspace_id=${workspace}`, {
+    headers: { Authorization: `Bearer ${token}`, "X-FT-Workspace-ID": workspace },
+  });
+  const entryId = (await snapshot.json()).facts.cash_entries[0].id;
+  await click(page, `ledger.record-cash-entry:${entryId}`);
+  await click(page, "cash.current.edit");
+  await page.mouse.move(190, 680);
+  await page.mouse.wheel(0, 510);
+  await typeIntoComposeInput(page, '[id="cash.entry.note"]', "核实后的备注");
+  const submitted: Array<{ key: string; plan: string; receiptId: string }> = [];
+  await page.route(/\/api\/v1\/cash-mutations\/plans\/[^/]+\/commit$/, async route => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    const receipt = await response.json();
+    submitted.push({ key: route.request().headers()["idempotency-key"], plan: receipt.plan_id, receiptId: receipt.receipt_id });
+    await route.fulfill({ status: 503, json: { error: { code: "storage.connect" } } });
+  });
+  await click(page, "cash.entry.save");
+  const resolve = page.waitForResponse(response => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/v1/cash-mutations/resolve");
+  await click(page, "cash.current.resolve");
+  const resolved = await resolve;
+  expect(resolved.ok()).toBe(true);
+  expect(submitted).toHaveLength(1);
+  expect(resolved.request().postDataJSON()).toEqual({ plan_id: submitted[0].plan, idempotency_key: submitted[0].key });
+  expect((await resolved.json()).receipt.receipt_id).toBe(submitted[0].receiptId);
+  await expect(byId(page, "cash.current.detail")).toContainText("核实后的备注");
 });
 
 test("移除成员在确认前不写入，邀请防重复且显示生成角色", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 950 });
   const fixtures = await installComposeApiFixtures(page);
   let invitations = 0;
-  await page.route("**/api/v1/auth/invitations", async route => {
+  await page.route(/\/api\/v1\/auth\/invitations(?:\?.*)?$/, async route => {
     invitations++;
     expect(route.request().postDataJSON().role).toBe("editor");
     await new Promise(resolve => setTimeout(resolve, 900));
-    await route.fulfill({ json: { token: "synthetic-invitation" } });
+    expect(new URL(route.request().url()).searchParams.get("workspace_id")).toBe("workspace-1");
+    await route.fulfill({ json: { token: "synthetic-invitation", role: "editor", expires_in_days: 7 } });
   });
   await page.goto("/w/workspace-1/workspace-management");
   await click(page, "management.directory.item.members");
   await clickStableComposeTarget(page, page.getByRole("button", { name: "移除", exact: true }).last());
   const modal = byId(page, "workspace-management.member-confirmation.dialog");
-  await expect(modal).toContainText("member@example.com");
+  await expect(modal.getByRole("button", { name: "移除", exact: true })).toBeVisible();
   expect(fixtures.calls.filter(call => call.method === "DELETE" && call.path.includes("/auth/members/"))).toHaveLength(0);
   await page.screenshot({ path: info.outputPath("member-removal-confirmation.png") });
   await page.keyboard.press("Escape");
   expect(fixtures.calls.filter(call => call.method === "DELETE" && call.path.includes("/auth/members/"))).toHaveLength(0);
 
   await expect(modal).toHaveCount(0);
+  await clickStableComposeTarget(page, page.getByRole("button", { name: "移除", exact: true }).last());
+  const removed = page.waitForResponse(response => response.request().method() === "DELETE" &&
+    new URL(response.url()).pathname === "/api/v1/auth/members/member-id");
+  await clickStableComposeTarget(page, modal.getByRole("button", { name: "移除", exact: true }));
+  const removal = await removed;
+  expect(removal.ok()).toBe(true);
+  expect(new URL(removal.url()).searchParams.get("workspace_id")).toBe("workspace-1");
   await page.goto("/w/workspace-1/workspace-management");
   await click(page, "management.directory.item.invitations");
   const create = byId(page, "workspace.management.invite");

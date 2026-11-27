@@ -1,0 +1,12 @@
+{
+  "name": "finance-tracker-cli",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "ft": "./bin/ft.cjs"
+  },
+  "files": ["bin", "lib"],
+  "engines": {
+    "node": ">=26.2.0"
+  }
+}

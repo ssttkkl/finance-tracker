@@ -430,7 +430,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "import_file_too_many" -> localizedText("copy_2ea314ef4c")
     "import_file_read_failed" -> localizedText("copy_7265b90625")
     "import_file_picker_failed" -> localizedText("copy_cb28b5a6f2")
-    "plan_changed", "session_changed", "entry_changed", "record_changed", "relation_context_changed" -> localizedText("cash_import_changed")
+    "plan_changed", "session_changed", "entry_changed", "record_changed", "relation_context_changed", "rules_version_changed" -> localizedText("cash_import_changed")
     "plan_expired", "session_expired" -> localizedText("cash_import_expired")
     "plan_input_invalid" -> localizedText("cash_import_input_invalid")
     "import_payload_invalid" -> localizedText("cash_import_payload_invalid")

@@ -1,7 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
-import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.client.freezeCashImportConfirmation
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.core.LocalCashLedgerOwner
 import kotlinx.serialization.json.*
@@ -56,8 +56,10 @@ internal suspend fun openLocalCashImportPreview(
         override suspend fun detail(itemId: String) = reader.detail(itemId)
         override suspend fun previousReview(input: JsonObject) = calculation.previousReviewFor(input)
         override suspend fun confirmation(batchId: String): LocalCashImportSubmission {
-            if (!plan.getValue("can_commit").jsonPrimitive.boolean) throw CashImportPlanError("plan_changed")
-            return LocalCashImportSubmission.freeze(batchId, calculation.request, LocalCashImportResultInput.freeze(calculation.plan))
+            val frozen = freezeCashImportConfirmation(batchId, plan.getValue("can_commit").jsonPrimitive.boolean,
+                calculation.request, calculation.plan)
+            return LocalCashImportSubmission.fromVerifiedStorage(frozen.key, frozen.request, null, false, frozen.resultInput,
+                calculation.request.baseLedgerSeq)
         }
     }
 }

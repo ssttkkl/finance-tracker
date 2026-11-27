@@ -1,13 +1,8 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportPlanReader
-import com.finance.tracker.business.domain.parsePythonCashTimestamp
-import com.finance.tracker.business.domain.pythonCodePointCount
-import com.finance.tracker.business.domain.summarizeLocalCashImportMonths
-import com.finance.tracker.core.cashLedgerPlatformTimeZoneExists
-import com.finance.tracker.core.cashLedgerTimeZoneIds
-import com.finance.tracker.core.localCashLedgerMonth
+import com.finance.tracker.client.cashImportPlanReader
+import com.finance.tracker.core.localCashLedgerCalendar
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -17,13 +12,7 @@ internal fun LocalCashImportCalculation.reader(planId: String): LocalCashImportP
     return localCashImportPlanReader(JsonObject(plan + ("plan_id" to JsonPrimitive(planId))))
 }
 
-internal fun localCashImportPlanReader(plan: JsonObject): LocalCashImportPlanReader = LocalCashImportPlanReader(plan) { rows, zone ->
-    validateCashImportPreviewTimezone(zone)
-    summarizeLocalCashImportMonths(rows) { text -> localCashLedgerMonth(parsePythonCashTimestamp(text, allowNaive = true), zone) }
-}
+internal fun localCashImportPlanReader(plan: JsonObject): LocalCashImportPlanReader =
+    cashImportPlanReader(plan, localCashLedgerCalendar)
 
-
-internal fun validateCashImportPreviewTimezone(zone: String) {
-    if (zone.pythonCodePointCount() > 128 || zone !in setOf("EST", "MST", "HST") &&
-        (zone !in cashLedgerTimeZoneIds || !cashLedgerPlatformTimeZoneExists(zone))) throw CashImportPlanError("plan_input_invalid")
-}
+internal fun validateCashImportPreviewTimezone(zone: String) = localCashLedgerCalendar.validateImportZone(zone)

@@ -13,14 +13,13 @@ import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.contracts.StoredImportBatch
 import com.finance.tracker.business.domain.decodeStoredImportBatch
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
-import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
-import com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan
-import com.finance.tracker.business.domain.recalculate
 import com.finance.tracker.business.domain.prepareLocalCashImportView
 import com.finance.tracker.business.domain.page
-import kotlin.time.Clock
+import com.finance.tracker.client.rebaseCashImportReview
+import com.finance.tracker.client.freezeCashImportConfirmation
+import com.finance.tracker.client.encodeCashImportRequest
 import kotlinx.serialization.json.*
 import kotlin.js.JsAny
 import kotlin.js.JsExport
@@ -29,8 +28,9 @@ import kotlin.js.JsExport
 fun freezeCashImportConfirmation(material: String): JsAny {
     val confirmation = Json.parseToJsonElement(material).jsonObject
     val writeSet = Json.decodeFromJsonElement<CashWriteSetRequestDto>(confirmation.getValue("writeSet"))
-    val result = LocalCashImportResultInput.freeze(confirmation.getValue("resultPlan").jsonObject)
-    return confirmationResponse(cashWriteSetJson.encodeToString(writeSet), result.encode(), writeSet.baseLedgerSeq)
+    val frozen = freezeCashImportConfirmation(confirmation.getValue("batchId").jsonPrimitive.content,
+        confirmation.getValue("canCommit").jsonPrimitive.boolean, writeSet, confirmation.getValue("resultPlan").jsonObject)
+    return confirmationResponse(frozen.request, checkNotNull(frozen.resultInput), writeSet.baseLedgerSeq)
 }
 
 private fun confirmationResponse(body: String, resultInput: String, base: String): JsAny = js("({ body, resultInput, base })")
@@ -97,12 +97,8 @@ fun rebaseCashImport(workspace: String, base: String, review: String, files: JsA
     check(snapshot.workspaceId == workspace) { "ledger_snapshot_workspace_mismatch" }
     check(snapshot.ledgerSeq == base) { "cash_import_snapshot_changed" }
     val parsed = readCapturedCashImportFiles(files)
-    val result = LocalCashImportReview.decode(review).recalculate(snapshot) { source, choices, previous, ids ->
-        calculateLocalCashImportBusinessPlan(parsed, source, choices, previous, ids, {}, Clock.System::now)
-    }
-    if (!result.conclusionUnchanged) throw CashImportPlanError("plan_changed")
-    val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, result.changes)
-    rebaseResponse(cashWriteSetJson.encodeToString(request), null)
+    val request = rebaseCashImportReview(parsed, snapshot, LocalCashImportReview.decode(review)) {}
+    rebaseResponse(encodeCashImportRequest(request), null)
 } catch (failure: CashImportPlanError) {
     rebaseResponse(null, previewPlanError(failure).toString())
 }

@@ -124,6 +124,54 @@ The Kotlin backend and the pure business modules (`business-contracts`, `busines
 
 `shared` is intentionally outside this gate because it contains Compose UI; Compose rules and Android Lint are not enabled. ktlint formatting rules are limited to unused imports, trailing spaces and final newline until the migrated code is reformatted.
 
+## 账本 CLI
+
+CLI 通过本地 npm 包安装为 `ft`。构建使用 JDK 21，运行使用 Node.js 26.2.0 或更新版本。
+
+```bash
+cd compose
+./gradlew :cli:stageNpm
+npm pack ./cli/build/npm --pack-destination ./cli/build
+npm install --global ./cli/build/finance-tracker-cli-0.1.0.tgz
+ft --version
+```
+
+设置 `FT_CLI_SERVER` 或在命令末尾传入 `--server URL`。服务地址使用 HTTPS，环回地址可使用 HTTP。后端须包含预期工作区守卫。登录和注册通过 `--password-stdin` 从标准输入接收密码。无交互调用缺少必需参数时退出。JSON 模式用 stdout 返回结果或结构化错误，金额、账本版本和操作引用按字符串保留。错误的 `commit_state` 为 `unknown` 时可接续同一操作。
+
+```bash
+ft auth status --json
+ft workspace use "$WORKSPACE_ID"
+ft cash summary --workspace "$WORKSPACE_ID" --timezone Asia/Shanghai --json
+ft cash list --workspace "$WORKSPACE_ID" --start-index 0 --json
+ft cash show "$PROJECTION_ID" --json
+```
+
+联网读取先核对认证会话和工作区版本。实际网络不可达时可用原登录令牌读取加密快照，结果包含 `offline` 和 `synced_at`。JSON 中的 `synced_at` 是该份快照取得的时间。请求失败或明确失去访问权时，错误由对应命令报告。
+
+macOS 默认使用登录钥匙串。无交互环境可由密钥管理器为每次进程注入同一个 `FT_CLI_STORAGE_KEY`，值为 32 字节随机密钥的 Base64 表示。默认状态目录是 `~/.finance-tracker-cli`，可通过 `FT_CLI_STATE_DIR` 选择独立目录。会话、快照、文件捕获和恢复材料按服务地址、原登录身份及工作区隔离。退出或确认失去访问权时清理对应材料。
+
+```bash
+ft import prepare statement.xlsx --workspace "$WORKSPACE_ID" --json
+ft import map "$BATCH_ID" --revision "$BATCH_REV" \
+  --source-account "$SOURCE_REF" --account "$ACCOUNT_ID" --account-revision "$ACCOUNT_REV" --json
+ft import review "$BATCH_ID" --json
+ft import items "$BATCH_ID" --status pending --json
+ft import confirm "$BATCH_ID" --review "$REVIEW_REV" --json
+ft import result "$BATCH_ID" --kind row --json
+```
+
+准备结果列出文件、来源账户与批次修订。每次文件或选择变化都使用最新修订；确认使用整批核对返回的 `review_revision`。CSV／XLSX 本地解析，PDF／旧 XLS 需要服务端解析。PDF 密码按文件从标准输入提供。退出后用 `ft import batches` 查批次，用 `ft import resume "$BATCH_ID"` 接续准备或核实收据。标为已保存但明细待补齐时，也用原批次继续。账户创建与补币种即时生效，用 `ft import account undo` 按原修订逐项撤回。
+
+核对和确认的阶段进展写入标准错误，`--json` 的标准输出仍是单个 JSON 结果。批次和账本版本未变化时，确认直接使用已核对的整批内容。`error.code` 为 `payload_too_large` 且 `error.commit_state` 为 `not_committed` 时，可在原批次调整文件并重新核对。状态为 `unknown` 时先接续原批次核实结果。
+
+记账、转账和维护确认由服务端保存。进程在结果返回前关闭时，用 `ft cash pending` 找原操作，再用 `ft cash resume "$OPERATION_ID"` 核实。分类和删除等需要确认实际影响的命令使用当前账本或目录修订；操作结果待核实时先重新读取目标。命令参数与子命令帮助见 `ft auth --help`、`ft workspace --help`、`ft cash --help`、`ft category --help`、`ft account --help`、`ft import --help`。
+
+Compose 正式页面和 `ft` 共用 Kotlin 模块 `:client-operations`。账本读取和现金账户目录使用原工作区的快照。记账、转账、维护和整批现金导入使用原请求和幂等键核实收据。Compose 使用平台的加密账本缓存和 Worker，`ft` 使用自己的加密本机状态。客户端退出、切换工作区或断网后，回到原工作区打开原有入口即可继续核实。
+
+`ft import account currencies` 只提交缺失币种。账户已支持所需币种时，JSON 返回 `"changed": false` 和当前账户，账户修订与账本版本保持原值。`ft account list` 使用现金账户快照，已同步的账本可断网查询。
+
+Kotlin 宿主实现挂起式 HTTP、加密持久化和会话检查。写入前保存冻结命令，通过条件更新记录权威收据。CLI 的参数解析与打印位于 `:cli`。
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
@@ -132,3 +180,17 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 
 We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
 If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+
+## 共享客户端性能门禁
+
+每次以 main 为目标的 PR 都在独立 runner 上运行普通共享入口、安装包冷命令和 19 文件导入，通过 `client-operations-performance` 汇总结果。预算、公共入口归属和场景定义维护在 [budgets.json](client-operations/perf/budgets.json)。GitHub Actions 为每组上传独立的环境、原始样本、判定和诊断。首次目标基线缺少共享模块或 CLI 时，报告会标明不可比，head 仍执行全部绝对预算。
+
+从仓库根目录运行以下命令。构建和打包会先于计时。最大场景使用显式指定、空的环回 PostgreSQL 测试库，库名以 `_test` 结尾，另需 Python 3、`qpdf`、`openssl`、`psql` 和系统 `time`。脚本生成合成数据及临时本地状态。
+
+```bash
+node compose/client-operations/perf/run-gate.mjs ordinary /tmp/ft-perf-ordinary
+FT_TEST_POSTGRES_URL='postgresql://ft_test@127.0.0.1:5432/ft_perf_test' \
+  node compose/client-operations/perf/run-gate.mjs maximum /tmp/ft-perf-maximum
+```
+
+CI 基准固定 Ubuntu 26.04 x64、Node 26.13.1 和 JDK 21。候选提交正文中使用独立一行 `Performance-Calibration: five hosted runners` 时，同一 head 的每组负载在五台独立主机上运行。日常 PR 每组执行一次。本机可通过 `FT_PERF_ORDINARY_LANE=shared` 或 `FT_PERF_ORDINARY_LANE=cli` 单独核对一组。预算以 CI 报告为准，本机结果用于诊断。

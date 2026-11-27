@@ -7,6 +7,8 @@
 | 子能力 | 完整能力 ID |
 |--------|-------------|
 | [账本记录](ledger-records/spec.md) | `shared/ledger-records` |
+| [共享客户端操作层](client-operations/spec.md) | `shared/client-operations` |
+| [账本 CLI](ledger-cli/spec.md) | `shared/ledger-cli` |
 | [时间语义](time-semantics/spec.md) | `shared/time-semantics` |
 | [运行时数据库](runtime-database/spec.md) | `shared/runtime-database` |
 | [跨端展示合同](cross-platform-presentation/spec.md) | `shared/cross-platform-presentation` |
@@ -18,6 +20,7 @@
 ## 相关能力
 
 - [业务能力总览](../README.md)
+- [离线账本缓存](offline-ledger-cache/spec.md) 与 [账本快照同步](ledger-snapshot-sync/spec.md)
 
 ## 设计资源
 

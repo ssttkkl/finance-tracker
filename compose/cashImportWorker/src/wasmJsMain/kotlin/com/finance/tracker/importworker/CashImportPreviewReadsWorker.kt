@@ -45,6 +45,8 @@ private fun openPreviewView(input: JsonObject, value: WorkerCashImportPreview): 
     reader.validateReadable()
     val view = reader.view(input.text("timezone"))
     val confirmation = buildJsonObject {
+        put("batchId", input.text("batchId"))
+        put("canCommit", plan.getValue("can_commit"))
         put("writeSet", value.writeSet)
         put("resultPlan", buildJsonObject {
             put("operations", JsonArray(value.plan.getValue("operations").jsonArray.map { operation ->

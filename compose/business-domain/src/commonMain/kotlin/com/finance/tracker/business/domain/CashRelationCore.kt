@@ -78,8 +78,22 @@ class CashRelationCoreRules<A>(private val amountSign: (A)->Int, private val tim
         return fact.id
     }
 
-    fun stableFactOrderKey(fact: RelationFact<A>): List<String> = listOf(
-        stableTimestamp(fact.occurredAt), fact.billSource.ifEmpty { fact.source }, fact.recordId,
+    fun stableFactOrderKey(fact: RelationFact<A>): List<String> = factOrderKey(fact, stableTimestamp(fact.occurredAt))
+
+    internal fun planFactOrderKey(): (RelationFact<A>) -> List<String> {
+        val timestamps = mutableMapOf<Any, String>()
+        return { fact ->
+            val value = fact.occurredAt
+            val time = when (value) {
+                is Instant, is String -> timestamps.getOrPut(value) { stableTimestamp(value) }
+                else -> stableTimestamp(value)
+            }
+            factOrderKey(fact, time)
+        }
+    }
+
+    private fun factOrderKey(fact: RelationFact<A>, time: String): List<String> = listOf(
+        time, fact.billSource.ifEmpty { fact.source }, fact.recordId,
         fact.accountId, stableFactReference(fact), fact.id)
 
     fun relationOrderKey(fact: RelationFact<A>): Comparator<RelationFact<A>> = Comparator { left, right ->

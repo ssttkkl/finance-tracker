@@ -59,8 +59,10 @@ internal class LocalCashImportFile private constructor(private val encoded: Stri
         private fun capture(input: CashImportUploadInput, bytes: ByteArray, document: ParsedCashDocument?, code: String?): LocalCashImportFile {
             val stored = captureCashStatement(input.clientFileRef, input.file.name, input.file.mediaType,
                 input.file.lastModifiedAtMillis, input.sourceHint, bytes, document, code)
-            return LocalCashImportFile(Json.encodeToString(stored), input.clientFileRef)
+            return fromCapture(stored)
         }
+
+        fun fromCapture(stored: StoredCashImportFile) = LocalCashImportFile(Json.encodeToString(stored), stored.clientFileRef)
 
         // The same-origin Worker constructed and bounded this capture before returning it.
         // Durable cache reads still verify its schema, binary length, and digest.

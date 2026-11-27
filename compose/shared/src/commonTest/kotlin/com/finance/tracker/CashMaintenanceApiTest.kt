@@ -112,7 +112,7 @@ class CashMaintenanceApiTest {
     }
     @Test fun commitAndPaginationUseOriginalRevisionKeyAndEscapedCursor() = runTest {
         var call: HttpRequestData? = null
-        val api = client(RECEIPT) { call = it }
+        val api = client(MUTATION_RECEIPT) { call = it }
         api.commitCashMaintenance("mp_one", 9, "original-key")
         assertEquals("/api/v1/cash-mutations/plans/mp_one/commit", call!!.url.encodedPath)
         assertEquals(buildJsonObject { put("expected_plan_revision", 9) }, body(call!!))
@@ -126,7 +126,7 @@ class CashMaintenanceApiTest {
     }
     @Test fun commitForwardsTheConfirmedLedgerSequenceAsTheRefreshFloor() = runTest {
         var call: HttpRequestData? = null
-        val receipt = RECEIPT.replace("\"retained_transaction_id\"", "\"ledger_seq\":\"41\",\"retained_transaction_id\"")
+        val receipt = MUTATION_RECEIPT.replace("\"retained_transaction_id\"", "\"ledger_seq\":\"41\",\"retained_transaction_id\"")
         val api = client(receipt) { call = it }
         val floors = mutableListOf<String?>()
         KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }.commit(ImportFrozenCommand("mp_one", 9, "key"))
@@ -137,7 +137,8 @@ class CashMaintenanceApiTest {
 
     @Test fun onlyACommittedResolutionRefreshesTheCache() = runTest {
         for (status in listOf("pending", "retry_original", "not_committed", "committed")) {
-            val api = client("""{"status":"$status","receipt":${if (status == "committed") RECEIPT else "null"}}""") {}
+            val receipt = if (status == "committed") MUTATION_RECEIPT else "null"
+            val api = client("""{"status":"$status","receipt":$receipt}""") {}
             val floors = mutableListOf<String?>()
             val result = KtorCashMaintenanceRepository(api) { { floor -> floors += floor } }
                 .resolve(ImportFrozenCommand("mp_one", 9, "original-key"))
@@ -210,3 +211,5 @@ private class MaintenanceTokenStore : TokenStore {
 private const val RECORD = """{"record_origin":"import","transaction_id":"9007199254740993","state":"draft","row_revision":3,"confirmation_status":"pending","fields":{"amount":null,"note":"账单备注"},"editable_fields":["amount"],"entry":{"entry_id":"entry1","revision":8,"fields":{"note":"共同备注","category_id":null},"manual_fields":["note"],"editable_fields":["note","category_id"],"supports_transfer_edit":false,"original_note":"账单原始备注","original_note_token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"issues":[],"relations":[],"projection_ref":null}"""
 private const val PLAN = """{"plan_id":"mp_one","edit_context_id":"context","plan_revision":1,"expires_at":"2099-01-01T00:00:00Z","summary":{},"item_counts":{"all":0,"pending":0},"can_commit":true,"items":[],"pages":{"items":null},"invalidated_choices":[]}"""
 private const val RECEIPT = """{"receipt_id":"receipt1","plan_id":"mp_one","operation_kind":"save_draft","committed":true,"created_at":"2026-10-24T00:00:00Z","status":"completed","summary":{"saved_draft":1},"retained_transaction_id":"11"}"""
+
+private val MUTATION_RECEIPT = RECEIPT.replace("\"operation_kind\":\"save_draft\"", "\"operation_kind\":\"mutation\"")

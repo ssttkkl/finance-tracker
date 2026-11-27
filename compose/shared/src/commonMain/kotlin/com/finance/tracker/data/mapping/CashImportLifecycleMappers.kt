@@ -40,6 +40,7 @@ internal fun ImportChoiceSet.toDto(revision: Long, previousPlanId: String?) = Ca
     rows.map { CashImportRowInput(it.rowRef, CashImportRowAction.valueOf(it.action.name), it.patch.toJsonObject()) },
     relations.map { CashImportRelationInput(it.suggestionId, CashImportRelationAction.valueOf(it.action.name), it.candidateId, it.commonFields?.toJsonObject(), it.inheritCommonFields) },
     entries.map { CashImportEntryInput(it.editRef, it.patch.toJsonObject()) },
+    timezoneName = com.finance.tracker.core.getLocalTimeZoneId(),
 )
 internal fun CashPlanMemberRefDto.toDomain() = ImportMemberRef(rowRef, transactionId)
 internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, currency, counterparty, note, accounts, categoryId, counterpartyAccount, counterpartyAccountAttrs, recordType, recordSubtype)

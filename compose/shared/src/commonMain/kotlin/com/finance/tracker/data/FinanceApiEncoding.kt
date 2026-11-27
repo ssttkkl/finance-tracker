@@ -1,10 +1,5 @@
 package com.finance.tracker.data
 
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.put
 private val HTTPS_ORIGIN = Regex("^https://(?:\\[[0-9A-Fa-f:]+\\]|[A-Za-z0-9.-]+)(?::([0-9]{1,5}))?$")
 private val HTTP_ORIGIN = Regex("^http://(\\[[0-9A-Fa-f:]+\\]|[A-Za-z0-9.-]+):([0-9]{1,5})$")
 
@@ -60,11 +55,4 @@ internal fun encodeQueryComponent(value: String): String = buildString {
             append("0123456789ABCDEF"[unsigned and 15])
         }
     }
-}
-
-internal fun categoryWriteBody(name: String, parentId: String?, description: String, expectedRevision: Long) = buildJsonObject {
-    put("name", name)
-    put("description", description)
-    put("parent_id", parentId?.let(::JsonPrimitive) ?: JsonNull)
-    put("expected_revision", expectedRevision)
 }

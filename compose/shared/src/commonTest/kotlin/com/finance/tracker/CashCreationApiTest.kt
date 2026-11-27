@@ -68,7 +68,11 @@ class CashCreationApiTest {
                     action(bound) {}
             }
             val repo = KtorCashCreationRepository(api, operations)
-            val input = StructuredObject(emptyMap())
+            val input = StructuredObject(mapOf(
+                "account_name" to StructuredText("Original account"), "amount" to StructuredText("-1.20"),
+                "currency" to StructuredText("CNY"), "occurred_at" to StructuredText("2026-11-19T12:00:00Z"),
+                "record_type" to StructuredText("consumption"),
+            ))
             assertFailsWith<CancellationException> {
                 repo.save(CashCreationMode.ORDINARY, input, "original", listOf("1"), "workspace", "owner@example.test")
             }
@@ -78,6 +82,56 @@ class CashCreationApiTest {
         } finally {
             api.close()
         }
+    }
+
+    @Test fun theJournalReleasesOnlyACertainOriginalRejection() = runTest {
+        var stored: CashCreationRecovery? = null
+        val journal = object : CashCreationJournal {
+            override suspend fun read() = stored
+            override suspend fun swap(previous: CashCreationRecovery?, next: CashCreationRecovery?): Boolean {
+                if (stored != previous) return false
+                stored = next
+                return true
+            }
+        }
+        val requests = mutableListOf<Pair<HttpMethod, String>>()
+        val api = FinanceApiClient({ "https://api.example.test" }, CreationTokenStore(), MockEngine { request ->
+            assertNotNull(stored)
+            requests += request.method to request.url.encodedPath
+            val json = headersOf(HttpHeaders.ContentType, "application/json")
+            if (request.headers["Idempotency-Key"] == "invalid-record") {
+                respond("""{"error":{"code":"invalid_record"}}""", HttpStatusCode.UnprocessableEntity, json)
+            } else {
+                respond("""{"error":{"code":"workspace_forbidden"}}""", HttpStatusCode.Forbidden, json)
+            }
+        })
+        try {
+            val bound = api.boundTo(ApiCredentialSnapshot("owner-token", "https://api.example.test"), "workspace", "owner@example.test")
+            val operations = object : CashBusinessOperations {
+                override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T =
+                    action(bound) {}
+            }
+            val repo = KtorCashCreationRepository(api, operations) { journal }
+            val draft = CashCreationDraft(CashOrdinaryInput(emptyMap()), CashTransferInput())
+            val frozen = com.finance.tracker.client.freezeCashRecord(
+                com.finance.tracker.client.NewCashRecord("1", "-1.20", "CNY", "2026-11-19T12:00:00Z", "consumption"),
+                "Original", "invalid-record")
+            val failure = assertFailsWith<DomainFailure> {
+                repo.saveRecovery(CashCreationRecovery(frozen, draft), "workspace", "owner@example.test", lookupFirst = false)
+            }
+            assertEquals("not_committed", failure.commitState)
+            assertNull(stored)
+            val denied = CashCreationRecovery(frozen.copy(id = "permission-changed"), draft)
+            assertEquals(403, assertFailsWith<DomainFailure> {
+                repo.saveRecovery(denied, "workspace", "owner@example.test", lookupFirst = false)
+            }.status)
+            assertEquals(denied, stored)
+            assertEquals(403, assertFailsWith<DomainFailure> {
+                repo.saveRecovery(denied, "workspace", "owner@example.test", lookupFirst = true)
+            }.status)
+            assertEquals(denied, stored)
+            assertEquals(listOf(HttpMethod.Post, HttpMethod.Post, HttpMethod.Get), requests.map { it.first })
+        } finally { api.close() }
     }
 }
 private class CreationTokenStore : TokenStore {

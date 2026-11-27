@@ -114,7 +114,9 @@ class CashImportTransportHttpTest(private val backend: String) {
 
     @Test fun gzipRequestBodyIsDigestedAsTheDecodedCommandAndReplaysByKey() = authenticated { db, ws, account, token ->
         val base = sequence(db, ws)
-        val input = json.encodeToString(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account)))
+        val command = CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))
+        val input = Json(json) { encodeDefaults = false }.encodeToString(command)
+        assertEquals(command, json.decodeFromString<CashWriteSetRequestDto>(input))
         val compressed = gzip(input.encodeToByteArray())
         testApplication {
             application { financeModule(db, clock = clock) }
@@ -155,8 +157,12 @@ class CashImportTransportHttpTest(private val backend: String) {
             val bomb = gzip(ByteArray(70 * 1024 * 1024) { ' '.code.toByte() })
             val oversized = submit("transport-bomb", "gzip", bomb)
             assertEquals(413, oversized.status.value, oversized.bodyAsText())
-            assertEquals(JsonPrimitive("payload_too_large"),
-                Json.parseToJsonElement(oversized.bodyAsText()).jsonObject.getValue("error").jsonObject.getValue("code"))
+            val refusal = Json.parseToJsonElement(oversized.bodyAsText()).jsonObject
+            assertEquals(JsonPrimitive("payload_too_large"), refusal.getValue("error").jsonObject.getValue("code"))
+            assertEquals(JsonPrimitive("not_committed"), refusal["commit_state"])
+            val raw = submit("transport-identity-overflow", "identity", ByteArray(CashImportProtocol.MAX_PLAN_INPUT_BYTES + 1))
+            assertEquals(413, raw.status.value, raw.bodyAsText())
+            assertEquals(refusal, Json.parseToJsonElement(raw.bodyAsText()).jsonObject)
             assertEquals(base, sequence(db, ws))
             assertEquals(0, db.read { c -> c.jooq(db.sqlite).selectCount().from(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).fetchOne(0) })
         }
@@ -233,8 +239,9 @@ class CashImportTransportHttpTest(private val backend: String) {
                 contentType(ContentType.Application.Json); setBody(body)
             }
             assertEquals(413, response.status.value, response.bodyAsText())
-            assertEquals(JsonPrimitive("payload_too_large"),
-                Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("error").jsonObject.getValue("code"))
+            val refusal = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+            assertEquals(JsonPrimitive("payload_too_large"), refusal.getValue("error").jsonObject.getValue("code"))
+            assertEquals(JsonPrimitive("not_committed"), refusal["commit_state"])
             assertEquals(0, db.read { c -> c.jooq(db.sqlite).selectCount().from(CASH_TRANSACTIONS)
                 .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(ws)).fetchOne(0) })
         }

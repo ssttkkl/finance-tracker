@@ -1,8 +1,11 @@
 package com.finance.tracker.data
 
-import io.ktor.http.ContentType
+import com.finance.tracker.client.ClientAccountOperations
+import com.finance.tracker.client.ClientAccountRequest
+import com.finance.tracker.client.ClientAccountTransport
+import com.finance.tracker.client.ClientOperationFailure
 import io.ktor.http.HttpMethod
-import io.ktor.http.content.TextContent
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.*
 
 internal class ImportAccountScope(val workspaceId: String, val credentials: ApiCredentialSnapshot) {
@@ -11,56 +14,52 @@ internal class ImportAccountScope(val workspaceId: String, val credentials: ApiC
 
 internal class ImportAccountApi(private val client: FinanceApiClient, private val scope: ImportAccountScope? = null) {
     suspend fun list(): List<ImportAccountListItemDto> =
-        request<ImportAccountListDto>(HttpMethod.Get, "/api/v1/accounts?view=cash").items
+        client.request<ImportAccountListDto>(HttpMethod.Get, scopedPath("/api/v1/accounts?view=cash"),
+            credentials = scope?.credentials, clearUnauthorizedToken = scope == null,
+            preserveHttpRejectionOnBodyFailure = scope != null, requireResponseBody = scope != null).items
 
-    suspend fun read(accountId: String): ImportAccountDto = request(HttpMethod.Get, importAccountPath(accountId))
+    suspend fun read(accountId: String): ImportAccountDto = shared { read(accountId) }
 
     suspend fun create(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccountDto =
-        request(HttpMethod.Post, "/api/v1/accounts", buildJsonObject {
-            put("name", name); put("type", type); put("currencies", apiJson.encodeToJsonElement(currencies))
-        }, cashKeyHeaders(idempotencyKey))
+        shared { edit(ClientAccountOperations.create(name, type, currencies, idempotencyKey)) }
 
-    suspend fun update(accountId: String, expectedRevision: Long, patch: JsonObject, idempotencyKey: String): ImportAccountDto {
-        requireCashRevision(expectedRevision)
-        if (patch.keys.any { it !in setOf("name", "active", "currencies") }) invalidCashInput()
-        return request(HttpMethod.Patch, importAccountPath(accountId), buildJsonObject {
-            put("expected_revision", expectedRevision); put("patch", patch)
-        }, cashKeyHeaders(idempotencyKey))
+    suspend fun update(accountId: String, expectedRevision: Long, patch: JsonObject, idempotencyKey: String): ImportAccountDto =
+        shared { edit(ClientAccountOperations.update(accountId, expectedRevision, patch, idempotencyKey, ::encodePathSegment)) }
+
+    suspend fun delete(accountId: String, expectedRevision: Long, idempotencyKey: String): ImportAccountDto =
+        shared { edit(ClientAccountOperations.delete(accountId, expectedRevision, idempotencyKey, ::encodePathSegment)) }
+
+    suspend fun ensureCurrencies(requirements: List<ImportCurrencyRequirementDto>): List<ImportCurrencyRequirementResultDto> =
+        shared { ensureCurrencies(ClientAccountOperations.currencyRequirements(requirements)) }
+
+    suspend fun receipt(receiptId: String): CashMutationReceiptDto = shared { receipt(receiptId) }
+
+    suspend fun receiptByKey(key: String): CashMutationReceiptDto = shared { receiptByKey(key) }
+
+    private suspend fun <T> shared(call: suspend ClientAccountOperations.() -> T): T {
+        val transport = object : ClientAccountTransport {
+            override suspend fun <Response> send(request: ClientAccountRequest, response: DeserializationStrategy<Response>): Response {
+                val credentials = scope?.credentials ?: client.captureCredentials()
+                val origin = normalizeApiOrigin(credentials.apiOrigin, client.allowInsecureHttp)
+                return client.exchange(HttpMethod.parse(request.method), scopedPath(request.path), origin, credentials.token,
+                    request.body?.let(::FrozenJsonBody) ?: NoRequestBody,
+                    request.key?.let { mapOf("Idempotency-Key" to it) }.orEmpty(),
+                    clearUnauthorizedToken = scope == null, preserveHttpRejectionOnBodyFailure = scope != null) { status, text ->
+                    if (status !in 200..299) client.rejectApiPayload(status, text, credentials.token, clearUnauthorizedToken = scope == null)
+                    try { apiJson.decodeFromString(response, text) }
+                    catch (failure: kotlinx.serialization.SerializationException) {
+                        throw ApiFailure("request_failed", status, cause = failure)
+                    }
+                }
+            }
+        }
+        return try { ClientAccountOperations(transport, ::encodePathSegment).call() }
+        catch (failure: ClientOperationFailure) {
+            throw ApiFailure(failure.code, failure.status ?: 200, commitState = failure.commitState, cause = failure)
+        }
     }
 
-    suspend fun delete(accountId: String, expectedRevision: Long, idempotencyKey: String): ImportAccountDto {
-        requireCashRevision(expectedRevision)
-        return request(HttpMethod.Delete, importAccountPath(accountId), buildJsonObject { put("expected_revision", expectedRevision) }, cashKeyHeaders(idempotencyKey))
-    }
-
-    suspend fun ensureCurrencies(requirements: List<ImportCurrencyRequirementDto>): List<ImportCurrencyRequirementResultDto> {
-        if (requirements.isEmpty()) invalidCashInput()
-        requirements.forEach { requireCashRevision(it.expectedRevision) }
-        return request<ImportCurrencyRequirementsViewDto>(HttpMethod.Post, "/api/v1/cash-import/accounts/currency-requirements",
-            buildJsonObject { put("items", apiJson.encodeToJsonElement(requirements)) }).results
-    }
-
-    private fun importAccountPath(id: String) = "/api/v1/accounts/by-id/${encodePathSegment(id)}"
-
-    suspend fun receipt(receiptId: String): CashMutationReceiptDto {
-        requireImportAccountReference(receiptId)
-        val result: CashMutationReceiptDto = request(HttpMethod.Get, "/api/v1/cash-mutations/receipts/${encodePathSegment(receiptId)}")
-        if (result.receiptId != receiptId) throw ApiFailure("request_failed", 200)
-        return result
-    }
-
-    suspend fun receiptByKey(key: String): CashMutationReceiptDto {
-        cashKeyHeaders(key)
-        return request(HttpMethod.Get, appendQuery("/api/v1/cash-mutations/receipts/by-key", listOf("key" to key)))
-    }
-
-    private suspend inline fun <reified T> request(method: HttpMethod, path: String, body: Any = NoRequestBody,
-        headers: Map<String, String> = emptyMap()): T {
-        val scopedPath = scope?.let { appendQuery(path, listOf("workspace_id" to it.workspaceId)) } ?: path
-        val frozenBody = if (scope != null && body is JsonElement) TextContent(body.toString(), ContentType.Application.Json) else body
-        return client.request(method, scopedPath, frozenBody, headers, credentials = scope?.credentials,
-            clearUnauthorizedToken = scope == null, preserveHttpRejectionOnBodyFailure = scope != null, requireResponseBody = scope != null)
-    }
+    private fun scopedPath(path: String) = scope?.let { appendQuery(path, listOf("workspace_id" to it.workspaceId)) } ?: path
 }
 
 private fun requireImportAccountReference(value: String) {

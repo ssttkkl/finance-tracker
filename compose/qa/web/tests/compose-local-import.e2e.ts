@@ -130,6 +130,75 @@ const feedbackCsv = [
     "2026-08-15 10:00:00,日用百货,合成商户,account,合成商品,支出,20.00,支付宝余额,交易成功,0000123,merchant-1",
   ].join("\n");
 
+test("导入补币种后按原修订撤销账户改动", async ({ page, baseURL }, info) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  const authentication = await page.request.post(`${baseURL}/api/v1/auth/register`, {
+    data: { email: `account-compensation-${crypto.randomUUID()}@example.invalid`, password: "Synthetic account password" },
+  });
+  expect(authentication.ok()).toBe(true);
+  const { access_token: token } = await authentication.json();
+  const headers = { Authorization: `Bearer ${token}` };
+  const createdWorkspace = await page.request.post(`${baseURL}/api/v1/auth/workspaces`, { headers, data: { name: "账户撤销验证" } });
+  expect(createdWorkspace.ok()).toBe(true);
+  const { active_workspace_id: workspace } = await createdWorkspace.json();
+  const seeded = await page.request.post(`${baseURL}/api/v1/accounts?workspace_id=${workspace}`, {
+    headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+    data: { name: "本地外币账户", type: "cash", currencies: ["USD"] },
+  });
+  expect(seeded.ok()).toBe(true);
+  const account = await seeded.json();
+  await page.addInitScript(value => localStorage.setItem("finance-tracker:session-token", value), token);
+  await page.goto(`/w/${workspace}/cash-import`);
+  const tagged = (id: string) => page.locator(`[id="${id}"]:visible`).last();
+  const click = (id: string) => clickStableComposeTarget(page, tagged(id));
+  const chooser = page.waitForEvent("filechooser");
+  await click("cash.import.add-files");
+  await (await chooser).setFiles({ name: "account-undo.csv", mimeType: "text/csv", buffer: Buffer.from(feedbackCsv) });
+  await expect(tagged("cash.import.to-accounts")).toBeEnabled();
+  await click("cash.import.to-accounts");
+  const group = page.locator('[id^="cash.import.account-group-"]:visible').last();
+  const review = tagged("cash.import.review");
+  await expect(review).toBeEnabled();
+  const bounds = (await review.boundingBox())!;
+  const closeBounds = (await tagged("cash.import.close").boundingBox())!;
+  await clickStableComposeTarget(page, group.locator('[id^="cash.import.account-"]:visible').last());
+  const menu = page.locator('[id="choice-overlay-menu"]:visible').last();
+  await clickStableComposeTarget(page, menu.getByText("本地外币账户", { exact: true }).last());
+  await waitForCanvasToSettle(page);
+  const ensure = page.waitForResponse(response => new URL(response.url()).pathname === "/api/v1/cash-import/accounts/currency-requirements");
+  await page.mouse.click(bounds.x + bounds.width - 16, bounds.y + bounds.height / 2);
+  const expanded = await ensure;
+  expect(expanded.ok()).toBe(true);
+  const updated = (await expanded.json()).results[0].account;
+  expect(updated.currencies.slice().sort()).toEqual(["CNY", "USD"]);
+
+  const writes: Array<{ method: string; revision: number; patch: unknown }> = [];
+  const path = `/api/v1/accounts/by-id/${account.account_id}`;
+  page.on("request", request => {
+    if (new URL(request.url()).pathname !== path || !["PATCH", "DELETE"].includes(request.method())) return;
+    const body = request.postDataJSON();
+    writes.push({ method: request.method(), revision: body.expected_revision, patch: body.patch });
+  });
+  await waitForCanvasToSettle(page);
+  await page.screenshot({ path: info.outputPath("currency-requirement-completed.png") });
+  await page.mouse.click(closeBounds.x + closeBounds.width / 2, closeBounds.y + closeBounds.height / 2);
+  await waitForCanvasToSettle(page);
+  await page.screenshot({ path: info.outputPath("currency-requirement-exit.png") });
+  // The disposed picker can remain in the accessibility overlay. Use the
+  // rendered dialog controls in the fixed 1440 × 1100 viewport.
+  expect(writes).toHaveLength(0);
+  await page.mouse.click(500, 539);
+  await waitForCanvasToSettle(page);
+  const update = page.waitForResponse(response => new URL(response.url()).pathname === path && response.request().method() === "PATCH");
+  await page.mouse.click(910, 615);
+  expect((await update).ok()).toBe(true);
+  expect(writes).toEqual([{ method: "PATCH", revision: updated.account_revision, patch: { currencies: ["USD"] } }]);
+  const restored = await page.request.get(`${baseURL}${path}?workspace_id=${workspace}`, { headers });
+  expect(restored.ok()).toBe(true);
+  expect((await restored.json()).currencies).toEqual(["USD"]);
+
+});
+
 test("读取账单期间点击关闭在当前导入任务提示一次，原读取继续", async ({ page }) => {
   await installComposeApiFixtures(page);
   await page.addInitScript(() => {
@@ -172,6 +241,8 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
   const waiting = new Promise<void>(resolve => { finishSave = resolve; });
   let directoryReads = 0;
   const writes: Array<{ key: string | undefined; body: string | null }> = [];
+  await page.route(url => url.pathname === "/api/v1/cash-mutations/receipts/by-key", route =>
+    route.fulfill({ status: 404, json: { error: { code: "receipt_not_found" } } }));
   await page.route(url => url.pathname === "/api/v1/ledger/version", route => {
     directoryReads++;
     return route.fallback();
@@ -241,13 +312,13 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
   }
 });
 
-for (const scenario of ["normal", "conflict", "completion"] as const) {
+for (const scenario of ["normal", "conflict", "completion", "size-refusal"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";
 const interruptArchive = scenario === "archive-worker";
 const interruptSnapshot = scenario === "snapshot-worker";
-test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整文件" : `新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -484,6 +555,21 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   await clickStableComposeTarget(page, page.locator('[id="cash.import.review"]:visible').last());
   await expect(page.locator('[id="cash.import.confirm"]:visible').last()).toBeEnabled();
   expect(writeKeys).toEqual([]);
+  if (scenario === "size-refusal") {
+    diagnostics = captureBrowserDiagnostics(page, { expectedErrorStatuses: [404, 413] });
+    await page.route("**/api/v1/cash-import/write-set?*", (route) => route.request().method() === "POST"
+      ? route.fulfill({ status: 413, json: { error: { code: "payload_too_large", retryable: false }, commit_state: "not_committed" } })
+      : route.continue());
+    await clickStableComposeTarget(page, page.locator('[id="cash.import.confirm"]:visible').last());
+    await expect(page.locator('[id="cash.import.preview-too-large"]:visible').last())
+      .toHaveText("本次导入内容过多，请减少文件后重试。", { timeout: 30_000 });
+    expect(writeKeys).toHaveLength(1);
+    expect(receiptLookups.filter((url) => new URL(url).searchParams.get("key") === writeKeys[0]).length).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText("synthetic.csv", { exact: true }).last()).toBeAttached();
+    await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath("local-csv-size-refusal.png") });
+    return;
+  }
   const crashConfirmation = scenario === "normal" || interruptArchive;
   let archiveCrash: Promise<void> | undefined;
   if (crashConfirmation) {
@@ -666,17 +752,22 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
     expect(writeKeys).toHaveLength(1);
     expect(receiptLookups).toHaveLength(1);
   }
-  if (interruptCompletion || interruptArchive) {
+  if (interruptCompletion) {
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result.getByText("暂时无法显示最新流水。", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(result.getByRole("button", { name: "返回账本" })).toBeEnabled();
+    await expect(page.locator('[id="cash.import.resolve"]:visible')).toHaveCount(0);
+    expect(completionFailures.length).toBeGreaterThan(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
+  }
+  if (interruptArchive) {
     await archiveCrash;
     const result = page.locator('[id="cash.import.result"]:visible').last();
     await expect(result).toBeVisible({ timeout: 30_000 });
     const pending = result.getByText("账本已保存，结果整理尚未完成。", { exact: true });
     const resume = page.locator('[id="cash.import.resolve"]:visible').last();
     expect(writeKeys).toHaveLength(1);
-    if (interruptCompletion) {
-      await expect(pending).toBeVisible();
-      expect(completionFailures.length).toBeGreaterThan(0);
-    }
     if (await pending.isVisible()) {
       await expect(resume).toHaveText("继续整理结果");
       await page.screenshot({ path: info.outputPath("local-csv-completion-interrupted.png") });
@@ -712,6 +803,15 @@ test(`新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突�
   ] : ["404 /api/v1/cash-mutations/receipts/by-key",
     ...completionFailures.map((path) => "503 " + path)];
   expect(diagnostics.expectedApiErrors).toEqual(expectedApiErrors);
+  if (interruptCompletion) {
+    blockCompletionRefresh = false;
+    await page.reload();
+    const result = page.locator('[id="cash.import.result"]:visible').last();
+    await expect(result.getByRole("button", { name: "查看账本" })).toBeEnabled({ timeout: 30_000 });
+    await expect(result.getByText("暂时无法显示最新流水。", { exact: true })).toHaveCount(0);
+    expect(writeKeys).toHaveLength(1);
+    await page.screenshot({ path: info.outputPath("local-csv-completion-recovered.png") });
+  }
 
   const previousBrowser = context.browser();
   expect(previousBrowser).not.toBeNull();

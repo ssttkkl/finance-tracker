@@ -491,7 +491,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respond(if (impact) HttpStatusCode.NotFound else if (conflict) HttpStatusCode.Conflict else HttpStatusCode.BadRequest, ErrorBody(ErrorDetail(failure.code, message)))
         }
         exception<WorkspaceFailure> { call, failure ->
-            call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail(failure.code, "请求未获授权或无效。")))
+            val status = if (failure.code == "workspace_conflict") HttpStatusCode.Conflict else HttpStatusCode.BadRequest
+            call.respond(status, ErrorBody(ErrorDetail(failure.code, "请求未获授权或无效。")))
         }
         exception<CredentialFailure> { call, _ ->
             call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_credentials", "请求未获授权或无效。")))
@@ -910,6 +911,10 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val body = Json.parseToJsonElement(receiveText()) as JsonObject
             return body[name]?.let(::pythonString) ?: ""
         }
+        fun ApplicationCall.expectedManagementWorkspace(): String? {
+            val values = request.queryParameters.getAll("workspace_id") ?: return null
+            return values.singleOrNull()?.takeIf(String::isNotBlank) ?: throw WorkspaceFailure("invalid_workspace")
+        }
         post("/api/v1/auth/workspaces") {
             val name = call.field("name")
             call.respond(withContext(Dispatchers.IO) { workspaces.create(call.token(), name) })
@@ -925,15 +930,15 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         put("/api/v1/auth/workspace") {
             val name = call.field("name")
-            call.respond(withContext(Dispatchers.IO) { workspaces.rename(call.token(), name) })
+            call.respond(withContext(Dispatchers.IO) { workspaces.rename(call.token(), name, call.expectedManagementWorkspace()) })
         }
         delete("/api/v1/auth/workspace") {
             val name = call.field("name")
-            call.respond(withContext(Dispatchers.IO) { workspaces.delete(call.token(), name) })
+            call.respond(withContext(Dispatchers.IO) { workspaces.delete(call.token(), name, call.expectedManagementWorkspace()) })
         }
         post("/api/v1/auth/invitations") {
             val role = call.field("role")
-            call.respond(withContext(Dispatchers.IO) { workspaces.invite(call.token(), role) })
+            call.respond(withContext(Dispatchers.IO) { workspaces.invite(call.token(), role, call.expectedManagementWorkspace()) })
         }
         get("/api/v1/auth/invitations/{invitation_token}") {
             call.respond(withContext(Dispatchers.IO) { workspaces.preview(call.parameters["invitation_token"]!!) })
@@ -943,10 +948,10 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         put("/api/v1/auth/members/{user_id}") {
             val role = call.field("role")
-            call.respond(withContext(Dispatchers.IO) { workspaces.updateMember(call.token(), call.parameters["user_id"]!!, role) })
+            call.respond(withContext(Dispatchers.IO) { workspaces.updateMember(call.token(), call.parameters["user_id"]!!, role, call.expectedManagementWorkspace()) })
         }
         delete("/api/v1/auth/members/{user_id}") {
-            withContext(Dispatchers.IO) { workspaces.removeMember(call.token(), call.parameters["user_id"]!!) }
+            withContext(Dispatchers.IO) { workspaces.removeMember(call.token(), call.parameters["user_id"]!!, call.expectedManagementWorkspace()) }
             call.respond(mapOf("ok" to true))
         }
         get("/api/v1/auth/session") {

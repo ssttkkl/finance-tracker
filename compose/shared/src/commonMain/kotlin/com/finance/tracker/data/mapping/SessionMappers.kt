@@ -52,6 +52,11 @@ fun ApiFailure.toDomainFailure(): DomainFailure = DomainFailure(
 fun Throwable.toDomainFailure(): DomainFailure {
     if (this is DomainFailure) return this
     if (this is ApiFailure) return toDomainFailure()
+    if (this is com.finance.tracker.client.ClientOperationFailure) {
+        val api = generateSequence<Throwable>(cause) { it.cause }.filterIsInstance<ApiFailure>().firstOrNull()
+        return DomainFailure(code, status ?: 0, FailureCategory.RECOVERABLE, receiptId = api?.receiptId,
+            commitState = commitState, diagnostic = api?.diagnostic, cause = this)
+    }
     val isNetworkFailure = this is io.ktor.utils.io.errors.IOException || this is io.ktor.client.plugins.HttpRequestTimeoutException
     return if (isNetworkFailure) {
         DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE, cause = this)

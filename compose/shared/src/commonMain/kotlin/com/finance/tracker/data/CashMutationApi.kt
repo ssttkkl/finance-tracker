@@ -1,7 +1,6 @@
 package com.finance.tracker.data
 
 import io.ktor.http.HttpMethod
-import kotlinx.serialization.json.*
 
 private const val RECEIPTS = "/api/v1/cash-mutations/receipts"
 
@@ -10,7 +9,8 @@ suspend fun FinanceApiClient.readCashMutationReceipt(receiptId: String): CashMut
 
 suspend fun FinanceApiClient.readCashMutationReceiptByKey(key: String): CashMutationReceiptDto {
     requireReceiptLookupKey(key)
-    return request(HttpMethod.Get, appendQuery("$RECEIPTS/by-key", listOf("key" to key)))
+    return request(HttpMethod.Get, appendQuery("$RECEIPTS/by-key", listOf("key" to key)),
+        preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true)
 }
 
 suspend fun FinanceApiClient.readCashMutationResults(
@@ -21,10 +21,8 @@ suspend fun FinanceApiClient.readCashMutationResults(
     return request(HttpMethod.Get, appendQuery(receiptPath(receiptId) + "/${kind.path}", listOf("after" to after, "limit" to limit.toString())))
 }
 
-suspend fun FinanceApiClient.resolveCashMutation(planId: String, idempotencyKey: String): CashMutationResolveDto {
-    cashKeyHeaders(idempotencyKey)
-    return request(HttpMethod.Post, "/api/v1/cash-mutations/resolve", buildJsonObject { put("plan_id", planId); put("idempotency_key", idempotencyKey) })
-}
+suspend fun FinanceApiClient.resolveCashMutation(planId: String, idempotencyKey: String): CashMutationResolveDto =
+    cashMaintenance { resolve(expectedWorkspace, planId, idempotencyKey) }
 
 private fun receiptPath(id: String) = "$RECEIPTS/${encodePathSegment(id)}"
 private fun requireReceiptLookupKey(key: String) {

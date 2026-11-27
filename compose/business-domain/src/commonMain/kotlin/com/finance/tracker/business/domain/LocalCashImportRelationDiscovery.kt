@@ -10,8 +10,7 @@ fun discoverLocalCashImportRelations(source: LedgerSnapshotDto,
     val rules = CashImportRelationDiscoveryRules(requireActive, ::copyLocalCashValue, ::localCashImportOriginalExpense,
         LocalCashRelationArithmetic::amount, { localCashIntegerText(it)!!.toInt() }, LocalCashRelationPipeline.rules::needsRelationDiscovery,
         { facts, seeds, accepted, tails, identifiers, workspace ->
-            LocalCashRelationPlanning.rules.planRelationProposals(facts, seedIds = seeds, acceptedRelations = accepted,
-                aliasesByTail = tails, accountIdentifiers = identifiers, workspaceId = workspace, requireUniqueMirrors = true).proposals
+            LocalCashRelationPlanning.rules.importProposals(facts, seeds, accepted, tails, identifiers, workspace)
         })
     return rules.discover(snapshot, seedIds, accounts, source.workspaceId) {
         source.facts.accountAliases.map { mapOf("alias_type" to it.aliasType, "alias_value" to it.aliasValue, "account_id" to it.accountId) }

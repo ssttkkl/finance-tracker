@@ -70,7 +70,7 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
             refreshBrowsing = sessionRepository::refreshBrowsingFacts,
         ),
         cashMaintenanceRepository = LocalCashMaintenanceRepository(KtorCashMaintenanceRepository(apiClient, cashOperations), sessionRepository::localReader),
-        cashCreationRepository = KtorCashCreationRepository(apiClient, cashOperations),
+        cashCreationRepository = KtorCashCreationRepository(apiClient, cashOperations, sessionRepository::captureCashCreationJournal),
         cashImportRepository = LocalCashImportLifecycleRepository(sessionRepository::captureImports,
             captureSessionImports = sessionRepository::captureImportsFor),
         diagnosticLogger = diagnosticLogger,

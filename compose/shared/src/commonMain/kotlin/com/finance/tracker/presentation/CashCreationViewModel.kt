@@ -2,6 +2,7 @@ package com.finance.tracker.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.finance.tracker.data.freezeComposeCashCreation
 import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -17,7 +18,8 @@ data class CashCreationState(val draft: CashCreationDraft? = null, val baseline:
 }
 class CashCreationViewModel(private val repository: CashCreationRepository, private val workspaceId: String? = null,
     private val principalEmail: String? = null) : ViewModel() {
-    private data class Command(val mode: CashCreationMode, val input: StructuredObject, val key: String, val accountIds: List<String>)
+    private data class Command(val mode: CashCreationMode, val input: StructuredObject?, val key: String, val accountIds: List<String>,
+        val recovery: CashCreationRecovery? = null)
     private var original: Command? = null
     private val mutableState = MutableStateFlow(CashCreationState())
     val state = mutableState.asStateFlow()
@@ -35,8 +37,27 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
             "counterparty_account_attrs" to "", "note" to "")),
             CashTransferInput(from?.id?.toString().orEmpty(), to?.id?.toString().orEmpty(), from?.currencies?.firstOrNull().orEmpty(),
                 to?.currencies?.firstOrNull().orEmpty(), occurredAt = occurredAt))
+        val durable = repository.supportsDurableRecovery && workspaceId != null && principalEmail != null
         mutableState.value = state.value.copy(draft = draft, baseline = draft, errorCode = null, unknown = false, visible = true,
-            fieldErrors = emptyList())
+            busy = durable, fieldErrors = emptyList())
+        if (durable) viewModelScope.launch {
+            try {
+                val saved = repository.pending(requireNotNull(workspaceId), requireNotNull(principalEmail))
+                if (saved == null) mutableState.value = state.value.copy(busy = false)
+                else {
+                    val command = saved.command
+                    original = Command(saved.draft.mode, null, command.id, command.accountIds, saved)
+                    mutableState.value = state.value.copy(draft = saved.draft, baseline = saved.draft,
+                        busy = false, unknown = true, canResumeSave = true)
+                }
+            } catch (cancelled: CancellationException) {
+                mutableState.value = state.value.copy(busy = false)
+                throw cancelled
+            } catch (failure: Exception) {
+                mutableState.value = state.value.copy(busy = false, unknown = true, canResumeSave = false,
+                    errorCode = (failure as? DomainFailure)?.code ?: "request_failed")
+            }
+        }
     }
     fun update(draft: CashCreationDraft) {
         if (state.value.busy || state.value.unknown || state.value.draft == null) return
@@ -70,6 +91,7 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
         val draft = state.value.draft ?: return
         if (state.value.busy || state.value.unknown && !state.value.canResumeSave) return
         val keyed = workspaceId != null && principalEmail != null && repository.supportsIdempotentSave
+        val durable = keyed && repository.supportsDurableRecovery
         val transfer = draft.mode == CashCreationMode.TRANSFER
         val split = draft.ordinary.values["cash_granularity"] == "aggregate"
         if (original == null) {
@@ -85,7 +107,9 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
                 else cashTransferCreation(draft.transfer, accounts, timeZoneId)
             val accountIds = if (draft.mode == CashCreationMode.ORDINARY) listOf(draft.ordinary.values.getValue("account_id"))
                 else listOf(draft.transfer.fromAccountId, draft.transfer.toAccountId)
-            Command(draft.mode, input, Random.nextBytes(24).toHexString(), accountIds)
+            val key = Random.nextBytes(24).toHexString()
+            val recovery = if (durable) CashCreationRecovery(freezeComposeCashCreation(draft.mode, input, key, accountIds), draft) else null
+            Command(draft.mode, input, key, accountIds, recovery)
         } catch (failure: DomainFailure) {
             val mapped = cashFieldErrorKeyFor(failure.code, transfer, split)
             mutableState.value = state.value.copy(
@@ -99,20 +123,38 @@ class CashCreationViewModel(private val repository: CashCreationRepository, priv
         mutableState.value = state.value.copy(busy = true, errorCode = null, fieldErrors = emptyList())
         viewModelScope.launch {
             try {
-                if (keyed) repository.save(command.mode, command.input, command.key, command.accountIds,
-                    requireNotNull(workspaceId), requireNotNull(principalEmail))
-                else if (command.mode == CashCreationMode.ORDINARY) repository.createRecord(command.input)
-                else repository.createTransfer(command.input)
+                if (durable) {
+                    repository.saveRecovery(checkNotNull(command.recovery), requireNotNull(workspaceId),
+                        requireNotNull(principalEmail), lookupFirst = continuing)
+                } else {
+                    val input = checkNotNull(command.input)
+                    if (keyed && continuing) repository.resume(command.mode, input, command.key, command.accountIds,
+                        requireNotNull(workspaceId), requireNotNull(principalEmail))
+                    else if (keyed) repository.save(command.mode, input, command.key, command.accountIds,
+                        requireNotNull(workspaceId), requireNotNull(principalEmail))
+                    else if (command.mode == CashCreationMode.ORDINARY) repository.createRecord(input)
+                    else repository.createTransfer(input)
+                }
                 original = null
                 mutableState.value = CashCreationState(savedRevision = state.value.savedRevision + 1)
+                if (durable) {
+                    try { repository.acknowledgeRecovery(command.key, requireNotNull(workspaceId), requireNotNull(principalEmail)) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
             } catch (cancelled: CancellationException) {
                 mutableState.value = state.value.copy(busy = false, unknown = keyed, canResumeSave = keyed)
                 throw cancelled
             }
             catch (failure: Exception) {
                 val known = failure as? DomainFailure
-                val unknown = known == null || known.commitState != "not_committed" && (continuing ||
-                    known.commitState == "unknown" || known.status == 0 || known.status == 408 || known.status >= 500 || known.status in 200..299)
+                val unknown = if (durable) {
+                    known?.commitState != "not_committed" && known?.code != "operation_conflict"
+                } else {
+                    known == null || known.commitState != "not_committed" && (continuing ||
+                        known.commitState == "unknown" || known.status == 0 || known.status == 408 ||
+                        known.status >= 500 || known.status in 200..299)
+                }
                 if (!unknown) original = null
                 val mapped = known?.let { cashFieldErrorKeyFor(it.code, transfer, split) }
                 mutableState.value = state.value.copy(busy = false, unknown = unknown, canResumeSave = keyed && unknown,

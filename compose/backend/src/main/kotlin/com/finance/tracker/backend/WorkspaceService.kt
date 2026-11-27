@@ -18,13 +18,15 @@ class WorkspaceService(private val database: Database, private val now: () -> In
     private val reads = ReadServices(database, now)
     private fun lockWorkspace(connection: Connection, workspace: String): Boolean = connection.lockWorkspace(database.sqlite, workspace)
 
-    private fun <T> writeActive(token: String?, roles: Set<Role>, action: (Connection, Principal) -> T): T {
+    private fun <T> writeActive(token: String?, roles: Set<Role>, expectedWorkspace: String?, action: (Connection, Principal) -> T): T {
         if (token == null) throw AccessFailure()
         return database.write { connection ->
             val initial = reads.session(connection, token)
+            if (expectedWorkspace != null && initial.workspaceId != expectedWorkspace) throw WorkspaceFailure("workspace_conflict")
             val workspace = initial.workspaceId ?: throw AccessFailure(true)
             if (!lockWorkspace(connection, workspace)) throw AccessFailure(true)
             val current = reads.session(connection, token, lock = true)
+            if (expectedWorkspace != null && current.workspaceId != expectedWorkspace) throw WorkspaceFailure("workspace_conflict")
             if (current.workspaceId != workspace) throw AccessFailure(true)
             val principal = reads.context(connection, token, false)
             if (principal.role !in roles) throw AccessFailure(true)
@@ -89,15 +91,15 @@ class WorkspaceService(private val database: Database, private val now: () -> In
         return WorkspaceMembersDto(workspace, members)
     }
 
-    fun rename(token: String?, value: String): SessionDto {
+    fun rename(token: String?, value: String, expectedWorkspace: String? = null): SessionDto {
         val name = name(value)
-        return writeActive(token, setOf(Role.ADMIN)) { connection, user ->
+        return writeActive(token, setOf(Role.ADMIN), expectedWorkspace) { connection, user ->
             check(connection.jooq(database.sqlite).update(WORKSPACES).set(WORKSPACES.NAME, name).where(WORKSPACES.ID.eq(user.workspaceId)).execute() == 1)
             reads.state(connection, user)
         }
     }
 
-    fun invite(token: String?, value: String): InvitationCreated = writeActive(token, setOf(Role.ADMIN)) { connection, user ->
+    fun invite(token: String?, value: String, expectedWorkspace: String? = null): InvitationCreated = writeActive(token, setOf(Role.ADMIN), expectedWorkspace) { connection, user ->
         if (value !in setOf("editor", "viewer")) throw WorkspaceFailure("invalid_role")
         val raw = newInvitationToken()
         val i = WORKSPACE_INVITATIONS
@@ -157,9 +159,9 @@ class WorkspaceService(private val database: Database, private val now: () -> In
         }
     }
 
-    fun updateMember(token: String?, target: String, value: String): WorkspaceMembersDto {
+    fun updateMember(token: String?, target: String, value: String, expectedWorkspace: String? = null): WorkspaceMembersDto {
         role(value)
-        return writeActive(token, setOf(Role.ADMIN)) { connection, user ->
+        return writeActive(token, setOf(Role.ADMIN), expectedWorkspace) { connection, user ->
             requireMemberChange(connection, user.workspaceId!!, target, value)
             val m = WORKSPACE_MEMBERSHIPS
             check(connection.jooq(database.sqlite).update(m).set(m.ROLE, value).where(m.WORKSPACE_ID.eq(user.workspaceId)).and(m.USER_ID.eq(target)).execute() == 1)
@@ -167,13 +169,13 @@ class WorkspaceService(private val database: Database, private val now: () -> In
         }
     }
 
-    fun removeMember(token: String?, target: String) = writeActive(token, setOf(Role.ADMIN)) { connection, user ->
+    fun removeMember(token: String?, target: String, expectedWorkspace: String? = null) = writeActive(token, setOf(Role.ADMIN), expectedWorkspace) { connection, user ->
         requireMemberChange(connection, user.workspaceId!!, target, null)
         val m = WORKSPACE_MEMBERSHIPS
         check(connection.jooq(database.sqlite).deleteFrom(m).where(m.WORKSPACE_ID.eq(user.workspaceId)).and(m.USER_ID.eq(target)).execute() == 1)
     }
 
-    fun delete(token: String?, confirmation: String): SessionDto = writeActive(token, setOf(Role.ADMIN)) { connection, user ->
+    fun delete(token: String?, confirmation: String, expectedWorkspace: String? = null): SessionDto = writeActive(token, setOf(Role.ADMIN), expectedWorkspace) { connection, user ->
         val workspace = user.workspaceId!!
         val sql = connection.jooq(database.sqlite)
         val currentName = sql.select(WORKSPACES.NAME).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.NAME)

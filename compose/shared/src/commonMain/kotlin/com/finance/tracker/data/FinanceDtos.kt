@@ -29,21 +29,9 @@ typealias CashMonthlySummaryDto = com.finance.tracker.business.contracts.CashMon
 typealias CashMonthPositionDto = com.finance.tracker.business.contracts.CashMonthPositionDto
 typealias CashPageDto = com.finance.tracker.business.contracts.CashPageDto
 
-@Serializable
-data class CashProjectionDeleteImpactDto(
-    @SerialName("projection_count") val projectionCount: Int,
-    @SerialName("transaction_count") val transactionCount: Int,
-    @SerialName("relation_group_count") val relationGroupCount: Int,
-)
+typealias CashProjectionDeleteImpactDto = com.finance.tracker.business.contracts.CashProjectionDeleteImpactDto
 
-@Serializable
-data class CashProjectionDeleteResultDto(
-    @SerialName("projection_count") val projectionCount: Int,
-    @SerialName("transaction_count") val transactionCount: Int,
-    @SerialName("relation_group_count") val relationGroupCount: Int,
-    val deleted: Boolean,
-    @SerialName("projection_version") val projectionVersion: Long,
-)
+typealias CashProjectionDeleteResultDto = com.finance.tracker.business.contracts.CashProjectionDeleteResultDto
 
 @Serializable
 data class CashComponentDetailDto(
@@ -224,29 +212,11 @@ typealias CashFiltersDto = com.finance.tracker.business.contracts.CashFiltersDto
 @Serializable
 data class AccountListDto(val items: List<AccountDto> = emptyList())
 
-@Serializable
-data class CashCategoryDeleteImpactDto(
-    @SerialName("category_id") val categoryId: String,
-    val revision: Long,
-    @SerialName("category_revision") val categoryRevision: Long,
-    @SerialName("child_count") val childCount: Int,
-    @SerialName("direct_usage_count") val directUsageCount: Int,
-)
+typealias CashCategoryDeleteImpactDto = com.finance.tracker.business.contracts.CashCategoryDeleteImpactDto
 
-@Serializable
-data class CashCategoryDeleteResultDto(
-    @SerialName("category_id") val categoryId: String,
-    @SerialName("cleared_transaction_count") val clearedTransactionCount: Int,
-    val revision: Long,
-)
+typealias CashCategoryDeleteResultDto = com.finance.tracker.business.contracts.CashCategoryDeleteResultDto
 
-@Serializable
-data class CashClassificationResultDto(
-    @SerialName("projection_version") val projectionVersion: Long,
-    @SerialName("projection_count") val projectionCount: Int,
-    @SerialName("updated_transaction_count") val updatedTransactionCount: Int,
-    @SerialName("category_id") val categoryId: String? = null,
-)
+typealias CashClassificationResultDto = com.finance.tracker.business.contracts.CashClassificationResultDto
 
 @Serializable
 data class CashRecordDeleteResultDto(

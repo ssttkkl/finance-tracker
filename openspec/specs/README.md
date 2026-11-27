@@ -12,7 +12,7 @@
 | [账户](accounts/README.md) | 1 | 账户生命周期、支持币种、分币种余额 |
 | [工作区](workspace/README.md) | 3 | 工作区进入、切换、成员与邀请管理、删除 |
 | [认证](authentication/README.md) | 2 | 登录、认证会话、访问角色、登录调试地址 |
-| [共享规则](shared/README.md) | 8 | 账本记录、时间、数据库、跨端合同、设计系统、Compose 演示模式、部署诊断与本地 Docker 部署 |
+| [共享规则](shared/README.md) | 10 | 账本记录、共享客户端操作、账本 CLI、时间、数据库、跨端合同、设计系统、Compose 演示模式与部署 |
 
 ## 定位与维护约定
 

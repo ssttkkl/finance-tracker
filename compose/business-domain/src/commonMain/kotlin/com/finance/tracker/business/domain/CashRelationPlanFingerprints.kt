@@ -28,8 +28,8 @@ class CashRelationPlanFingerprints<A>(private val serialization:CashRelationSeri
                     "status" to (relation["status"] ?: ""), "rule_id" to (relation["rule_id"] ?: ""),
                     "decided" to (relation["decided_by"]?.toString().orEmpty().isNotEmpty()))
             },
-            "proposals" to proposals.sortedBy { serialization.proposalKey(it, facts) }.map { proposal ->
-                linkedMapOf("key" to serialization.proposalKey(proposal, facts), "status" to proposal.status,
+            "proposals" to proposals.map { serialization.proposalKey(it, byId) to it }.sortedBy { it.first }.map { (key, proposal) ->
+                linkedMapOf("key" to key, "status" to proposal.status,
                     "confidence" to proposal.confidence, "open_leg" to proposal.isOpenLeg,
                     "signals" to proposal.evidence.signals, "evidence" to proposal.evidence.extras)
             },

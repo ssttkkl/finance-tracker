@@ -34,7 +34,10 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
     fun hash(value: JsonElement): String = conclusionHash(value)
     fun ordered(values: List<JsonElement>): JsonArray = JsonArray(ordered<JsonElement>(values))
     fun decimal(text: String): String = amount(text)
-    fun timestamp(text: String): String = formatPythonCashTimestamp(parsePythonCashTimestamp(text))
+    private val timestamps = mutableMapOf<String, String>()
+    fun timestamp(text: String): String = timestamps.getOrPut(text) {
+        formatPythonCashTimestamp(parsePythonCashTimestamp(text))
+    }
     private fun CashWriteReferenceDto.key(): String = when (this) {
         is ExistingCashWriteReferenceDto -> id
         is NewCashWriteReferenceDto -> ref
@@ -49,9 +52,7 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
             relations.size == changes.relations.size && relations.values.toSet().size == relations.size) { "cash_import_conclusion_identity_collision" }
         return changes.copy(
             transactions = ordered(changes.transactions.map { row -> row.copy(target = transaction(row.target),
-                values = row.values.copy(amount = row.values.amount?.let(::amount), occurredAt = row.values.occurredAt?.let {
-                    formatPythonCashTimestamp(parsePythonCashTimestamp(it))
-                }), components = ordered(row.components.map { it.copy(reference = componentRef(it.reference), amount = it.amount?.let(::amount), ordinal = integer(it.ordinal)) }),
+                values = row.values.copy(amount = row.values.amount?.let(::amount), occurredAt = row.values.occurredAt?.let(::timestamp)), components = ordered(row.components.map { it.copy(reference = componentRef(it.reference), amount = it.amount?.let(::amount), ordinal = integer(it.ordinal)) }),
                 editedFields = row.editedFields.sorted(), entryEdit = row.entryEdit?.let { it.copy(entry = it.entry?.let(::entry)) }) }),
             relations = ordered(changes.relations.map { relation -> relation.copy(target = CashWriteVersionedReferenceDto(relations.getValue(relation.target.reference), null),
                 primaryTransaction = transaction(relation.primaryTransaction), secondaryTransaction = relation.secondaryTransaction?.let(::transaction),
@@ -121,15 +122,34 @@ private fun amount(text: String): String {
 private inline fun <reified T> ordered(items: List<T>): List<T> = items.map { conclusionText(conclusionJson.encodeToJsonElement(it)) to it }
     .sortedBy { it.first }.map { it.second }
 
-private fun conclusionHash(value: JsonElement): String = sha256Hex(conclusionText(value).encodeToByteArray())
-private fun conclusionText(value: JsonElement): String {
-    fun sorted(item: JsonElement): JsonElement = when (item) {
-        is JsonObject -> JsonObject(item.entries.sortedWith { a, b -> pythonStringOrder(a.key, b.key) }.associate { it.key to sorted(it.value) })
-        is JsonArray -> JsonArray(item.map(::sorted))
-        else -> item
+private fun canonicalConclusion(value: JsonElement): JsonElement = when (value) {
+    is JsonObject -> JsonObject(value.entries.sortedWith { a, b -> pythonStringOrder(a.key, b.key) }
+        .associate { it.key to canonicalConclusion(it.value) })
+    is JsonArray -> JsonArray(value.map(::canonicalConclusion))
+    else -> value
+}
+
+private fun conclusionHash(value: JsonElement): String {
+    val text = canonicalConclusion(value).toString()
+    val size = text.length + 5 * text.count { it.code >= 128 }
+    val bytes = ByteArray(size)
+    val digits = "0123456789abcdef"
+    var index = 0
+    for (char in text) {
+        if (char.code < 128) {
+            bytes[index++] = char.code.toByte()
+        } else {
+            bytes[index++] = '\\'.code.toByte()
+            bytes[index++] = 'u'.code.toByte()
+            for (shift in 12 downTo 0 step 4) bytes[index++] = digits[(char.code ushr shift) and 15].code.toByte()
+        }
     }
+    return sha256Hex(bytes)
+}
+
+private fun conclusionText(value: JsonElement): String {
     // ASCII escapes preserve every UTF-16 code unit, including isolated surrogate source text.
-    return buildString { for (char in sorted(value).toString()) {
+    return buildString { for (char in canonicalConclusion(value).toString()) {
         if (char.code >= 128) append("\\u" + char.code.toString(16).padStart(4, '0')) else append(char)
     } }
 }

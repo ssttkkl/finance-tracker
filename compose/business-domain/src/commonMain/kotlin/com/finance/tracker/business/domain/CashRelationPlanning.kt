@@ -16,7 +16,6 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
         }
         return 0
     }
-    private fun factKey(fact: RelationFact<A>): List<String> = core.stableFactOrderKey(fact)
     private fun refundAmount(proposal:RelationProposal):A=absolute(parseAmount(proposal.evidence.extras["refund_amount"].toString()))
 
     /** 把持久化行里的结构化来源元数据暴露给 Phase A；返回副本，不修改调用方行。 */
@@ -84,7 +83,20 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
         seedIds: List<String>? = null, acceptedRelations: List<Map<String, Any?>> = emptyList(),
         aliasesByTail: Map<String, List<String>>? = null, accountIdentifiers: Map<String, List<String>>? = null,
         remainingByExpense: Map<String, A>? = null, workspaceId: String = "",
-        requireUniqueMirrors: Boolean = false): RelationPlan<A> {
+        requireUniqueMirrors: Boolean = false): RelationPlan<A> = plan(facts, detailedRows, seedIds, acceptedRelations,
+        aliasesByTail, accountIdentifiers, remainingByExpense, workspaceId, requireUniqueMirrors) { normalized, active, proposals ->
+        RelationPlan(normalized, proposals, fingerprints.relationContextDigest(normalized, active, proposals))
+    }
+
+    internal fun importProposals(facts: List<RelationFact<A>>, seedIds: List<String>, acceptedRelations: List<Map<String, Any?>>,
+        aliasesByTail: Map<String, List<String>>, accountIdentifiers: Map<String, List<String>>, workspaceId: String): List<RelationProposal> =
+        plan(facts, null, seedIds, acceptedRelations, aliasesByTail, accountIdentifiers, null, workspaceId, true) { _, _, proposals -> proposals }
+
+    private fun <R> plan(facts: List<RelationFact<A>>, detailedRows: List<Map<String, Any?>>?, seedIds: List<String>?,
+        acceptedRelations: List<Map<String, Any?>>, aliasesByTail: Map<String, List<String>>?, accountIdentifiers: Map<String, List<String>>?,
+        remainingByExpense: Map<String, A>?, workspaceId: String, requireUniqueMirrors: Boolean,
+        result: (List<RelationFact<A>>, List<Map<String, Any?>>, List<RelationProposal>) -> R): R {
+        val factKey = core.planFactOrderKey()
         val normalized = facts.filter { !it.deleted }.sortedWith(Comparator { left, right ->
             compareKeys(factKey(left), factKey(right))
         })
@@ -139,13 +151,10 @@ class CashRelationPlanningRules<A:Comparable<A>,I:Comparable<I>,T:Comparable<T>>
             merchantRefundSeedIds = seeds, requireUniqueMirrors = requireUniqueMirrors)
         phaseA = pipeline.demoteOverlappingPhaseARefunds(normalized, phaseA, activeRelations,
             context.mirrorPairs())
-        val all = (phaseA + proposals).sortedWith(Comparator { left, right ->
-            cashRelationStringOrder.compare(serialization.proposalKey(left, normalized),
-                serialization.proposalKey(right, normalized))
-        })
+        val all = (phaseA + proposals).map { serialization.proposalKey(it, factById) to it }
+            .sortedBy { it.first }.map { it.second }
         val filtered=validation.filterIllegalProposals(normalized,activeRelations,all,validation.buildValidationContext(normalized))
-        return RelationPlan(normalized, filtered,
-            fingerprints.relationContextDigest(normalized,activeRelations,filtered))
+        return result(normalized, activeRelations, filtered)
     }
 }
 

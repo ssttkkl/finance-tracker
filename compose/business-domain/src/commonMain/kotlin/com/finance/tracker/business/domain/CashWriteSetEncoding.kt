@@ -5,6 +5,11 @@ import kotlinx.serialization.json.Json
 
 val cashWriteSetJson = Json { encodeDefaults = true; explicitNulls = true }
 
+const val CASH_WRITE_SET_MAX_BYTES = 64 * 1024 * 1024
+
+fun cashWriteSetFitsBudget(body: String): Boolean = body.length <= CASH_WRITE_SET_MAX_BYTES &&
+    body.encodeToByteArray().size <= CASH_WRITE_SET_MAX_BYTES
+
 fun isCashWriteSetKey(key: String): Boolean = key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))
 
 fun requireCashWriteSetReceipt(receipt: CashMutationReceiptDto) {
