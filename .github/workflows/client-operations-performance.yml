@@ -1,6 +1,8 @@
 name: Client operations performance
 
 on:
+  push:
+    branches: [perf-calibration/async-import-cgroup]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, edited, ready_for_review]
@@ -9,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: client-operations-performance-${{ github.ref }}-${{ github.event.pull_request.head.sha }}
+  group: client-operations-performance-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -24,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - id: plan
         name: Select one run or five calibration runs for this commit
@@ -48,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v5
@@ -109,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v5
@@ -147,7 +149,7 @@ jobs:
           retention-days: 30
 
   gate:
-    name: client-operations-performance
+    name: ${{ github.event_name == 'pull_request' && 'client-operations-performance' || 'client-operations-performance-diagnostic' }}
     runs-on: ubuntu-26.04
     if: always()
     needs: [plan, ordinary, maximum]
