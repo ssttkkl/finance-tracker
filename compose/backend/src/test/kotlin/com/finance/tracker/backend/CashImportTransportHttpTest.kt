@@ -34,6 +34,7 @@ class CashImportTransportHttpTest(private val backend: String) {
     private val clock = { Instant.parse("2026-11-14T00:00:00Z") }
     private val empty = JsonObject(emptyMap())
     private val array = JsonArray(emptyList())
+    private fun upload(payload: JsonObject) = CashImportProtocol.writeSetInput(payload.toString().encodeToByteArray())
 
     private fun sequence(db: Database, workspace: String) = db.read { c ->
         c.jooq(db.sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ)!!
@@ -188,21 +189,22 @@ class CashImportTransportHttpTest(private val backend: String) {
         val base = sequence(db, ws)
         val first = CashImportConfirmationService(db, CashImportWriteSetSubmissionService(db, now = clock), clock)
         val payload = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))).jsonObject
+        val submitted = upload(payload)
         val cancelledKey = "async-cancel-queued"
         val completeKey = "async-restarted"
-        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, cancelledKey, payload).status)
+        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, cancelledKey, submitted).status)
         assertEquals(CashImportConfirmationStatus.CANCELLED, first.cancel(token, ws, cancelledKey).status)
-        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, completeKey, payload).status)
-        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, completeKey, payload).status)
+        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, completeKey, submitted).status)
+        assertEquals(CashImportConfirmationStatus.ACCEPTED, first.accept(token, ws, completeKey, submitted).status)
         val different = JsonObject(payload + ("base_ledger_seq" to JsonPrimitive((base + 1).toString())))
-        assertFailsWith<ReceiptConflict> { first.accept(token, ws, completeKey, different) }
+        assertFailsWith<ReceiptConflict> { first.accept(token, ws, completeKey, upload(different)) }
         val restarted = CashImportConfirmationService(db, CashImportWriteSetSubmissionService(db, now = clock), clock)
         restarted.workOnce()
         assertEquals(CashImportConfirmationStatus.CANCELLED, restarted.status(token, ws, cancelledKey).status)
         val committed = restarted.status(token, ws, completeKey)
         assertEquals(CashImportConfirmationStatus.COMMITTED, committed.status)
         assertEquals(committed, restarted.cancel(token, ws, completeKey))
-        assertEquals(committed, restarted.accept(token, ws, completeKey, payload))
+        assertEquals(committed, restarted.accept(token, ws, completeKey, submitted))
         assertEquals(base + 1, sequence(db, ws))
         db.read { c ->
             val jobs = CASH_IMPORT_CONFIRMATIONS
@@ -210,6 +212,38 @@ class CashImportTransportHttpTest(private val backend: String) {
             val permanent = c.jooq(db.sqlite).select(CASH_MUTATION_RECEIPTS.ID).from(CASH_MUTATION_RECEIPTS)
                 .where(CASH_MUTATION_RECEIPTS.WORKSPACE_ID.eq(ws)).fetch(CASH_MUTATION_RECEIPTS.ID)
             assertEquals(listOf(committed.receiptId), permanent)
+        }
+    }
+
+    @Test fun acceptedUploadCanPersistItsStrictJsonSpellingAndReplayAcrossWorkerRestart() = authenticated { db, ws, account, token ->
+        org.junit.Assume.assumeTrue("Asynchronous confirmation is validated on PostgreSQL", backend == "postgres")
+        val base = sequence(db, ws)
+        val input = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))).jsonObject
+        val original = " \n" + JsonObject(input.toList().reversed().toMap()).toString() + "\t "
+        val key = "async-raw-validated-body"
+        testApplication {
+            application { financeModule(db, clock = clock, runCashImportWorker = false) }
+            suspend fun submit(text: String) = client.post("/api/v1/cash-import/write-set?workspace_id=$ws") {
+                bearerAuth(token)
+                header("Idempotency-Key", key)
+                contentType(ContentType.Application.Json)
+                setBody(text)
+            }
+            assertEquals(202, submit(original).status.value)
+            db.read { connection ->
+                val jobs = CASH_IMPORT_CONFIRMATIONS
+                val queued = connection.jooq(db.sqlite).select(jobs.PAYLOAD).from(jobs)
+                    .where(jobs.WORKSPACE_ID.eq(ws).and(jobs.OPERATION_KEY.eq(key))).fetchOne(jobs.PAYLOAD)
+                assertEquals(original, queued)
+            }
+            val restarted = CashImportConfirmationService(db, CashImportWriteSetSubmissionService(db, now = clock), clock)
+            restarted.workOnce()
+            val committed = restarted.status(token, ws, key)
+            assertEquals(CashImportConfirmationStatus.COMMITTED, committed.status)
+            val replay = submit(input.toString())
+            assertEquals(200, replay.status.value)
+            assertEquals(committed.receiptId, Json.parseToJsonElement(replay.bodyAsText()).jsonObject["receipt_id"]?.jsonPrimitive?.content)
+            assertEquals(base + 1, sequence(db, ws))
         }
     }
 
@@ -229,7 +263,7 @@ class CashImportTransportHttpTest(private val backend: String) {
         val second = CashImportConfirmationService(db, CashImportWriteSetSubmissionService(db, now = clock), clock, time::get)
         val body = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))).jsonObject
         val key = "async-expired-active"
-        first.accept(token, ws, key, body)
+        first.accept(token, ws, key, upload(body))
         val executor = Executors.newSingleThreadExecutor()
         try {
             val active = executor.submit { first.workOnce() }
@@ -263,7 +297,7 @@ class CashImportTransportHttpTest(private val backend: String) {
         val payload = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))).jsonObject
         val service = CashImportConfirmationService(db, CashImportWriteSetSubmissionService(db, now = clock), clock)
         val key = "async-revoked-grant"
-        service.accept(token, ws, key, payload)
+        service.accept(token, ws, key, upload(payload))
         val replacement = "$token-new"
         db.write { c ->
             val sql = c.jooq(db.sqlite)

@@ -30,17 +30,17 @@ internal class CashImportConfirmationService(
         result
     }
 
-    fun accept(token: String?, workspace: String, key: String, input: JsonObject): CashImportConfirmation {
-        val body = cashWriteSetRequestBody(input, canonicalTree = false)
+    fun accept(token: String?, workspace: String, key: String, input: CashImportWriteSetUpload): CashImportConfirmation {
+        val digest = cashWriteSetRequestBody(input.payload, canonicalTree = false).digest
         fun replay(c: Connection, id: CashImportOperationKey): CashImportConfirmation? {
             val repo = repository(c)
             repo.receipt(id)?.let { existing ->
-                if (existing.kind != "cash_write_set" || existing.digest != body.digest)
+                if (existing.kind != "cash_write_set" || existing.digest != digest)
                     throw ReceiptConflict("idempotency_conflict", existing.id)
                 return CashImportConfirmation(key, CashImportConfirmationStatus.COMMITTED, existing.id)
             }
             val persistedDigest = repo.digest(id) ?: return null
-            if (persistedDigest != body.digest) throw ReceiptConflict("idempotency_conflict")
+            if (persistedDigest != digest) throw ReceiptConflict("idempotency_conflict")
             return checkNotNull(repo.view(id))
         }
         database.read { c ->
@@ -55,18 +55,18 @@ internal class CashImportConfirmationService(
             replayed
         }?.let { return it }
 
-        fun text(field: String, limit: Int) = (body.payload[field] as? JsonPrimitive)
+        fun text(field: String, limit: Int) = (input.payload[field] as? JsonPrimitive)
             ?.takeIf { it.isString && it.content.length in 1..limit }?.content
             ?: throw CashWriteSetSubmissionFailure("write_set_payload_invalid", listOf(field))
         val base = text("base_ledger_seq", 24)
         val rules = text("rules_version", 128)
-        val stored = canonicalQueuedCashWriteSet(body.payload)
+        val stored = input.validatedText
         return database.writeNonblocking(lockTimeoutMillis = 250) { c ->
             val grant = reads.importGrant(c, token, workspace)
             val id = CashImportOperationKey(workspace, grant.user, key)
             reads.requireCashImportMembership(c, grant.user, workspace, shared = true)
             replay(c, id)?.let { return@writeNonblocking it }
-            repository(c).insert(id, grant, body, base, rules, stored, nowMillis())
+            repository(c).insert(id, grant, digest, base, rules, stored, nowMillis())
             checkNotNull(replay(c, id))
         }
     }

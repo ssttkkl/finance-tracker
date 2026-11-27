@@ -193,30 +193,3 @@ internal fun cashWriteSetRequestBody(payload: JsonObject, canonicalTree: Boolean
     val frozen = visit(payload, 0).jsonObject
     return CashWriteSetRequestBody(frozen, digest.finish())
 }
-
-internal fun canonicalQueuedCashWriteSet(payload: JsonObject): String = buildString {
-    fun appendValue(value: JsonElement) {
-        when (value) {
-            is JsonObject -> {
-                append('{')
-                value.keys.sorted().forEachIndexed { index, key ->
-                    if (index > 0) append(',')
-                    append(JsonPrimitive(key))
-                    append(':')
-                    appendValue(value.getValue(key))
-                }
-                append('}')
-            }
-            is JsonArray -> {
-                append('[')
-                value.forEachIndexed { index, item ->
-                    if (index > 0) append(',')
-                    appendValue(item)
-                }
-                append(']')
-            }
-            is JsonPrimitive -> append(value)
-        }
-    }
-    appendValue(payload)
-}

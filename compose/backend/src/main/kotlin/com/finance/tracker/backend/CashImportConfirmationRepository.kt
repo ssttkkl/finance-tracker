@@ -46,10 +46,10 @@ internal class CashImportConfirmationRepository(connection: Connection, private 
         return CashImportConfirmation(id.key, CashImportConfirmationStatus.valueOf(row[jobs.STATE]!!.uppercase()), rejection = rejection)
     }
 
-    fun insert(id: CashImportOperationKey, grant: CashImportExecutionGrant, body: CashWriteSetRequestBody,
+    fun insert(id: CashImportOperationKey, grant: CashImportExecutionGrant, digest: String,
         base: String, rules: String, payload: String, now: Long) {
         sql.insertInto(jobs).set(jobs.WORKSPACE_ID, id.workspace).set(jobs.USER_ID, id.user).set(jobs.OPERATION_KEY, id.key)
-            .set(jobs.AUTHORIZATION_SESSION_ID, grant.sessionId).set(jobs.REQUEST_DIGEST, body.digest)
+            .set(jobs.AUTHORIZATION_SESSION_ID, grant.sessionId).set(jobs.REQUEST_DIGEST, digest)
             .set(jobs.BASE_LEDGER_SEQ, base).set(jobs.RULES_VERSION, rules).set(jobs.STATE, "accepted")
             .set(jobs.PAYLOAD, payload).set(jobs.ACCEPTED_AT_MS, now)
             .onConflict(jobs.WORKSPACE_ID, jobs.USER_ID, jobs.OPERATION_KEY).doNothing().execute()

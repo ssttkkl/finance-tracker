@@ -23,6 +23,8 @@ internal data class CashImportUploadMetadata(val files: List<CashImportFileMetad
 
 internal data class CashImportPreviewRequest(val expectedRevision: Long, val previousPlanId: String?, val input: Map<String, Any?>, val timezoneName: String = "UTC")
 
+internal class CashImportWriteSetUpload(val payload: JsonObject, val validatedText: String)
+
 internal object CashImportProtocol {
     const val MAX_FILE_BYTES = 100 * 1024 * 1024
     const val MAX_METADATA_BYTES = 65536
@@ -40,8 +42,9 @@ internal object CashImportProtocol {
         strictCashJsonRequest(pythonJsonText(bytes)).value as? JsonObject ?: fail()
     } catch (_: CategoryFailure) { fail() }
 
-    fun writeSetInput(bytes: ByteArray): JsonObject = try {
-        exactCashWriteSetJson(strictText(bytes)) as? JsonObject ?: fail()
+    fun writeSetInput(bytes: ByteArray): CashImportWriteSetUpload = try {
+        val text = strictText(bytes)
+        CashImportWriteSetUpload(exactCashWriteSetJson(text) as? JsonObject ?: fail(), text)
     } catch (_: CategoryFailure) { fail() }
 
     fun commitInput(text: String): Long = commitInput(text.encodeToByteArray())

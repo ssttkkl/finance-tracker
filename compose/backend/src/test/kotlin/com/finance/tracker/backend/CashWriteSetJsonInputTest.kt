@@ -10,14 +10,16 @@ class CashWriteSetJsonInputTest {
     fun canonicalDigestKeepsExactEscapesAndNumbersWithoutDependingOnObjectOrder() {
         val canonical = """{"a":[1e+02,{"界":"值\n"}],"z":9007199254740993}"""
         val reordered = """{"z":9007199254740993,"a":[1e+02,{"\u754c":"值\n"}]}"""
-        val left = CashImportProtocol.writeSetInput(canonical.encodeToByteArray())
-        val right = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        val left = CashImportProtocol.writeSetInput(canonical.encodeToByteArray()).payload
+        val uploaded = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        val right = uploaded.payload
         assertEquals(left, right)
         val historical = cashWriteSetRequestBody(left)
         val current = cashWriteSetRequestBody(right, canonicalTree = false)
         assertEquals(historical.digest, current.digest)
         assertEquals(com.finance.tracker.business.domain.sha256Hex(canonical), current.digest)
-        assertEquals(historical.payload.toString(), canonicalQueuedCashWriteSet(current.payload))
+        assertEquals(reordered, uploaded.validatedText)
+        assertEquals(right, Json.parseToJsonElement(uploaded.validatedText))
         assertFailsWith<CashImportProtocolError> {
             CashImportProtocol.writeSetInput("""{"a":1,"\u0061":2}""".encodeToByteArray())
         }
@@ -33,11 +35,13 @@ class CashWriteSetJsonInputTest {
         val escaped = JsonPrimitive(raw).toString()
         val canonical = """{"a":[-0,1E+003,9007199254740993,$escaped],"z":false}"""
         val reordered = """{"z":false,"a":[-0,1E+003,9007199254740993,$escaped]}"""
-        val input = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        val uploaded = CashImportProtocol.writeSetInput(reordered.encodeToByteArray())
+        val input = uploaded.payload
         val expected = com.finance.tracker.business.domain.sha256Hex(canonical)
         assertEquals(expected, cashWriteSetRequestBody(input).digest)
         assertEquals(expected, cashWriteSetRequestBody(input, canonicalTree = false).digest)
-        assertEquals(canonical, canonicalQueuedCashWriteSet(input))
+        assertEquals(reordered, uploaded.validatedText)
+        assertEquals(input, Json.parseToJsonElement(uploaded.validatedText))
 
         val limit = canonical.encodeToByteArray().size
         fun digest(cap: Int): String {
@@ -60,10 +64,10 @@ class CashWriteSetJsonInputTest {
     @Test fun standardJsonNumbersRemainExactTokensWithoutHostNumericConversion() {
         val numbers = listOf("1.2300", "-0", "0.0", "1E+003", "9007199254740993", "1e9999999999", "9".repeat(4301))
         for (number in numbers) {
-            val parsed = CashImportProtocol.writeSetInput("{\"x\":$number}".encodeToByteArray()).getValue("x").jsonPrimitive
+            val parsed = CashImportProtocol.writeSetInput("{\"x\":$number}".encodeToByteArray()).payload.getValue("x").jsonPrimitive
             assertFalse(parsed.isString); assertEquals(number, parsed.content)
         }
-        assertEquals("界😀", CashImportProtocol.writeSetInput("{\"x\":\"界😀\"}".encodeToByteArray()).getValue("x").jsonPrimitive.content)
+        assertEquals("界😀", CashImportProtocol.writeSetInput("{\"x\":\"界😀\"}".encodeToByteArray()).payload.getValue("x").jsonPrimitive.content)
         assertEquals("1.23", CashImportProtocol.objectInput("{\"x\":1.2300}".encodeToByteArray()).getValue("x").jsonPrimitive.content)
         assertFailsWith<CashImportProtocolError> { CashImportProtocol.objectInput(("{\"x\":" + "9".repeat(4301) + "}").encodeToByteArray()) }
     }
@@ -79,7 +83,7 @@ class CashWriteSetJsonInputTest {
         CashImportProtocol.writeSetInput(text(127).encodeToByteArray())
         assertFailsWith<CashImportProtocolError> { CashImportProtocol.writeSetInput(text(128).encodeToByteArray()) }
         val valid = "{\"x\":\"界\"}".encodeToByteArray()
-        assertEquals("界", CashImportProtocol.jsonInput(ByteReadChannel(valid), valid.size, CashImportProtocol::writeSetInput).getValue("x").jsonPrimitive.content)
+        assertEquals("界", CashImportProtocol.jsonInput(ByteReadChannel(valid), valid.size, CashImportProtocol::writeSetInput).payload.getValue("x").jsonPrimitive.content)
         var validated = false
         assertFailsWith<CashImportProtocolError> {
             CashImportProtocol.jsonInput(ByteReadChannel(valid), valid.size - 1) { validated = true; CashImportProtocol.writeSetInput(it) }
