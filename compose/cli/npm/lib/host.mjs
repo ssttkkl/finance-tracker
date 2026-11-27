@@ -175,6 +175,10 @@ export function openStore(origin, createKey) {
             workspaceSlot(token, email, workspace) {
                 return createHmac('sha256', key).update(JSON.stringify([server, token, email, workspace])).digest('hex');
             },
+            stateStamp(slot) {
+                const item = database.prepare('SELECT wrapped_key FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
+                return item ? Buffer.from(item.wrapped_key).toString('base64') : null;
+            },
             read(slot) {
                 const item = database.prepare('SELECT wrapped_key, payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 if (!item) return null;

@@ -209,6 +209,15 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     override suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
         readPreviewBatch("${slot(session, workspaceId)}.import.$batchId", batchId)
 
+    override suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? {
+        val key = "${slot(session, workspaceId)}.import.$batchId"
+        val indexed = read<PendingConfirmationIndex>("$key.file.confirmation") ?: return null
+        if (indexed.stamp != (database.stateStamp(key) as String?)) return null
+        if (!com.finance.tracker.business.domain.isCashWriteSetKey(indexed.operationKey))
+            throw ClientOperationFailure("local_state_unreadable")
+        return indexed.operationKey
+    }
+
     private fun readPreviewBatch(key: String, batchId: String): ClientCashImportBatch? =
         read<ClientCashImportBatch>(key)?.also {
             if (it.id != batchId) throw ClientOperationFailure("local_state_unreadable")
@@ -239,6 +248,12 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
             )))
         }
         removedFileIds.forEach { database.remove("$prefix.file.$it") }
+        val confirmationSlot = "$prefix.file.confirmation"
+        val pendingKey = batch.submission?.key?.takeIf { batch.result == null }
+        if (pendingKey == null) database.remove(confirmationSlot)
+        else database.write(confirmationSlot, Json.encodeToString(
+            PendingConfirmationIndex(database.stateStamp(prefix) as String, pendingKey),
+        ))
         return true
     }
 
@@ -292,6 +307,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         throw ClientOperationFailure("local_state_unreadable", cause = failure)
     }
 }
+
+@Serializable
+private data class PendingConfirmationIndex(val stamp: String, val operationKey: String)
 
 @Serializable
 private data class StoredReviewedCommand(val planId: String, val revision: Long, val ledgerSeq: String,

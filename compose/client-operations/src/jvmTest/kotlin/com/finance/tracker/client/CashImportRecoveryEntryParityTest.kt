@@ -117,7 +117,8 @@ class CashImportRecoveryEntryParityTest {
                     if (committed) ClientHttpResponse(200, cashWriteSetJson.encodeToString(receipt))
                     else ClientHttpResponse(404, """{"error":{"code":"receipt_not_found"}}""")
                 }
-                "/api/v1/cash-import/write-set/status" -> {
+                "/api/v1/cash-import/write-set/status", "/api/v1/cash-import/write-set/cancel" -> {
+                    assertEquals(if (call.path.substringBefore('?').endsWith("/cancel")) "POST" else "GET", call.method)
                     assertEquals("batch-1", call.headers["Idempotency-Key"])
                     if (committed) ClientHttpResponse(200, Json.encodeToString(CashImportConfirmation("batch-1",
                         CashImportConfirmationStatus.COMMITTED, receipt.receiptId)))
@@ -170,6 +171,20 @@ class CashImportRecoveryEntryParityTest {
         assertEquals(cashWriteSetJson.encodeToString(review.calculation.request), operationBody)
 
         val reopened = operations()
+        val priorReads = store.batchReads
+        val status = reopened.confirmationStatus(workspace.id, prepared.batchId)
+        assertEquals(CashImportConfirmationStatus.COMMITTED, status.status)
+        assertEquals("batch-1", status.operationId)
+        assertEquals(priorReads, store.batchReads)
+        readPaths.clear()
+        val cancelled = reopened.cancelConfirmation(workspace.id, prepared.batchId)
+        assertEquals(status, cancelled.operation)
+        assertEquals(receipt, cancelled.receipt)
+        assertEquals(priorReads, store.batchReads)
+        assertEquals(1, readPaths.count { it == "/api/v1/cash-import/write-set/cancel" })
+        store.useConfirmationIndex = false
+        assertEquals(status, reopened.confirmationStatus(workspace.id, prepared.batchId))
+        assertEquals(priorReads + 1, store.batchReads)
         val recovered = assertIs<ClientCashImportResume.Committed>(reopened.resume(workspace.id, prepared.batchId))
         assertEquals(receipt, recovered.result.authoritativeReceipt())
         assertEquals(listOf(item), recovered.result.page("row", 0, 50).items)
@@ -200,6 +215,8 @@ class CashImportRecoveryEntryParityTest {
         val files = mutableMapOf<String, String>()
         var state = ClientLedgerState()
         var ledgerStateReads = 0
+        var batchReads = 0
+        var useConfirmationIndex = true
 
         override suspend fun session(): ClientStoredSession = binding
         override suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean = error("Unused")
@@ -222,8 +239,13 @@ class CashImportRecoveryEntryParityTest {
         override suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportListing> =
             listOfNotNull(batch?.listing())
 
-        override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
-            batch?.takeIf { it.id == batchId }
+        override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? {
+            batchReads++
+            return batch?.takeIf { it.id == batchId }
+        }
+
+        override suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? =
+            batch?.takeIf { useConfirmationIndex && it.id == batchId && it.result == null }?.submission?.key
 
         override suspend fun compareAndSave(
             session: ClientStoredSession, workspaceId: String, previous: ClientCashImportBatch?, batch: ClientCashImportBatch,

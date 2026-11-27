@@ -2134,6 +2134,11 @@
       "signature": "ClientCashImportStore.readPreview|readPreview(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
       "disposition": "spi",
       "reason": "Read-only preview storage; covered by installed review pagination commands"
+    },
+    {
+      "signature": "ClientCashImportStore.pendingConfirmationKey|pendingConfirmationKey(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Local pending-operation lookup covered by the installed confirmation status and cancellation scenarios"
     }
   ],
   "nonOperations": [

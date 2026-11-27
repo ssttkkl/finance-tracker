@@ -33,6 +33,10 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
         try {
             store.write('operation', data);
             assert.equal(store.read('operation'), data);
+            const stamp = store.stateStamp('operation');
+            assert.equal(store.stateStamp('operation'), stamp);
+            store.write('operation', data);
+            assert.notEqual(store.stateStamp('operation'), stamp);
         } finally {
             Buffer.concat = concat;
             Buffer.from = from;

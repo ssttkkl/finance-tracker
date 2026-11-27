@@ -58,6 +58,7 @@ interface ClientCashImportStore {
     suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch?
     suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
         read(session, workspaceId, batchId)
+    suspend fun pendingConfirmationKey(session: ClientStoredSession, workspaceId: String, batchId: String): String? = null
     /** Freezing an editable batch must atomically reject associated unresolved account commands. */
     suspend fun compareAndSave(
         session: ClientStoredSession,
@@ -464,6 +465,10 @@ class ClientCashImportOperations(
 
     private suspend fun observeConfirmation(workspaceId: String?, batchId: String, cancel: Boolean): ClientCashImportCancellation {
         val (binding, workspace) = session.cashImportWorkspace(workspaceId)
+        session.requireCurrent(binding)
+        store.pendingConfirmationKey(binding, workspace, batchId)?.let { key ->
+            return observePendingConfirmation(binding, workspace, key, cancel)
+        }
         val batch = batch(binding, workspace, batchId)
         val outcome = result(batch)
         val key = batch.submission?.key ?: attemptKey(batch.id, batch.attempt)
@@ -473,6 +478,12 @@ class ClientCashImportOperations(
             return ClientCashImportCancellation(operation, receipt.takeIf { cancel })
         }
         if (batch.submission == null) throw ClientOperationFailure("import_confirmation_not_found", 404)
+        return observePendingConfirmation(binding, workspace, key, cancel)
+    }
+
+    private suspend fun observePendingConfirmation(
+        binding: ClientStoredSession, workspace: String, key: String, cancel: Boolean,
+    ): ClientCashImportCancellation {
         val operation = session.cashImportConfirmation(binding, workspace, key, cancel)
             ?: throw ClientOperationFailure("import_confirmation_not_found", 404)
         val receipt = if (cancel && operation.status == CashImportConfirmationStatus.COMMITTED)
