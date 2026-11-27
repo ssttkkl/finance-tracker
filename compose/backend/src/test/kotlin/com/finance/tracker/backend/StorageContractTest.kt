@@ -13,7 +13,7 @@ class StorageContractTest {
         "statement_account_mappings", "cash_source_bindings", "cash_source_empty_pages",
         "cash_transaction_issues", "cash_issue_candidates", "cash_mutation_receipts",
         "cash_mutation_results", "cash_relation_candidates",
-        "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
+        "cash_import_confirmations", "cash_entries", "cash_entry_members", "cash_relation_migration_audit",
     )
 
     @Test fun sqliteConnectionsUseWalNormalAndPrivateFileNotices() {
@@ -58,7 +58,7 @@ class StorageContractTest {
                 connection.createStatement().use { statement ->
                     for (table in requiredTables) statement.execute("CREATE TABLE $table (id INTEGER)")
                     statement.execute("CREATE TABLE alembic_version(version_num VARCHAR(32) NOT NULL)")
-                    statement.execute("INSERT INTO alembic_version VALUES('20261104_54')")
+                    statement.execute("INSERT INTO alembic_version VALUES('20261127_55')")
                 }
             }
             Database("jdbc:sqlite:$path").validateSchema()

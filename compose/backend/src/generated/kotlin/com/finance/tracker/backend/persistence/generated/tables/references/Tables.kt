@@ -11,6 +11,7 @@ import com.finance.tracker.backend.persistence.generated.tables.CashCategories
 import com.finance.tracker.backend.persistence.generated.tables.CashCategoryStates
 import com.finance.tracker.backend.persistence.generated.tables.CashEntries
 import com.finance.tracker.backend.persistence.generated.tables.CashEntryMembers
+import com.finance.tracker.backend.persistence.generated.tables.CashImportConfirmations
 import com.finance.tracker.backend.persistence.generated.tables.CashInvestmentFundingRelations
 import com.finance.tracker.backend.persistence.generated.tables.CashIssueCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationReceipts
@@ -46,6 +47,8 @@ internal val CASH_CATEGORY_STATES: CashCategoryStates = CashCategoryStates.CASH_
 internal val CASH_ENTRIES: CashEntries = CashEntries.CASH_ENTRIES
 
 internal val CASH_ENTRY_MEMBERS: CashEntryMembers = CashEntryMembers.CASH_ENTRY_MEMBERS
+
+internal val CASH_IMPORT_CONFIRMATIONS: CashImportConfirmations = CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS
 
 internal val CASH_INVESTMENT_FUNDING_RELATIONS: CashInvestmentFundingRelations = CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS
 

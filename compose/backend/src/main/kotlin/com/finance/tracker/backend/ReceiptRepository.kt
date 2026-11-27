@@ -79,11 +79,15 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             put("committed",true);put("created_at",created);summary.forEach {(key,item) ->put(key,item)}
         }
     }
-    fun results(user: Any?,receipt: Any?,resultKind: Any?=null,after: Any?=0,limit: Any?=50): JsonObject? {
+    fun results(user: Any?,receipt: Any?,resultKind: Any?=null,after: Any?=0,limit: Any?=50,onlyOperation: String?=null): JsonObject? {
         val size=strictCashInteger(limit)?.takeIf {it in java.math.BigInteger.ONE..java.math.BigInteger.valueOf(200)}?.toInt()
         val cursor=strictCashInteger(after)?.takeIf {it.signum()>=0 && it<=java.math.BigInteger.valueOf(Long.MAX_VALUE)}?.toLong()
         if(size==null || cursor==null || resultKind!=null && resultKind !in setOf("row","relation","file","account")) throw IllegalArgumentException("mutation_page_invalid")
-        if(get(user,receipt)==null) return null
+        if (onlyOperation == null) {
+            if (get(user, receipt) == null) return null
+        } else if (!sql.fetchExists(sql.selectOne().from(receipts)
+                .where(receipts.WORKSPACE_ID.eq(workspace)).and(receipts.USER_ID.eq(reference(user, 128)))
+                .and(receipts.ID.eq(reference(receipt, 36))).and(receipts.OPERATION_KIND.eq(onlyOperation)))) return null
         val fields = listOf(resultRows.RESULT_KIND, resultRows.ITEM_REF, resultRows.OUTCOME, resultRows.CODE,
             resultRows.OPERATION_REF, resultRows.TRANSACTION_ID, resultRows.RELATION_ID, resultRows.ACCOUNT_ID)
         val predicate = resultRows.WORKSPACE_ID.eq(workspace).and(resultRows.RECEIPT_ID.eq(reference(receipt,36))).and(resultRows.ID.gt(cursor))

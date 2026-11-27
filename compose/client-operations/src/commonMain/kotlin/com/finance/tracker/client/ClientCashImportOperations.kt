@@ -1,6 +1,8 @@
 package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.CashImportAccountInput
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.business.contracts.CashImportPreviewInput
 import com.finance.tracker.business.contracts.CashImportSessionDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
@@ -65,6 +67,11 @@ interface ClientCashImportStore {
     /** Commit the stored operation before the first business HTTP request. */
     suspend fun checkpoint()
 }
+
+data class ClientCashImportCancellation(
+    val operation: CashImportConfirmation,
+    val receipt: CashMutationReceiptDto?,
+)
 
 @Serializable
 data class ClientCashImportBatch(
@@ -360,13 +367,20 @@ class ClientCashImportOperations(
         return clientJson.decodeFromJsonElement(CashImportPreviewInput.serializer(), JsonObject(input + metadata))
     }
 
-    suspend fun confirm(workspaceId: String?, batchId: String, revision: Long): CashImportResultContent {
+    suspend fun confirm(workspaceId: String?, batchId: String, revision: Long): CashImportResultContent =
+        completedImport(confirmOperation(workspaceId, batchId, revision, waitForReceipt = true))
+
+    suspend fun acceptConfirmation(workspaceId: String?, batchId: String, revision: Long): ClientImportConfirmationOutcome<CashImportResultContent> =
+        confirmOperation(workspaceId, batchId, revision, waitForReceipt = false)
+
+    private suspend fun confirmOperation(workspaceId: String?, batchId: String, revision: Long,
+        waitForReceipt: Boolean): ClientImportConfirmationOutcome<CashImportResultContent> {
         val ledger = session.ledger(workspaceId)
         val batch = batch(ledger, batchId)
         if (batch.revision != revision || batch.planId == null) throw ClientOperationFailure("plan_changed", 409)
-        result(batch)?.let { return it }
+        result(batch)?.let { return ClientImportConfirmationOutcome.Complete(it) }
         session.requireOnlineWriter(ledger)
-        if (batch.submission != null) return finish(ledger, batch)
+        if (batch.submission != null) return continueCashImportSubmission(finishHost(ledger, batch), waitForReceipt)
         val key = attemptKey(batch.id, batch.attempt)
         val snapshot = ledger.ledger.snapshot
         if (snapshot.rulesVersion != CASH_RULES_VERSION) throw ClientOperationFailure("rules_version_changed", 409,
@@ -388,8 +402,8 @@ class ClientCashImportOperations(
         save(ledger, batch, batch.copy(submission = frozen, reviewed = null))
         store.checkpoint()
         val durable = batch(ledger, batchId)
-        result(durable)?.let { return it }
-        return finish(ledger, durable)
+        result(durable)?.let { return ClientImportConfirmationOutcome.Complete(it) }
+        return continueCashImportSubmission(finishHost(ledger, durable), waitForReceipt)
     }
 
     suspend fun resume(workspaceId: String?, batchId: String): ClientCashImportResume {
@@ -408,8 +422,36 @@ class ClientCashImportOperations(
             ?: throw ClientOperationFailure("result_not_available")
     }
 
+    suspend fun confirmationStatus(workspaceId: String?, batchId: String): CashImportConfirmation =
+        observeConfirmation(workspaceId, batchId, cancel = false).operation
+
+    suspend fun cancelConfirmation(workspaceId: String?, batchId: String): ClientCashImportCancellation =
+        observeConfirmation(workspaceId, batchId, cancel = true)
+
+    private suspend fun observeConfirmation(workspaceId: String?, batchId: String, cancel: Boolean): ClientCashImportCancellation {
+        val (binding, workspace) = session.cashImportWorkspace(workspaceId)
+        val batch = batch(binding, workspace, batchId)
+        val outcome = result(batch)
+        val key = batch.submission?.key ?: attemptKey(batch.id, batch.attempt)
+        if (outcome != null) {
+            val receipt = outcome.authoritativeReceipt()
+            val operation = CashImportConfirmation(outcome.submissionKey, CashImportConfirmationStatus.COMMITTED, receipt.receiptId)
+            return ClientCashImportCancellation(operation, receipt.takeIf { cancel })
+        }
+        if (batch.submission == null) throw ClientOperationFailure("import_confirmation_not_found", 404)
+        val operation = session.cashImportConfirmation(binding, workspace, key, cancel)
+            ?: throw ClientOperationFailure("import_confirmation_not_found", 404)
+        val receipt = if (cancel && operation.status == CashImportConfirmationStatus.COMMITTED)
+            receiptForConfirmation(operation) { session.cashImportReceipt(binding, workspace, key) }
+        else null
+        return ClientCashImportCancellation(operation, receipt)
+    }
+
     private suspend fun finish(initialLedger: ClientLedgerRead, initialBatch: ClientCashImportBatch): CashImportResultContent =
-        resumeCashImportSubmission(object : ClientImportSubmissionHost<CashImportResultContent> {
+        resumeCashImportSubmission(finishHost(initialLedger, initialBatch))
+
+    private fun finishHost(initialLedger: ClientLedgerRead, initialBatch: ClientCashImportBatch) =
+        object : ClientImportSubmissionHost<CashImportResultContent> {
             private var ledger = initialLedger
             private var batch = initialBatch
 
@@ -422,7 +464,10 @@ class ClientCashImportOperations(
                 return session.cashImportReceipt(ledger, key)
             }
 
-            override suspend fun submit(attempt: StoredCashImportSubmission): CashMutationReceiptDto {
+            override suspend fun status(key: String): CashImportConfirmation? =
+                session.cashImportConfirmation(ledger, key)
+
+            override suspend fun submit(attempt: StoredCashImportSubmission): CashImportConfirmation {
                 progress("submit_write_set")
                 return session.submitCashImport(ledger, attempt.key, attempt.request)
             }
@@ -474,7 +519,7 @@ class ClientCashImportOperations(
 
             override suspend fun complete(attempt: StoredCashImportSubmission, receipt: CashMutationReceiptDto) =
                 archive(ledger, batch, receipt)
-        })
+        }
 
     private fun nextAttempt(attempt: Int): Int {
         check(attempt < Int.MAX_VALUE) { "cash_import_attempt_exhausted" }
@@ -512,10 +557,13 @@ class ClientCashImportOperations(
         return content
     }
 
-    private suspend fun batch(ledger: ClientLedgerRead, id: String): ClientCashImportBatch {
-        session.requireCurrent(ledger.binding)
-        val batch = store.read(ledger.binding, ledger.ledger.snapshot.workspaceId, id)
-        session.requireCurrent(ledger.binding)
+    private suspend fun batch(ledger: ClientLedgerRead, id: String): ClientCashImportBatch =
+        batch(ledger.binding, ledger.ledger.snapshot.workspaceId, id)
+
+    private suspend fun batch(binding: ClientStoredSession, workspace: String, id: String): ClientCashImportBatch {
+        session.requireCurrent(binding)
+        val batch = store.read(binding, workspace, id)
+        session.requireCurrent(binding)
         return batch ?: throw ClientOperationFailure("batch_not_found", 404)
     }
 

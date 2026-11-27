@@ -10,6 +10,7 @@ import com.finance.tracker.backend.persistence.generated.tables.Accounts
 import com.finance.tracker.backend.persistence.generated.tables.CashCategories
 import com.finance.tracker.backend.persistence.generated.tables.CashEntries
 import com.finance.tracker.backend.persistence.generated.tables.CashEntryMembers
+import com.finance.tracker.backend.persistence.generated.tables.CashImportConfirmations
 import com.finance.tracker.backend.persistence.generated.tables.CashInvestmentFundingRelations
 import com.finance.tracker.backend.persistence.generated.tables.CashIssueCandidates
 import com.finance.tracker.backend.persistence.generated.tables.CashMutationReceipts
@@ -43,6 +44,7 @@ internal val IX_CASH_CATEGORIES_WORKSPACE_PARENT_ORDER: Index = Internal.createI
 internal val IX_CASH_CATEGORIES_WORKSPACE_PATH: Index = Internal.createIndex(DSL.name("ix_cash_categories_workspace_path"), CashCategories.CASH_CATEGORIES, arrayOf(CashCategories.CASH_CATEGORIES.WORKSPACE_ID, CashCategories.CASH_CATEGORIES.CATEGORY_PATH), false)
 internal val IX_CASH_ENTRIES_WORKSPACE_CATEGORY: Index = Internal.createIndex(DSL.name("ix_cash_entries_workspace_category"), CashEntries.CASH_ENTRIES, arrayOf(CashEntries.CASH_ENTRIES.WORKSPACE_ID, CashEntries.CASH_ENTRIES.CATEGORY_ID), false)
 internal val IX_CASH_ENTRY_MEMBERS_ENTRY: Index = Internal.createIndex(DSL.name("ix_cash_entry_members_entry"), CashEntryMembers.CASH_ENTRY_MEMBERS, arrayOf(CashEntryMembers.CASH_ENTRY_MEMBERS.WORKSPACE_ID, CashEntryMembers.CASH_ENTRY_MEMBERS.ENTRY_ID), false)
+internal val IX_CASH_IMPORT_CONFIRMATION_READY: Index = Internal.createIndex(DSL.name("ix_cash_import_confirmation_ready"), CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS, arrayOf(CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS.STATE, CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS.LEASE_UNTIL_MS, CashImportConfirmations.CASH_IMPORT_CONFIRMATIONS.ACCEPTED_AT_MS), false)
 internal val IX_CASH_INVESTMENT_FUNDING_RELATIONS_WORKSPACE_STATUS: Index = Internal.createIndex(DSL.name("ix_cash_investment_funding_relations_workspace_status"), CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS, arrayOf(CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS.WORKSPACE_ID, CashInvestmentFundingRelations.CASH_INVESTMENT_FUNDING_RELATIONS.STATUS), false)
 internal val IX_CASH_ISSUE_CANDIDATE_TRANSACTION: Index = Internal.createIndex(DSL.name("ix_cash_issue_candidate_transaction"), CashIssueCandidates.CASH_ISSUE_CANDIDATES, arrayOf(CashIssueCandidates.CASH_ISSUE_CANDIDATES.WORKSPACE_ID, CashIssueCandidates.CASH_ISSUE_CANDIDATES.CANDIDATE_TRANSACTION_ID), false)
 internal val IX_CASH_ISSUE_TRANSACTION: Index = Internal.createIndex(DSL.name("ix_cash_issue_transaction"), CashTransactionIssues.CASH_TRANSACTION_ISSUES, arrayOf(CashTransactionIssues.CASH_TRANSACTION_ISSUES.WORKSPACE_ID, CashTransactionIssues.CASH_TRANSACTION_ISSUES.TRANSACTION_ID), false)

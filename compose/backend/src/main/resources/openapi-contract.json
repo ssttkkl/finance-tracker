@@ -6835,6 +6835,54 @@
         "discriminator": {
           "propertyName": "type"
         }
+      },
+      "CashImportConfirmation": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "status"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "running",
+              "cancel_requested",
+              "cancelled",
+              "rejected",
+              "committed"
+            ]
+          },
+          "receipt_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Original permanent receipt ID for committed operations."
+          },
+          "rejection": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "http_status": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "code",
+              "http_status"
+            ]
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -13653,7 +13701,7 @@
         "tags": [
           "cash-import"
         ],
-        "description": "Strict UTF-8 JSON, at most 64 MiB and 128 levels. Object keys are canonicalized; array order and numeric lexemes are preserved for idempotency. Replays precede rules and baseline checks. Verify unknown outcomes with the original key through the permanent receipt lookup; legacy plan-based resolve does not apply. File imports reject deletion, standalone issue resolution, relation rewrites and explicit entry splits.",
+        "description": "Durably accept the complete frozen cash import write set. Poll the original operation when the response is interrupted. Completed operations identify the original receipt. Worker rejection, including a stale baseline or rules revision, is reported by status.",
         "parameters": [
           {
             "in": "header",
@@ -13700,21 +13748,31 @@
         },
         "responses": {
           "200": {
-            "description": "Permanent receipt with the complete actual identity snapshot",
+            "description": "Existing terminal confirmation. A committed result identifies the original permanent receipt.",
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/MutationReceiptView"
-                    },
-                    {
-                      "required": [
-                        "ledger_seq",
-                        "write_set_result"
-                      ]
-                    }
-                  ]
+                  "$ref": "#/components/schemas/CashImportConfirmation"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The complete frozen write set is durably accepted. Poll its status with the original key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashImportConfirmation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed compressed request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
                 }
               }
             }
@@ -13740,7 +13798,27 @@
             }
           },
           "409": {
-            "description": "Idempotency conflict, ledger_base_changed or rules_version_changed",
+            "description": "Original operation key is already bound to another command",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Encoded input exceeds the request size limit; no operation was accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request Content-Encoding",
             "content": {
               "application/json": {
                 "schema": {
@@ -13750,7 +13828,7 @@
             }
           },
           "422": {
-            "description": "Invalid JSON, write-set structure or business constraints",
+            "description": "Malformed or invalid acceptance input",
             "content": {
               "application/json": {
                 "schema": {
@@ -13778,42 +13856,618 @@
                 }
               }
             }
-          },
-          "400": {
-            "description": "Malformed compressed request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Decoded or expanded command exceeds 64 MiB; commit_state is not_committed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Unsupported request Content-Encoding",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CashPlanErrorView"
-                }
-              }
-            }
           }
         },
         "security": [
           {
             "BearerAuth": []
           }
+        ]
+      }
+    },
+    "/api/v1/cash-import/write-set/status": {
+      "get": {
+        "operationId": "readCashImportConfirmation",
+        "summary": "Read the original import confirmation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read the original import confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashImportConfirmation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed control request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace or requested action unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Original confirmation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid workspace or idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cash-import/write-set/cancel": {
+      "post": {
+        "operationId": "cancelCashImportConfirmation",
+        "summary": "Request cancellation of the original import confirmation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request cancellation of the original import confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashImportConfirmation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed control request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace or requested action unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Original confirmation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cancellation was not recorded. The caller may retry this cancellation with the original key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid workspace or idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cash-import/write-set/receipt": {
+      "get": {
+        "operationId": "readCashImportConfirmationReceipt",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:.~-]{1,255}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The fixed workspace of the original import intent; must match the authenticated active workspace."
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationReceiptView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Read the original cash import receipt by operation key",
+        "tags": [
+          "cash-plans"
+        ]
+      }
+    },
+    "/api/v1/cash-import/write-set/receipt/{receipt_id}/rows": {
+      "get": {
+        "operationId": "readCashImportConfirmationRows",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "0",
+              "pattern": "^(0|[1-9][0-9]{0,18})$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationResultPageView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Row Results",
+        "tags": [
+          "cash-plans"
+        ]
+      }
+    },
+    "/api/v1/cash-import/write-set/receipt/{receipt_id}/relations": {
+      "get": {
+        "operationId": "readCashImportConfirmationRelations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "0",
+              "pattern": "^(0|[1-9][0-9]{0,18})$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "When provided, fixes the original workspace for result verification. A session switch rejects the read."
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationResultPageView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPlanErrorView"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Relation Results",
+        "tags": [
+          "cash-plans"
         ]
       }
     }

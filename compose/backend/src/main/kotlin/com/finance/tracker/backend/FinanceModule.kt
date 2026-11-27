@@ -78,7 +78,10 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     syncOperations: SyncHttpService = SyncHttpService(database),
     xlsParses: CashXlsParseService = CashXlsParseService(),
     writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock),
-    sentry: BackendSentry? = null) {
+    cashImportConfirmations: CashImportConfirmationService = CashImportConfirmationService(database, writeSetSubmissions, clock),
+    sentry: BackendSentry? = null,
+    runCashImportWorker: Boolean = true) {
+    if (runCashImportWorker) installCashImportConfirmationWorker(cashImportConfirmations)
     install(RequestDiagnostics)
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
@@ -591,7 +594,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
     }
     val router = routing {
-        cashImportWriteSetRoutes(writeSetSubmissions, requestPrincipalKey)
+        cashImportWriteSetRoutes(cashImportConfirmations, receipts, requestPrincipalKey)
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
         cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
         cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)

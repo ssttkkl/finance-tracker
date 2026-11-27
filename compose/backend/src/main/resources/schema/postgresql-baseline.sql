@@ -998,4 +998,4 @@ ALTER TABLE ONLY public.workspace_memberships
 ALTER TABLE ONLY public.workspace_memberships
     ADD CONSTRAINT workspace_memberships_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 
-INSERT INTO public.alembic_version (version_num) VALUES ('20261104_54');
+INSERT INTO public.alembic_version (version_num) VALUES ('20261127_55');

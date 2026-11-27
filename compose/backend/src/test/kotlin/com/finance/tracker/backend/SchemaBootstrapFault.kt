@@ -48,13 +48,13 @@ internal fun assertSchemaVersionRejections(database: Database) {
             values.forEach { statement.setString(1, it); statement.executeUpdate() }
         }
     }
-    for (invalid in listOf(emptyList(), listOf("20260101_00"), listOf("20261030_53"), listOf("unknown"), listOf("20261030_53", "other"))) {
+    for (invalid in listOf(emptyList(), listOf("20260101_00"), listOf("20261030_53"), listOf("20261104_54"), listOf("unknown"), listOf("20261030_53", "other"))) {
         replace(invalid)
         database.bootstrapSchema()
         kotlin.test.assertEquals("storage.schema", kotlin.test.assertFailsWith<StorageFailure> { database.validateSchema() }.code)
         kotlin.test.assertEquals(invalid.sorted(), versions())
     }
-    replace(listOf("20261104_54"))
+    replace(listOf("20261127_55"))
     database.validateSchema()
 }
 

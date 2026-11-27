@@ -104,6 +104,23 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             if (key != null) header("Idempotency-Key", key)
             contentType(ContentType.Application.Json); setBody(body)
         }
+    private suspend fun ApplicationTestBuilder.importResult(workspace: String, token: String, body: String,
+        key: String = "original", gzip: Boolean = false): JsonObject {
+        val acceptance = if (gzip) submitGzip(workspace, token, body, key) else submit(workspace, token, body, key)
+        val terminal = client.awaitCashImport(acceptance, workspace, token, key)
+        val result = response(client.originalCashImportReceipt(terminal, workspace, token), 200)
+        assertEquals(terminal.receiptId, result.getValue("receipt_id").jsonPrimitive.content)
+        return result
+    }
+    private suspend fun ApplicationTestBuilder.rejectedImport(workspace: String, token: String, body: String,
+        key: String, status: Int, code: String? = null): CashImportConfirmation {
+        val terminal = client.awaitCashImport(submit(workspace, token, body, key), workspace, token, key)
+        assertEquals(CashImportConfirmationStatus.REJECTED, terminal.status)
+        assertNull(terminal.receiptId)
+        assertEquals(status, terminal.rejection?.httpStatus)
+        if (code != null) assertEquals(code, terminal.rejection?.code)
+        return terminal
+    }
     private suspend fun response(response: HttpResponse, status: Int, code: String? = null): JsonObject {
         assertEquals(status, response.status.value, response.bodyAsText())
         val result = Json.parseToJsonElement(response.bodyAsText()).jsonObject
@@ -114,7 +131,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString()
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
             val originalFacts = facts(db, ws)
             val originalSequence = sequence(db, ws)
@@ -135,7 +152,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             }, 200))
             assertEquals(originalFacts, snapshot.facts)
             assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content) {
                 bearerAuth(token)
             }, 200))
@@ -153,7 +170,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val plan = "ip_$session.${"b".repeat(16)}"
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             val receiptId = saved.getValue("receipt_id").jsonPrimitive.content
             val transaction = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id
             val legacy = db.write { connection ->
@@ -207,7 +224,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             }, 200))
             assertEquals(originalFacts, snapshot.facts)
             assertEquals(originalSequence.toString(), snapshot.ledgerSeq)
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             assertEquals(originalFacts, facts(db, ws))
             assertEquals(originalSequence, sequence(db, ws))
             assertEquals(requests.associate { (method, path) -> "$method $path" to 404 }, statuses)
@@ -291,7 +308,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertNull(firstCompact["replay_groups"], "The empty baseline has nothing to replay")
             assertTrue(gzipSize(firstCompactText) < input.encodeToByteArray().size / 5,
                 "Compact first upload must save at least 80% with gzip")
-            val saved = response(submit(ws, token, firstCompactText, "monthly-first"), 200)
+            val saved = importResult(ws, token, firstCompactText, "monthly-first")
             assertEquals(JsonPrimitive(377), saved.getValue("summary").jsonObject["created_posted"])
             assertEquals(377, facts(db, ws).cashTransactions.size)
             assertLedger()
@@ -318,7 +335,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(changes.relations.size, savedRelations.size)
             assertEquals(facts(db, ws).transactionRelations.map { it.id }.toSet(), savedRelations.map { it.getValue("relation_id").jsonPrimitive.content }.toSet())
             val after = facts(db, ws); val afterSequence = sequence(db, ws)
-            assertEquals(saved, response(submit(ws, token, firstCompactText, "monthly-first"), 200))
+            assertEquals(saved, importResult(ws, token, firstCompactText, "monthly-first"))
             assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
             val refreshed = snapshot()
             val (reimportPlan, reimport) = com.finance.tracker.business.domain.calculateLocalCashImportBusinessPlan(files, refreshed, review,
@@ -339,11 +356,11 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             println("FT_IMPORT_SIZES reimport_full=${reimportText.encodeToByteArray().size} reimport_compact=${compactText.encodeToByteArray().size} " +
                 "reimport_gzip=${gzipSize(compactText)} replay_groups=${reimportCompact.getValue("replay_groups").jsonArray.size} " +
                 "bindings=${changes.sourceBindings.size} coverage=${firstCompact.getValue("coverage_table").jsonArray.size}")
-            val repeated = response(submit(ws, token, reimportText, "monthly-fresh"), 200)
+            val repeated = importResult(ws, token, reimportText, "monthly-fresh")
             val summary = repeated.getValue("summary").jsonObject
             for (field in listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft")) assertEquals(JsonPrimitive(0), summary[field], field)
             assertEquals(after, facts(db, ws)); assertEquals(afterSequence, sequence(db, ws)); assertLedger()
-            val compactRepeated = response(submitGzip(ws, token, compactText, "monthly-compact"), 200)
+            val compactRepeated = importResult(ws, token, compactText, "monthly-compact", gzip = true)
             assertEquals(JsonPrimitive("no_changes"), repeated["status"])
             assertEquals(JsonPrimitive("no_changes"), compactRepeated["status"])
             assertEquals(repeated.getValue("summary"), compactRepeated.getValue("summary"))
@@ -361,7 +378,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             assertEquals((base + 1).toString(), saved.getValue("ledger_seq").jsonPrimitive.content)
             val delivered = Json.decodeFromJsonElement<CashMutationReceiptDto>(saved)
             assertEquals(listOf("created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate",
@@ -374,7 +391,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             assertEquals(actual.cashTransactionComponents.single().id, result.transactions.single().componentIds.single())
             assertEquals(actual.cashEntries.single().id, result.entries.single().id)
             assertEquals(actual.cashSourceBindings.single().id, result.sourceBindings.single().id)
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             for (path in listOf("/api/v1/cash-mutations/receipts/" + saved.getValue("receipt_id").jsonPrimitive.content,
                 "/api/v1/cash-mutations/receipts/by-key?key=original")) {
                 assertEquals(saved, response(client.get(path) { bearerAuth(token) }, 200))
@@ -388,7 +405,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString()
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             val result = Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result"))
             val entry = result.entries.single().id
             val originalFacts = facts(db, ws)
@@ -426,7 +443,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
                     .format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM"))
             }
             assertTrue(deletedQuery.page(filters).items.isEmpty())
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             assertEquals(savedVersion + 2, sequence(db, ws))
         }
     }
@@ -436,8 +453,8 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         assertTrue("1.2300" in text)
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, text), 200)
-            assertEquals(saved, response(submit(ws, token, JsonObject(input.toList().reversed().toMap()).toString()), 200))
+            val saved = importResult(ws, token, text)
+            assertEquals(saved, importResult(ws, token, JsonObject(input.toList().reversed().toMap()).toString()))
             val changed = response(submit(ws, token, text.replace("1.2300", "1.23")), 409, "idempotency_conflict")
             assertFalse("commit_state" in changed)
             assertEquals(saved["receipt_id"], changed["receipt_id"])
@@ -448,12 +465,10 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
-            val stale = response(submit(ws, token, input, "stale"), 409, "ledger_base_changed")
-            assertEquals(JsonPrimitive("not_committed"), stale["commit_state"])
-            val oldRules = response(submit(ws, token, payload(db, ws, rules = "old").toString(), "rules"), 409, "rules_version_changed")
-            assertEquals(JsonPrimitive("not_committed"), oldRules["commit_state"])
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            val saved = importResult(ws, token, input)
+            rejectedImport(ws, token, input, "stale", 409, "ledger_base_changed")
+            rejectedImport(ws, token, payload(db, ws, rules = "old").toString(), "rules", 409, "rules_version_changed")
+            assertEquals(saved, importResult(ws, token, input))
             assertEquals(base + 1, sequence(db, ws)); assertEquals(1, facts(db, ws).cashTransactions.size)
             db.read { c -> assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(
                 c.jooq(db.sqlite).select(USER_SESSIONS.USER_ID).from(USER_SESSIONS).where(USER_SESSIONS.TOKEN_DIGEST.eq(tokenDigest(token))).fetchOne(USER_SESSIONS.USER_ID)!!, "stale")) }
@@ -464,7 +479,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         testApplication {
             application { financeModule(db, clock = clock) }
             response(submit(ws, null, input), 401)
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             db.write { c -> c.jooq(db.sqlite).update(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.ROLE, "viewer")
                 .where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(ws)).and(WORKSPACE_MEMBERSHIPS.USER_ID.eq(user)).execute() }
             val before = databaseState(db)
@@ -491,7 +506,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         }
         try { testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, payload(db, ws, changes(account)).toString()), 200)
+            val saved = importResult(ws, token, payload(db, ws, changes(account)).toString())
             val before = databaseState(db); val id = saved.getValue("receipt_id").jsonPrimitive.content
             val snapshot = response(client.get("/api/v1/ledger/snapshot?workspace_id=$ws") { bearerAuth(otherToken) }, 200)
             assertEquals(ws, Json.decodeFromJsonElement<LedgerSnapshotDto>(snapshot).workspaceId)
@@ -511,12 +526,12 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws).toString()
         testApplication {
             application { financeModule(db, clock = clock) }
-            val saved = response(submit(ws, token, input), 200)
+            val saved = importResult(ws, token, input)
             for (bad in listOf("[]", "{", input.dropLast(1) + ",\"changes\":{}}", "{\"x\":NaN}", "{\"x\":Infinity}", "{\"x\":01}")) {
                 val failure = response(submit(ws, token, bad), 422, "import_payload_invalid")
                 assertFalse("commit_state" in failure)
             }
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             response(submit(ws, token, input, null), 422, "idempotency_key_required")
         }
     }
@@ -525,44 +540,36 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         testApplication {
             application { financeModule(db, clock = clock) }
             val invalid = JsonObject(payload(db, ws) + ("extra" to JsonPrimitive(true))).toString()
-            val rejected = response(submit(ws, token, invalid), 422, "write_set_payload_invalid")
-            assertEquals(JsonPrimitive("not_committed"), rejected["commit_state"])
+            rejectedImport(ws, token, invalid, "original", 422, "write_set_payload_invalid")
             val withoutEntries = payload(db, ws, changes(account).copy(entries = emptyList())).toString()
-            val effects = response(submit(ws, token, withoutEntries, "effects"), 422)
-            assertEquals(JsonPrimitive("not_committed"), effects["commit_state"])
+            rejectedImport(ws, token, withoutEntries, "effects", 422)
             assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws))
             db.read { c -> for (key in listOf("original", "effects")) assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(user, key)) }
         }
-    }    @Test fun lateProgramFailureRollsBackAndReturns500WithSafeDiagnostic() = authenticated { db, ws, account, token, user ->
+    }    @Test fun lateProgramFailureRollsBackAndReportsTerminalRejection() = authenticated { db, ws, account, token, user ->
         val input = payload(db, ws, changes(account)).toString(); val before = facts(db, ws); val base = sequence(db, ws)
         val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") error("private-bill-detail") })
         testApplication {
             application { financeModule(db, clock = clock, writeSetSubmissions = service) }
-            val failed = response(submit(ws, token, input), 500, "internal_error")
-            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
-            val error = failed.getValue("error").jsonObject
-            assertEquals(JsonPrimitive(false), error["retryable"])
-            assertEquals(JsonPrimitive("receipt"), error.getValue("diagnostic").jsonObject["stage"])
+            val failed = rejectedImport(ws, token, input, "original", 500, "internal_error")
             assertFalse("private-bill-detail" in failed.toString())
             assertEquals(before, facts(db, ws)); assertEquals(base, sequence(db, ws))
             db.read { c -> assertNull(ReceiptRepository(c, ws, db.sqlite).lookupKey(user, "original")) }
         }
     }
-    @Test fun responseLostAfterCommitKeepsUnknownStateAndResolvesTheOriginalPermanentResult() = authenticated { db, ws, account, token, _ ->
+    @Test fun executorFailureAfterCommitRetainsTheOriginalPermanentResult() = authenticated { db, ws, account, token, _ ->
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         var loseResponse = true
         val service = CashImportWriteSetSubmissionService(db, now = clock, afterCommit = { if (loseResponse) error("private-response-detail") })
         testApplication {
             application { financeModule(db, clock = clock, writeSetSubmissions = service) }
-            val failed = response(submit(ws, token, input), 500, "internal_error")
-            assertEquals(JsonPrimitive("unknown"), failed["commit_state"])
-            assertFalse("private-response-detail" in failed.toString())
-            val saved = response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original") { bearerAuth(token) }, 200)
+            val saved = importResult(ws, token, input)
+            assertFalse("private-response-detail" in saved.toString())
             val actual = facts(db, ws)
             assertEquals((base + 1).toString(), saved.getValue("ledger_seq").jsonPrimitive.content)
             assertEquals(actual.cashTransactions.single().id, Json.decodeFromJsonElement<CashWriteSetResultDto>(saved.getValue("write_set_result")).transactions.single().id)
             loseResponse = false
-            assertEquals(saved, response(submit(ws, token, input), 200))
+            assertEquals(saved, importResult(ws, token, input))
             assertEquals(actual, facts(db, ws)); assertEquals(base + 1, sequence(db, ws))
         }
     }
@@ -605,21 +612,23 @@ class CashImportWriteSetHttpTest(private val backend: String) {
             val input = payload(db, ws, changes(account)).toString()
             testApplication {
                 application { financeModule(db, clock = clock) }
-                val saved = response(submit(ws, token, input), 200)
+                val saved = importResult(ws, token, input)
                 assertEquals(JsonPrimitive(true), saved["committed"])
                 val before = databaseState(db); val originalFacts = facts(db, ws); val base = sequence(db, ws)
                 faults.active = true
-                val failed = try { response(submit(ws, token, input), 500, "internal_error") }
-                    finally { faults.active = false }
-                assertEquals(JsonPrimitive("unknown"), failed["commit_state"])
-                val error = failed.getValue("error").jsonObject
-                assertEquals(JsonPrimitive(false), error["retryable"])
-                assertEquals(JsonPrimitive(if (atExit) "database_commit" else "request"), error.getValue("diagnostic").jsonObject["stage"])
-                assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+                val failed = try {
+                    assertFailsWith<CashImportCommitFailure> {
+                        CashImportWriteSetSubmissionService(db, now = clock)
+                            .submit(token, ws, Json.parseToJsonElement(input).jsonObject, "original")
+                    }
+                } finally { faults.active = false }
+                assertEquals("unknown", failed.commitState)
+                assertEquals(if (atExit) "database_commit" else "request", failed.diagnostic.stage)
+                assertFalse("private" in Json.encodeToString(failed.diagnostic))
                 assertTrue(faults.queries.get() > 0); assertEquals(1, faults.failures.get())
                 assertEquals(before, databaseState(db)); assertEquals(originalFacts, facts(db, ws)); assertEquals(base, sequence(db, ws))
                 assertEquals(saved, response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 200))
-                assertEquals(saved, response(submit(ws, token, input), 200))
+                assertEquals(saved, importResult(ws, token, input))
                 assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
             }
         }
@@ -677,7 +686,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val faults = WriteSqlFault(table)
         authenticated(faults::decorate) { db, ws, account, token, _ -> testApplication {
             application { financeModule(db, clock = clock) }
-            if (kind == "mixed") response(submit(ws, token, payload(db, ws, changes(account)).toString(), "saved-original"), 200)
+            if (kind == "mixed") importResult(ws, token, payload(db, ws, changes(account)).toString(), "saved-original")
             val input = when (kind) {
                 "relation" -> refundChanges(account)
                 "empty" -> CashWriteSetDto(sourceEmptyPages = listOf(LedgerSourceEmptyPageFactDto("ccb_debit", "fixture-v1", "a".repeat(64), 1,
@@ -688,23 +697,28 @@ class CashImportWriteSetHttpTest(private val backend: String) {
                 CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(it.id), it.revision) }) }
             val body = payload(db, ws, input).toString(); val before = databaseState(db); val base = sequence(db, ws)
             faults.active = true
-            val failed = try { response(submit(ws, token, body), 500, "internal_error") } finally { faults.active = false }
-            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            val failed = try {
+                assertFailsWith<CashImportCommitFailure> {
+                    CashImportWriteSetSubmissionService(db, now = clock)
+                        .submit(token, ws, Json.parseToJsonElement(body).jsonObject, "original")
+                }
+            } finally { faults.active = false }
+            assertEquals("not_committed", failed.commitState)
             val stage = when (kind) { "relation" -> "relations"; "empty" -> "source_metadata"; else -> "source_bindings" }
-            assertEquals(JsonPrimitive(stage), failed.getValue("error").jsonObject.getValue("diagnostic").jsonObject["stage"])
-            assertFalse("private" in failed.toString()); assertFalse("SQL" in failed.toString())
+            assertEquals(stage, failed.diagnostic.stage)
+            assertFalse("private" in Json.encodeToString(failed.diagnostic))
             assertEquals(1, faults.failures.get()); assertEquals(before.getValue(table).size + 1, faults.visibleRows.get())
             val created = when (kind) { "empty" -> 0; "mixed" -> 1; else -> 2 }
             assertEquals(before.getValue("cash_transactions").size + created, faults.visibleParents.get())
             assertEquals(before, databaseState(db)); assertEquals(base, sequence(db, ws))
             response(client.get("/api/v1/cash-mutations/receipts/by-key?key=original&workspace_id=$ws") { bearerAuth(token) }, 404, "receipt_not_found")
-            val saved = response(submit(ws, token, body), 200)
+            val saved = importResult(ws, token, body)
             assertEquals(JsonPrimitive(created), saved.getValue("summary").jsonObject["created_posted"])
             assertEquals(base + 1, sequence(db, ws))
             if (kind == "mixed") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["duplicate"])
             if (kind == "relation") assertEquals(JsonPrimitive(1), saved.getValue("summary").jsonObject["relations_confirmed"])
             val complete = databaseState(db)
-            assertEquals(saved, response(submit(ws, token, body), 200)); assertEquals(complete, databaseState(db))
+            assertEquals(saved, importResult(ws, token, body)); assertEquals(complete, databaseState(db))
         } }
     }
     @Test fun actualSourceBindingInsertFailureRollsBackAllRowsAndOriginalRequestCanRetry() = writeFailure("source")
@@ -712,13 +726,19 @@ class CashImportWriteSetHttpTest(private val backend: String) {
     @Test fun actualEmptyEvidenceInsertFailureReturnsKnownRollbackAndOriginalRequestCanRetry() = writeFailure("empty")
     @Test fun actualMixedDuplicateAndNewInsertFailurePreservesTheOldReceiptAndOriginalRequestCanRetry() = writeFailure("mixed")
 
-    @Test fun recognizedTemporaryStorageFailureUses503WithoutMisclassifyingPrograms() = authenticated { db, ws, _, token, _ ->
-        val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = { if (it == "receipt") throw StorageFailure("storage.busy") })
+    @Test fun recognizedTemporaryStorageFailureRetriesTheSameDurableOperation() = authenticated { db, ws, _, token, _ ->
+        val attempts = AtomicInteger()
+        val service = CashImportWriteSetSubmissionService(db, now = clock, afterStep = {
+            if (it == "receipt" && attempts.incrementAndGet() == 1) throw StorageFailure("storage.busy")
+        })
+        val input = payload(db, ws).toString()
         testApplication {
             application { financeModule(db, clock = clock, writeSetSubmissions = service) }
-            val failed = response(submit(ws, token, payload(db, ws).toString()), 503, "import_unavailable")
-            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
-            assertEquals(JsonPrimitive(true), failed.getValue("error").jsonObject["retryable"])
+            val saved = importResult(ws, token, input)
+            assertEquals(JsonPrimitive(true), saved["committed"])
+            assertEquals(2, attempts.get())
+            assertEquals(saved, importResult(ws, token, input))
+            assertEquals(2, attempts.get())
         }
     }
     @Test fun transportRejectsMalformedUtf8AndEscapedLoneSurrogatesWithoutWrites() = authenticated { db, ws, _, token, _ ->
@@ -738,10 +758,13 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {
             application { financeModule(db, clock = clock) }
-            val replies = coroutineScope { listOf("race-a", "race-b").map { key -> async { submit(ws, token, input, key) } }.map { it.await() } }
-            assertEquals(listOf(200, 409), replies.map { it.status.value }.sorted())
-            val failed = response(replies.single { it.status.value == 409 }, 409, "ledger_base_changed")
-            assertEquals(JsonPrimitive("not_committed"), failed["commit_state"])
+            val replies = coroutineScope { listOf("race-a", "race-b").map { key ->
+                async { client.awaitCashImport(submit(ws, token, input, key), ws, token, key) }
+            }.map { it.await() } }
+            assertEquals(setOf(CashImportConfirmationStatus.COMMITTED, CashImportConfirmationStatus.REJECTED),
+                replies.map { it.status }.toSet())
+            val failed = replies.single { it.status == CashImportConfirmationStatus.REJECTED }
+            assertEquals(CashImportConfirmationRejection("ledger_base_changed", 409), failed.rejection)
             assertEquals(1, facts(db, ws).cashTransactions.size); assertEquals(base + 1, sequence(db, ws))
         }
     }
@@ -749,8 +772,8 @@ class CashImportWriteSetHttpTest(private val backend: String) {
         val input = payload(db, ws, changes(account)).toString(); val base = sequence(db, ws)
         testApplication {
             application { financeModule(db, clock = clock) }
-            val replies = coroutineScope { List(2) { async { submit(ws, token, input) } }.map { it.await() } }
-            assertEquals(response(replies[0], 200), response(replies[1], 200))
+            val replies = coroutineScope { List(2) { async { importResult(ws, token, input) } }.map { it.await() } }
+            assertEquals(replies[0], replies[1])
             assertEquals(1, facts(db, ws).cashTransactions.size); assertEquals(base + 1, sequence(db, ws))
         }
     }
@@ -778,7 +801,7 @@ class CashImportWriteSetHttpTest(private val backend: String) {
                 assertTrue(facts(db, ws).cashTransactions.isEmpty()); assertTrue(facts(db, other).cashTransactions.isEmpty())
                 db.read { c -> assertNull(ReceiptRepository(c, other, db.sqlite).lookupKey(user, "original")) }
                 db.write { c -> c.jooq(db.sqlite).update(USER_SESSIONS).set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, ws).where(USER_SESSIONS.USER_ID.eq(user)).execute() }
-                response(submit(ws, token, input), 200)
+                importResult(ws, token, input)
                 assertEquals(1, facts(db, ws).cashTransactions.size); assertTrue(facts(db, other).cashTransactions.isEmpty())
             }
         } finally { db.write { c -> c.jooq(db.sqlite).deleteFrom(WORKSPACES).where(WORKSPACES.ID.eq(other)).execute() } }

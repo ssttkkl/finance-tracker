@@ -118,7 +118,8 @@ class CashImportEntryContinuityTest(private val backend: String) {
                 bearerAuth(f.token); header("Idempotency-Key", "clear-entry")
                 contentType(ContentType.Application.Json); setBody(Json.encodeToJsonElement(twice.request).toString())
             }
-            val body = response.bodyAsText(); assertEquals(200, response.status.value, body)
+            val operation = client.awaitCashImport(response, f.workspace, f.token, "clear-entry")
+            assertEquals(200, client.originalCashImportReceipt(operation, f.workspace, f.token).status.value)
         }
         val facts = f.snapshot().facts; val parent = facts.cashTransactions.single(); val entry = facts.cashEntries.single()
         assertEquals("原始备注", parent.note); assertEquals(sourceJson(files.single().document!!.rows.single().fields!!["source_payload"]), parent.sourcePayload)

@@ -198,7 +198,7 @@ class ClientCashWriteOperations(
             else executeCashCommand(original, lookupFirst && verified.planId == null,
                 findReceipt = { key ->
                     if (ledger.offline) throw ClientNetworkUnavailable()
-                    session.cashImportReceipt(ledger, key)
+                    session.cashWriteReceipt(ledger, key)
                 },
                 submit = { original ->
                     if (ledger.offline) throw ClientNetworkUnavailable()

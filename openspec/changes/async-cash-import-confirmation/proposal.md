@@ -14,7 +14,8 @@
 
 - `import/local-import-pipeline` 定义确认写集的受理、执行、取消与结果恢复。
 - `shared/ledger-cli` 定义现金导入确认的默认退出时点和显式提前返回方式。
+- `shared/runtime-database` 定义本变更引入的 55 基线和显式 PostgreSQL 54→55 升级。
 
 ## Impact
 
-涉及后端 HTTP 与双库持久化、共享客户端操作、Compose 和 ft 的现金确认路径。其余导入来源、同步、扫描、快照和性能门禁任务均在本变更范围外。
+涉及后端 HTTP 与 PostgreSQL 持久化、共享客户端操作、Compose 和 ft 的现金确认路径。其余导入来源、同步、扫描、快照和性能门禁任务均在本变更范围外。

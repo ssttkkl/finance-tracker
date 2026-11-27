@@ -5,8 +5,8 @@ Kotlin/Ktor 后端是 Finance Tracker 的唯一生产入口，提供 `/api/v1` �
 ## 数据契约
 
 - 只通过 `FT_DATABASE_URL`（或平台注入的 `DATABASE_URL`）选择一个 PostgreSQL 或文件型 SQLite 数据库；不自动探测、不静默回退、不双写。
-- 空数据库在启动时创建 `20261104_54` 基线 schema 并写入 `alembic_version`；已有数据库只校验完整表集合和版本。旧版本、未知版本或残缺 schema 直接失败关闭，不会自动升级或改写。
-- 基线 SQL 位于 `src/main/resources/schema/{sqlite,postgresql}-baseline.sql`，在已退役迁移的 53 基线之上加入本分支的 ledger_seq 和 54 版本。历史 Alembic revision 已随 Python 后端退役，仓库不提供从旧 revision 升级的路径。
+- 空数据库在启动时创建 `20261127_55` 基线 schema 并写入 `alembic_version`；已有数据库只校验完整表集合和版本。旧版本、未知版本或残缺 schema 直接失败关闭，不会自动升级或改写。
+- 基线 SQL 位于 `src/main/resources/schema/{sqlite,postgresql}-baseline.sql`，基线装配同时执行 `cash-import-confirmation.sql`。已知的 PostgreSQL 54 版可用独立升级命令推进到 55。
 - 金额、数量、汇率和成本使用精确十进制语义；SQLite 与 PostgreSQL 共享同一组 Application Service 和用户合同。
 
 ## 启动
@@ -69,9 +69,15 @@ docker run --rm -p 8080:8080 \
 
 镜像预建由 UID `10001` 拥有的 `/data`；新命名卷沿用该目录权限。已有卷或绑定目录须由操作者核对该 UID 的写权限，不能用放宽全部权限解决。数据库与运行数据位于仓库外的 Docker 卷中。
 
-首次启动会按规定建立基线；`alembic_version` 应等于 `20261104_54`。
+首次启动会按规定建立基线；`alembic_version` 应等于 `20261127_55`。
 
-发布前确认已有数据库的版本为 `20261104_54`，并完成当前提交的门禁；已有 53 库缺少 ledger_seq 时直接拒绝；须显式升级字段、约束及版本，不能只修改版本号或交给 Kotlin 自动修复。本分支后续破坏性 schema 调整的升级方案仍待完成。Render 从仓库根目录的 Dockerfile 构建并运行 `/app/bin/backend`，不配置 Python 或 Alembic 构建、启动命令。
+已有 PostgreSQL 54 版库先停止旧后端并备份，再使用与服务相同的数据库配置运行：
+
+```bash
+backend upgrade-cash-import-confirmation
+```
+
+该命令显式创建受理表并推进版本。若数据库已是完整 55 版，重复执行保持原数据。升级后原有收据仍可按原键读取。检查 schema、原收据和服务健康后再启用新客户端。回退前先停止新受理并处理所有已受理操作，保存已入账结果和数据库备份。不要手改版本或把 55 库直接交给旧二进制。
 
 获得具体服务和提交的发布授权后，可用该服务 Settings 中的秘密 Deploy Hook URL 触发指定提交。URL 只保存在受控环境变量中，不写进仓库或日志：
 
@@ -84,9 +90,9 @@ curl --fail --silent --show-error --get \
 
 该请求只表示触发部署，仍需检查部署状态和 `/health`，再验证登录及一个业务读取。指定 `ref` 会关闭该服务的自动部署；恢复自动部署应另行确认目标分支。操作定义见 [Render Deploy Hooks](https://render.com/docs/deploy-hooks) 和 [指定提交部署](https://render.com/docs/deploys#deploying-a-specific-commit)。本 change 未执行真实 Render 发布。
 
-首次空库启动的实际本机记录位于 change 的 `tasks.md`：安装产物输出日志框架缺少 provider 的警告，没有 schema 创建成功日志。不能以没有报错作为建库证明；需同时核对 `SELECT version_num FROM alembic_version` 返回 `20261104_54`、28 张 public 表及 HTTP 主流程。日志中不输出连接串、凭据或业务数据。
+首次空库启动的实际本机记录位于 change 的 `tasks.md`：安装产物输出日志框架缺少 provider 的警告，没有 schema 创建成功日志。不能以没有报错作为建库证明；需同时核对 `SELECT version_num FROM alembic_version` 返回 `20261127_55`、29 张 public 表及 HTTP 主流程。日志中不输出连接串、凭据或业务数据。
 
-本分支使用 54 schema，不能直接沿用 main 的 53／旧 Python 回退步骤。pre-python-backend-removal 标签只接受 53，直接连接本分支数据库会失败；不得仅修改版本标记规避校验。代码合并可恢复合并前的 65be32d9（备份分支 backup/offline-first-before-main-20261106），该代码同样要求 54；它不会撤回已执行的数据写入。后续破坏性 schema 改动须提供对应的显式升级及相称恢复方案，部署与真实数据恢复仍需具体授权。
+54 版后端和更早的 Python 后端无法读取 55 版数据库。需要恢复旧版本时，使用与该版本匹配的备份，并核对备份之后已入账的导入收据。部署和真实数据恢复须获具体授权。
 
 ## 测试
 
@@ -118,7 +124,7 @@ export FT_TEST_POSTGRES_URL='postgresql://localhost/finance_tracker_test'
 
 ## jOOQ 代码生成
 
-普通构建直接使用已提交的生成代码，无需连接数据库。schema 事实源是 `src/main/resources/schema/postgresql-baseline.sql`，不再读取 Alembic 目录。
+普通构建直接使用已提交的生成代码，无需连接数据库。schema 事实源是 `src/main/resources/schema/postgresql-baseline.sql` 与 `src/main/resources/schema/cash-import-confirmation.sql`，不再读取 Alembic 目录。
 
 ```bash
 FT_JOOQ_CODEGEN_URL=jdbc:postgresql://127.0.0.1:55432/finance_jooq_test \

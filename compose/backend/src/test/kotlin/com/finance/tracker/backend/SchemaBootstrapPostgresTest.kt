@@ -1,14 +1,19 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.USERS
+import com.finance.tracker.backend.persistence.generated.tables.references.WORKSPACES
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.sql.DriverManager
+import java.time.Instant
 import java.util.Properties
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlinx.serialization.json.jsonPrimitive
 
 class SchemaBootstrapPostgresTest {
     @Test
@@ -68,7 +73,8 @@ class SchemaBootstrapPostgresTest {
                     }
                 }
             }
-            assertEquals(28, tableCount)
+            assertEquals(29, tableCount)
+            upgradePreservesOriginalReceipt(database)
             for (table in listOf("cash_entries", "cash_entry_members", "cash_relation_migration_audit")) {
                 database.write { connection ->
                     connection.createStatement().use {
@@ -91,12 +97,55 @@ class SchemaBootstrapPostgresTest {
                         }
                     }
                 }
-                assertEquals(27, remaining)
+                assertEquals(28, remaining)
             }
         } finally {
             DriverManager.getConnection(adminUrl, properties).use { admin ->
                 admin.createStatement().use { it.execute("DROP DATABASE IF EXISTS \"$databaseName\" WITH (FORCE)") }
             }
+        }
+    }
+
+    private fun upgradePreservesOriginalReceipt(database: Database) {
+        val workspace = "pre-async-workspace"
+        val user = "pre-async-user"
+        val key = "frozen-before-upgrade"
+        val now = Instant.parse("2026-11-14T00:00:00Z")
+        val original = database.write { connection ->
+            connection.createStatement().use {
+                it.execute("DROP TABLE cash_import_confirmations")
+                it.execute("UPDATE alembic_version SET version_num='20261104_54'")
+            }
+            val sql = connection.jooq(false)
+            sql.insertInto(WORKSPACES).set(WORKSPACES.ID, workspace).set(WORKSPACES.NAME, "Old ledger")
+                .set(WORKSPACES.CREATED_AT, now).execute()
+            sql.insertInto(USERS).set(USERS.ID, user).set(USERS.EMAIL, "pre-async@example.invalid")
+                .set(USERS.PASSWORD_HASH, "test").set(USERS.CREATED_AT, now).execute()
+            ReceiptRepository(connection, workspace, false, now = { now }).create(user, key, sourceDigest(key), "cash_write_set",
+                mapOf("status" to "no_changes", "summary" to emptyMap<String, Int>()), emptyList<Any>())
+        }
+        database.write { connection ->
+            connection.createStatement().use { it.execute("CREATE INDEX ix_cash_import_confirmation_ready ON workspaces (id)") }
+        }
+        assertFailsWith<StorageFailure> { database.upgradeCashImportConfirmationSchema() }
+        database.read { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT to_regclass('cash_import_confirmations') IS NOT NULL, version_num FROM alembic_version").use {
+                    check(it.next())
+                    assertFalse(it.getBoolean(1))
+                    assertEquals("20261104_54", it.getString(2))
+                }
+            }
+        }
+        database.write { connection ->
+            connection.createStatement().use { it.execute("DROP INDEX ix_cash_import_confirmation_ready") }
+        }
+        repeat(2) { database.upgradeCashImportConfirmationSchema() }
+        database.validateSchema()
+        database.read { connection ->
+            assertEquals(original, ReceiptRepository(connection, workspace, false).lookupKey(user, key))
+            val status = CashImportConfirmationRepository(connection, false).view(CashImportOperationKey(workspace, user, key))
+            assertEquals(ReceiptRepositoryView.strip(original)["receipt_id"]?.jsonPrimitive?.content, status?.receiptId)
         }
     }
 }

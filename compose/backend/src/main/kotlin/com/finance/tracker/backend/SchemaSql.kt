@@ -3,9 +3,11 @@ package com.finance.tracker.backend
 import java.io.InputStream
 
 internal object SchemaSql {
-    fun sqlite(): List<String> = load("sqlite-baseline.sql")
+    fun sqlite(): List<String> = load("sqlite-baseline.sql") + cashImportConfirmation()
 
-    fun postgresql(): List<String> = load("postgresql-baseline.sql")
+    fun postgresql(): List<String> = load("postgresql-baseline.sql") + cashImportConfirmation()
+
+    fun cashImportConfirmation(): List<String> = load("cash-import-confirmation.sql")
 
     private fun load(name: String): List<String> {
         val text = resource(name).bufferedReader(Charsets.UTF_8).use { it.readText() }

@@ -10,8 +10,10 @@ import kotlinx.serialization.json.*
 private val receiptJson=Json {encodeDefaults=true;explicitNulls=true;ignoreUnknownKeys=true}
 class ReceiptReadService(private val database: Database,private val now: ()->Instant=Instant::now,private val beforeRead: ()->Unit={},private val beforeWorkspaceLock: ()->Unit={}) {
     private val reads=ReadServices(database,now)
-    private fun <T> context(token: String?,lock: Boolean=true,expectedWorkspace: String? = null,action: (Connection,Principal)->T): T {
-        val operation: (Connection)->T = {c ->
+    private fun <T> context(token: String?,lock: Boolean=true,expectedWorkspace: String? = null,
+        snapshot: Boolean = false, action: (Connection,Principal)->T): T {
+        val operation: (Connection)->Pair<Principal, T> = {c ->
+            if (snapshot && !database.sqlite) c.transactionIsolation = Connection.TRANSACTION_REPEATABLE_READ
             val first=reads.context(c,token,write=false)
             if(expectedWorkspace!=null && first.workspaceId!=expectedWorkspace) throw AccessFailure(true)
             beforeWorkspaceLock()
@@ -20,14 +22,20 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             if(principal.workspaceId!=first.workspaceId) throw AccessFailure(true)
             beforeRead()
             val result=action(c,principal)
-            val fresh=reads.context(c,token,write=false)
-            if(fresh.workspaceId!=principal.workspaceId || fresh.userId!=principal.userId) throw AccessFailure(true)
+            if (!snapshot) verifyCurrent(principal, reads.context(c, token, write = false))
+            principal to result
+        }
+        return try {
+            val (principal, result) = if (lock) database.write(operation) else database.read(operation)
+            if (snapshot) verifyCurrent(principal, reads.currentContext(token))
             result
         }
-        return try {if(lock) database.write(operation) else database.read(operation)}
         catch(failure: AccessFailure) {throw failure}
         catch(failure: ReceiptFailure) {throw failure}
         catch(failure: Exception) {throw ReceiptUnavailable(failure)}
+    }
+    private fun verifyCurrent(expected: Principal, actual: Principal) {
+        if (actual.workspaceId != expected.workspaceId || actual.userId != expected.userId) throw AccessFailure(true)
     }
     fun receipt(token: String?,id: String,expectedWorkspace: String? = null): JsonObject=context(token,expectedWorkspace=expectedWorkspace) {c,principal ->
         publicReceipt(ReceiptRepository(c,principal.workspaceId!!,database.sqlite).get(principal.userId,id) ?: throw ReceiptFailure("receipt_not_found"))
@@ -35,9 +43,20 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
     fun receiptByKey(token: String?,key: String,expectedWorkspace: String? = null): JsonObject=context(token,expectedWorkspace=expectedWorkspace) {c,principal ->
         publicReceipt(ReceiptRepository(c,principal.workspaceId!!,database.sqlite).lookupKey(principal.userId,key) ?: throw ReceiptFailure("receipt_not_found"))
     }
-    internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null): JsonObject=context(token,true,expectedWorkspace) {c,principal ->
+    internal fun importReceiptByKey(token: String?, key: String, workspace: String): JsonObject =
+        context(token, lock = false, expectedWorkspace = workspace) { connection, principal ->
+            val receipt = ReceiptRepository(connection, workspace, database.sqlite).lookupKey(principal.userId, key)
+                ?.takeIf { it["operation_kind"] == JsonPrimitive("cash_write_set") }
+                ?: throw ReceiptFailure("receipt_not_found")
+            publicReceipt(receipt)
+        }
+
+    internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null,
+        importOnly: Boolean = false): JsonObject=context(token, !importOnly, expectedWorkspace, snapshot = importOnly) {c,principal ->
         val workspace=principal.workspaceId!!
-        val stored=ReceiptRepository(c,workspace,database.sqlite).results(principal.userId,id,resultKind=kind,after=page.after,limit=page.limit) ?: throw ReceiptFailure("receipt_not_found")
+        val repository = ReceiptRepository(c, workspace, database.sqlite)
+        val stored=repository.results(principal.userId,id,resultKind=kind,after=page.after,limit=page.limit,
+            onlyOperation = "cash_write_set".takeIf { importOnly }) ?: throw ReceiptFailure("receipt_not_found")
         val items=stored.getValue("items").jsonArray.map {raw ->
             val row=raw.jsonObject.toMutableMap()
             val code=row["code"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content
@@ -56,8 +75,6 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
                 CashMutationProjectionRefDto(it[member.TRANSACTION_ID]!!.toString(), "cash-entry:${it[member.ENTRY_ID]!!}")
             }
         val version=sql.select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES).where(WORKSPACES.ID.eq(workspace)).fetchOne(WORKSPACES.LEDGER_SEQ) ?: 0L
-        val fresh=reads.context(c,token,write=false)
-        if(fresh.workspaceId!=workspace || fresh.userId!=principal.userId) throw AccessFailure(true)
         val cursor=stored.getValue("next_after").takeUnless {it==JsonNull}?.jsonPrimitive?.content
         val dto=CashMutationResultPageDto(items.map {receiptJson.decodeFromJsonElement<CashMutationResultDto>(it)},cursor,refs,version)
         JsonObject(receiptJson.encodeToJsonElement(dto).jsonObject+mapOf("items" to JsonArray(items)))

@@ -596,4 +596,4 @@ CREATE UNIQUE INDEX uq_cash_relation_open_anchor ON transaction_relations (works
 
 
 
-INSERT INTO alembic_version (version_num) VALUES ('20261104_54');
+INSERT INTO alembic_version (version_num) VALUES ('20261127_55');
