@@ -53,6 +53,7 @@ for (const database of backends) test(`the installed CLI resumes the original ca
     let dropAccountRequest = false;
     let damageAccountReceipt = false;
     let rejectReceiptLookup = false;
+    let rejectResultRows = false;
     let oversizedImportReply;
     const oversizedImportAttempts = [];
     const proxy = createServer(async (req, res) => {
@@ -74,6 +75,11 @@ for (const database of backends) test(`the installed CLI resumes the original ca
                 res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({
                     error: { code: 'ledger_base_changed' }, commit_state: 'not_committed',
                 }));
+                return;
+            }
+            if (rejectResultRows && req.method === 'GET' && /\/receipt\/[^/?]+\/rows\?/.test(req.url)) {
+                rejectResultRows = false;
+                res.writeHead(502, { 'Content-Type': 'application/json' }).end('{}');
                 return;
             }
             const response = await fetch(origin + req.url, {
@@ -238,6 +244,11 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.ok(requestedPaths.slice(cancelStart).includes('/api/v1/cash-import/write-set/receipt/pages'));
         assert.ok(!requestedPaths.slice(cancelStart).some((path) => path.startsWith('/api/v1/ledger/')));
         const resumeStart = requestedPaths.length;
+        rejectResultRows = true;
+        const provisional = await ok(['import', 'resume', prepared.batch_id]);
+        assert.equal(provisional.receipt.receipt_id, alreadyCommitted.receipt_id);
+        assert.equal(provisional.items_complete, false);
+        assert.ok(!Object.hasOwn(provisional, 'page'));
         const recovered = await ok(['import', 'resume', prepared.batch_id]);
         const resumePaths = requestedPaths.slice(resumeStart);
         assert.ok(resumePaths.filter(path => path === '/api/v1/cash-import/write-set/receipt/pages').length >= 10);
@@ -246,6 +257,18 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         assert.equal(recovered.receipt.receipt_id, alreadyCommitted.receipt_id);
         const reopened = await ok(['import', 'result', prepared.batch_id]);
         assert.deepEqual(reopened, recovered);
+        const oneResult = await ok(['import', 'result', prepared.batch_id, '--limit', '1']);
+        assert.deepEqual(oneResult.receipt, reopened.receipt);
+        assert.deepEqual(oneResult.page.items, reopened.page.items.slice(0, 1));
+        assert.equal(typeof oneResult.receipt.write_set_result.transactions[0].row_revision, 'string');
+        assert.equal(reopened.page.nextAfter, null);
+        const emptyResult = await ok(['import', 'result', prepared.batch_id, '--offset', String(reopened.page.items.length)]);
+        assert.deepEqual(emptyResult.page, { items: [], nextAfter: null });
+        const humanResult = await new Promise((resolve, reject) => {
+            execFile(bin, ['import', 'result', prepared.batch_id, '--limit', '1'], { cwd: dir, env, timeout: 20000 },
+                (error, stdout) => error ? reject(error) : resolve(stdout));
+        });
+        assert.equal(humanResult.split('\n')[0], `Batch ${prepared.batch_id}  Receipt ${reopened.receipt.receipt_id}`);
         const statusStart = requestedPaths.length;
         const confirmedOperation = await ok(['import', 'status', prepared.batch_id]);
         assert.ok(!requestedPaths.slice(statusStart).some((path) => path.startsWith('/api/v1/ledger/')));
@@ -258,6 +281,19 @@ for (const database of backends) test(`the installed CLI resumes the original ca
         const stale = await run(['import', 'confirm', prepared.batch_id, '--review', prepared.revision]);
         assert.equal(stale.value.error.code, 'plan_changed');
         assert.equal(writeCount, 1);
+        execFileSync(process.execPath, ['--input-type=module', '-e', `
+            import { openStore } from './node_modules/finance-tracker-cli/lib/host.mjs';
+            const database = openStore(process.env.FT_CLI_SERVER, false);
+            const slot = database.slots('').find(slot => slot.endsWith('.import.' + process.argv[1]));
+            const batch = JSON.parse(database.read(slot));
+            const archive = JSON.parse(batch.result);
+            archive.receipt = archive.receipt.replace('"projection_version":null', '"projection_version":9223372036854775807');
+            batch.result = JSON.stringify(archive);
+            database.write(slot, JSON.stringify(batch));
+            database.close(true);
+        `, prepared.batch_id], { cwd: dir, env });
+        const historical = await ok(['import', 'result', prepared.batch_id]);
+        assert.deepEqual(historical, { ...reopened, receipt: { ...reopened.receipt, projection_version: '9223372036854775807' } });
         const ledger = await ok(['cash', 'list']);
         assert.equal(ledger.page.items.length, 1);
         const balances = await ok(['account', 'show', account.account_id]);
