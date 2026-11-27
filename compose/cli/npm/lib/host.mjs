@@ -126,17 +126,20 @@ function seal(key, aad, payload) {
     const nonce = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
     cipher.setAAD(aad);
-    const value = Buffer.concat([cipher.update(payload), cipher.final()]);
-    return Buffer.concat([nonce, cipher.getAuthTag(), value]);
+    const value = cipher.update(payload);
+    const tail = cipher.final();
+    return Buffer.concat([nonce, cipher.getAuthTag(), value, tail]);
 }
 
 function open(key, aad, encrypted) {
-    const value = Buffer.from(encrypted);
+    const value = Buffer.from(encrypted.buffer, encrypted.byteOffset, encrypted.byteLength);
     if (value.length < 28) throw new Error('Unrecognized ciphertext');
     const decipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12));
     decipher.setAAD(aad);
     decipher.setAuthTag(value.subarray(12, 28));
-    return Buffer.concat([decipher.update(value.subarray(28)), decipher.final()]);
+    const plaintext = decipher.update(value.subarray(28));
+    const tail = decipher.final();
+    return tail.length === 0 ? plaintext : Buffer.concat([plaintext, tail]);
 }
 
 export function openStore(origin, createKey) {

@@ -41,6 +41,9 @@ jobs:
         working-directory: compose
         run: ./gradlew :cli:stageNpm --no-configuration-cache
 
+      - name: Verify encrypted state authentication and memory copies
+        run: node --test compose/cli/test/storage.test.cjs
+
       - name: Pack and verify installed ft
         id: npm-package
         shell: bash
