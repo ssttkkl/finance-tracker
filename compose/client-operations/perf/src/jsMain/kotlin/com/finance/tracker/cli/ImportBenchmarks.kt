@@ -122,14 +122,23 @@ private suspend fun Suite.inNewWorkspace(
 ) {
     val name = "Perf import " + newReference()
     val id = withClient(origin) { checkNotNull(it.createWorkspace(name).activeWorkspaceId) }
+    var firstFailure: Throwable? = null
     try {
         val account = withCashWrites(origin) {
             checkNotNull(it.createAccount(id, "Synthetic settlement", CashAccountType.CASH, listOf("CNY")).receipt.account)
         }
         block(ImportWorkspace(id, account.accountId))
+    } catch (failure: Throwable) {
+        firstFailure = failure
+        throw failure
     } finally {
-        withClient(origin) { it.deleteWorkspace(id, name) }
-        select(workspace)
+        try {
+            withClient(origin) { it.deleteWorkspace(id, name) }
+            select(workspace)
+        } catch (failure: Throwable) {
+            val original = firstFailure ?: throw failure
+            original.addSuppressed(failure)
+        }
     }
 }
 

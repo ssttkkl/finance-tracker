@@ -61,7 +61,7 @@ jobs:
           java-version: '21'
           cache: gradle
       - name: Verify gate failure handling
-        run: node --test compose/client-operations/perf/gate.test.mjs
+        run: node --test compose/client-operations/perf/{gate,regular-host}.test.mjs
       - name: Ensure the client peak RSS tool is available
         run: |
           if [ ! -x /usr/bin/time ]; then

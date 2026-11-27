@@ -28,7 +28,8 @@ export async function startRegularHost() {
     const root = mkdtempSync(join(tmpdir(), 'ft-operations-perf-'));
     const state = join(root, 'state');
     const databasePath = join(root, 'ledger_test.db');
-    const logPath = join(process.env.FT_PERF_ARTIFACTS ?? root, 'regular-backend.log');
+    const artifacts = process.env.FT_PERF_ARTIFACTS;
+    const logPath = join(artifacts ?? root, 'regular-backend.log');
     const backendPort = await reservePort();
     const output = openSync(logPath, 'w');
     const backend = spawn(process.env.FT_PERF_KTOR ?? resolve('compose/backend/build/install/backend/bin/backend'), [], {
@@ -45,7 +46,18 @@ export async function startRegularHost() {
     });
     closeSync(output);
     let startupFailure;
+    let stoppingBackend = false;
     backend.once('error', (error) => { startupFailure = error; });
+    if (artifacts) {
+        backend.once('exit', (code, signal) => {
+            try {
+                writeFileSync(join(artifacts, 'regular-backend-exit.json'),
+                    JSON.stringify({ code, signal, requested: stoppingBackend }) + '\n');
+            } catch (error) {
+                process.stderr.write(`ordinary benchmark could not record backend exit (${error.code ?? 'write_failed'})\n`);
+            }
+        });
+    }
     const requests = [];
     let dropResponse;
     const proxy = createServer((incoming, outgoing) => {
@@ -71,9 +83,9 @@ export async function startRegularHost() {
         incoming.on('error', (error) => upstream.destroy(error));
         incoming.pipe(upstream);
     });
-    // A shared Kotlin/JS computation can block the same event loop for seconds.
-    // Keep the client socket usable throughout an ordinary review.
-    proxy.keepAliveTimeout = 120_000;
+    // The proxy shares an event loop with the timed calculation. Close each completed response so a long
+    // sequence of local operations cannot leave an expired socket in the benchmark client's pool.
+    proxy.maxRequestsPerSocket = 1;
     try {
         for (let attempt = 0; attempt < 150; attempt++) {
             if (startupFailure) throw startupFailure;
@@ -242,6 +254,7 @@ export async function startRegularHost() {
                 proxy.closeAllConnections();
                 await new Promise((done) => proxy.close(done));
                 if (backend.exitCode === null && backend.signalCode === null && backend.pid) {
+                    stoppingBackend = true;
                     backend.kill();
                     await once(backend, 'exit');
                 }
@@ -250,7 +263,10 @@ export async function startRegularHost() {
         };
     } catch (error) {
         proxy.close();
-        if (backend.exitCode === null && backend.signalCode === null) backend.kill();
+        if (backend.exitCode === null && backend.signalCode === null) {
+            stoppingBackend = true;
+            backend.kill();
+        }
         throw error;
     }
 }
