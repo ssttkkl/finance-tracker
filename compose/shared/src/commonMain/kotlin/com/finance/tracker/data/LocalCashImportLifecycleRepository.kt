@@ -155,9 +155,21 @@ internal class LocalCashImportLifecycleRepository(
         localImportJson.decodeFromJsonElement<CashPlanProcessingPageDto>(binding.planTask(planId).coordinator.processing(planId, cursor, limit)).toDomain()
     }
 
+    override suspend fun cancelConfirmation(batchId: String) = guarded {
+        binding().imports.cancelConfirmation(batchId)
+    }
+
+    override suspend fun finishCancelledConfirmation(batchId: String, key: String) = guarded {
+        binding().imports.finishCancelledConfirmation(batchId, key)
+    }
+
     override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt =
         confirm(ImportFrozenCommand(planId, revision, idempotencyKey)) {}
-    override suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt = guarded {
+    override suspend fun confirm(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt =
+        confirmWithStatus(command, {}, onCommitted)
+
+    override suspend fun confirmWithStatus(command: ImportFrozenCommand, onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit,
+        onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt = guarded {
         val binding = binding()
         val task = binding.planTask(command.planId)
         task.mutex.withLock {
@@ -168,13 +180,17 @@ internal class LocalCashImportLifecycleRepository(
                 task.command = command
             }
         }
-        finish(binding, task, onCommitted)
+        finish(binding, task, onCommitted, onStatus)
     }
-    override suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext = guarded {
+    override suspend fun resumeBatch(batchId: String, onCommitted: suspend (ImportReceipt) -> Unit): ImportContext =
+        resumeBatchWithStatus(batchId, {}, onCommitted)
+
+    override suspend fun resumeBatchWithStatus(batchId: String, onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit,
+        onCommitted: suspend (ImportReceipt) -> Unit): ImportContext = guarded {
         val binding = binding()
         val task = binding.task(batchId)
         if (binding.imports.importSubmission(batchId) != null) {
-            val receipt = finish(binding, task, onCommitted)
+            val receipt = finish(binding, task, onCommitted, onStatus)
             committedContext(batchId, receipt)
         } else {
             val archived = binding.imports.importResultByBatchId(batchId)
@@ -187,12 +203,13 @@ internal class LocalCashImportLifecycleRepository(
     }
 
     /** The owner already propagated caller cancellation and genuine rejected-token 401 before returning a secondary fault. */
-    private suspend fun finish(binding: Binding, task: Task, onCommitted: suspend (ImportReceipt) -> Unit): ImportReceipt {
+    private suspend fun finish(binding: Binding, task: Task, onCommitted: suspend (ImportReceipt) -> Unit,
+        onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit = {}): ImportReceipt {
         val batchId = task.coordinator.batchId
         var delivered: ImportReceipt? = null
         val original = binding.imports.importSubmission(batchId)
         val command = task.mutex.withLock { task.command }
-        val result = try { task.coordinator.resume { displayedReceipt ->
+        val result = try { task.coordinator.resume(onStatus = onStatus) { displayedReceipt ->
             check(original?.resultInput != null) { "cash_import_result_missing" }
             val displayed = displayedReceipt.toDomain()
             delivered = displayed
@@ -237,7 +254,7 @@ internal class LocalCashImportLifecycleRepository(
         val binding = binding()
         val task = binding.planTask(planId)
         val command = task.command?.takeIf { it.idempotencyKey == idempotencyKey } ?: throw CashImportPlanError("plan_changed")
-        ImportResolveResult("committed", finish(binding, task) {})
+        ImportResolveResult("committed", finish(binding, task, onCommitted = {}))
     }
     override suspend fun resolve(command: ImportFrozenCommand, onCommitted: suspend (ImportReceipt) -> Unit): ImportResolveResult = guarded {
         val binding = binding()

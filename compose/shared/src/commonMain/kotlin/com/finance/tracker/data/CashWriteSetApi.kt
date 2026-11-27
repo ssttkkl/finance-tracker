@@ -1,26 +1,38 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.contracts.CashWriteSetRequestDto
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.client.requireCashImportConfirmation
+import kotlinx.coroutines.withTimeoutOrNull
 import io.ktor.http.HttpMethod
 import kotlinx.serialization.SerializationException
 
 internal val cashWriteSetJson = com.finance.tracker.business.domain.cashWriteSetJson
 private const val WRITE_SET_RECEIPTS = "/api/v1/cash-mutations/receipts"
 
-internal suspend fun FinanceApiClient.submitCashImportWriteSet(workspaceId: String, input: CashWriteSetRequestDto,
-    idempotencyKey: String, credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
-    writeSetReference(workspaceId)
-    return submitFrozenCashImportWriteSet(workspaceId, LocalCashImportSubmission.freeze(idempotencyKey, input), credentials)
+internal suspend fun FinanceApiClient.acceptCashImportConfirmation(workspace: String, input: LocalCashImportSubmission,
+    credentials: ApiCredentialSnapshot, beforeSend: suspend () -> Unit): CashImportConfirmation {
+    val body = cashImportRequestBody(input, credentials)
+    return cashImportConfirmationRequest(HttpMethod.Post, workspace, "", input.idempotencyKey, credentials, body, beforeSend)
 }
 
-internal suspend fun FinanceApiClient.submitFrozenCashImportWriteSet(workspaceId: String, input: LocalCashImportSubmission,
-    credentials: ApiCredentialSnapshot, beforeSend: suspend () -> Unit = {}): CashMutationReceiptDto {
-    val path = scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set")
-    val headers = cashKeyHeaders(input.idempotencyKey)
-    // Freeze caller-owned JSON containers before the first suspension; exact serializers preserve numeric tokens.
-    val body = cashImportRequestBody(input, credentials)
-    return writeSetReceiptRequest(HttpMethod.Post, path, credentials, body, headers, beforeSend)
+internal suspend fun FinanceApiClient.cashImportConfirmation(workspace: String, key: String,
+    credentials: ApiCredentialSnapshot, cancel: Boolean = false, beforeSend: suspend () -> Unit = {}): CashImportConfirmation =
+    cashImportConfirmationRequest(if (cancel) HttpMethod.Post else HttpMethod.Get, workspace,
+        if (cancel) "/cancel" else "/status", key, credentials, beforeSend = beforeSend)
+
+private suspend fun FinanceApiClient.cashImportConfirmationRequest(method: HttpMethod, workspace: String, suffix: String,
+    key: String, credentials: ApiCredentialSnapshot, body: Any = NoRequestBody,
+    beforeSend: suspend () -> Unit): CashImportConfirmation {
+    val path = scopedWriteSetPath(workspace, "/api/v1/cash-import/write-set$suffix")
+    return boundedCashImportRequest {
+        request<CashImportConfirmation>(method, path, body, cashKeyHeaders(key), credentials = credentials,
+            clearUnauthorizedToken = false, preserveHttpRejectionOnBodyFailure = true, requireResponseBody = true,
+            browserJson = suffix.isEmpty(), beforeSend = beforeSend).let { requireCashImportConfirmation(key, it) }
+    }
 }
+
+internal suspend fun <T : Any> boundedCashImportRequest(request: suspend () -> T): T =
+    withTimeoutOrNull(8_000) { request() } ?: throw FinanceTransportFailure(IllegalStateException("cash_import_request_timeout"))
 
 private const val CASH_IMPORT_GZIP_MIN_BYTES = 16 * 1024
 
@@ -52,9 +64,10 @@ internal suspend fun FinanceApiClient.readCashImportWriteSetReceipt(workspaceId:
 
 internal suspend fun FinanceApiClient.readCashImportWriteSetReceiptByKey(workspaceId: String, key: String,
     credentials: ApiCredentialSnapshot): CashMutationReceiptDto {
-    cashKeyHeaders(key)
-    return writeSetReceiptRequest(HttpMethod.Get,
-        appendQuery(scopedWriteSetPath(workspaceId, "$WRITE_SET_RECEIPTS/by-key"), listOf("key" to key)), credentials)
+    return boundedCashImportRequest {
+        writeSetReceiptRequest(HttpMethod.Get, scopedWriteSetPath(workspaceId, "/api/v1/cash-import/write-set/receipt"),
+            credentials, headers = cashKeyHeaders(key))
+    }
 }
 
 private fun writeSetReference(value: String) {

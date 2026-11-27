@@ -77,6 +77,8 @@ internal class LedgerSessionImports(
         return use { readProjectionRefs { owner.importProjectionRefs(frozen) } }
     }
     suspend fun importSubmission(batchId: String) = use { owner.importSubmission(batchId) }
+    suspend fun cancelConfirmation(batchId: String) = use { checkWrite(); owner.cancelConfirmation(batchId) }
+    suspend fun finishCancelledConfirmation(batchId: String, key: String) = use { owner.finishCancelledConfirmation(batchId, key) }
     suspend fun importFiles(batchId: String) = use { owner.importFiles(batchId) }
     suspend fun saveImportFiles(batchId: String, files: List<LocalCashImportFile>) {
         val frozen = files.toList()
@@ -117,11 +119,12 @@ internal class LedgerSessionImports(
         use { checkWrite(); owner.prepareImportSubmission(batchId, frozen) }
     suspend fun recordImportTransport(batchId: String, expected: LocalCashImportSubmission, transport: String) =
         use { checkWrite(); owner.recordImportTransport(batchId, expected, transport) }
-    suspend fun resumeLocalCashImport(batchId: String, beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
+    suspend fun resumeLocalCashImport(batchId: String, onStatus: suspend (com.finance.tracker.business.contracts.CashImportConfirmation) -> Unit = {},
+        beforeCompletion: suspend (CashMutationReceiptDto) -> Unit = {}) = use {
         val original = owner.importSubmission(batchId)
         if (original != null && original.receipt() == null) checkWrite()
         recover {
-            owner.resumeLocalCashImport(batchId) { receipt ->
+            owner.resumeLocalCashImport(batchId, onStatus = onStatus) { receipt ->
                 checkCurrent(false)
                 beforeCompletion(receipt)
                 checkCurrent(false)

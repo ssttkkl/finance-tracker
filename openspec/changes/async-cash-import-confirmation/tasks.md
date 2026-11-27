@@ -12,11 +12,11 @@ SQLite 先行回归在 `65192ce4` 阻塞真实写事务中的来源阶段，旧 
 
 ## 5. 审查
 - [x] 独立复核持久受理、授权、执行代次、旧收据与前端状态。将会话与成员权限复核放入相同写事务，取消争锁后的只读返回也重新校验当前权限。收据分页改用一致快照，在结束后复核授权。独立代码库防劣化及 UI 复用检查确认沿用已有授权入口、结果组件、主题及无障碍策略。
-- [ ] 复核最终差异及断网退出。已修复受理前显示正在导入、未记取消误报处理中、终态退出时多余的网络检查。旧手工收支使用其既有收据入口，现金导入使用单独的原收据查询。
+- [x] 复核最终差异及断网退出链路。修复受理前显示正在导入、未记取消误报处理中、终态退出时多余的网络检查、受理冲突返回收据标识前的身份复核，以及取消撞上已提交时不必要的账本快照。独立复核确认现有 Android 夹具改为短请求后仍覆盖原键、失联、归档失败和身份检查。普通记账继续使用既有收据入口。
 ## 6. 测试与 QA
-- [x] 本机 macOS、Node 26.13.1、JDK 21、PostgreSQL 18 独立库。执行 `:backend:test` 的 CashImportTransportHttpTest、CashImportWriteSetHttpTest、CashImportEntryContinuityTest、CashImportWriteSetSubmissionTest、CashSourceImportContinuityTest、SchemaBootstrapPostgresTest 和 OpenApiContractTest，按范围只选真实 PostgreSQL。覆盖空库、54→55 保全和迁移失败回滚，原会话失效、过期执行者竞争、暂时储存失败、真实持锁状态与取消、收据读页。已执行 `:client-operations:jvmTest :cli:stageNpm :backend:installDist :shared:compileKotlinIosSimulatorArm64 :shared:compileAndroidMain`。
-- [x] 旧安装包和 PostgreSQL 54 合成库，两批分别丢失提交回包和丢失未送出的提交。已升级的安装包前者直接回原收据，无补发，后者以冻结原键仅提交一次。另用实装 CLI 在真实 PostgreSQL 写锁下证实取消未记录返回 409、退出重启仍为运行中、同键可记下取消，释放写锁后确认零写和零收据。已执行取消也可返回唯一原收据。
-- [ ] Chrome 1440×1100，已通过登录、离线解析和核对、联网确认、原收据、断网冷启动。持锁取消场景已通过未记录、重试、停止等待、重开与终态。补测已取消后断网退出。Web、Android、iOS 共用布局、绑定与状态。默认范围未执行原生设备交互。
+- [x] 2026-11-27，本机 Apple M4、macOS arm64、Node 26.13.1、JDK 21、PostgreSQL 18.6 独立库。提交 `5ac2094d` 与设计基线 `65192ce4` 比较。执行 `:backend:test` 的 CashImportTransportHttpTest、CashImportWriteSetHttpTest、CashImportEntryContinuityTest、CashImportWriteSetSubmissionTest、CashSourceImportContinuityTest、SchemaBootstrapPostgresTest 和 OpenApiContractTest，按范围只选真实 PostgreSQL。覆盖空库、54→55 保全和迁移失败回滚，原会话失效、过期执行者竞争、暂时储存失败、真实持锁状态与取消、收据读页。已执行 `:client-operations:jvmTest :cli:stageNpm :backend:installDist :backend:codegenTest :backend:ktlintCheck :backend:detekt`。
+- [x] 旧安装包和 PostgreSQL 54 合成库，两批分别丢失提交回包和丢失未送出的提交。已升级的安装包前者直接回原收据，无补发，后者以冻结原键仅提交一次。另用实装 CLI 在真实 PostgreSQL 写锁下证实取消未记录返回 409、退出重启仍为运行中、同键可记下取消，释放写锁后确认零写和零收据。取消撞上已提交可返回唯一原收据，安包测试断言零账本快照请求。真实持锁复测 9 次状态最大 35.05 毫秒，2 次取消最大 96.94 毫秒，原收据的 2 次短请求最大 52.83 毫秒。
+- [x] 本地 Chrome 158，`http://127.0.0.1:53988`，1440×1100。两条实际浏览器冒烟覆盖登录、离线解析和核对、联网确认、原收据、断网冷启动，以及真实持锁取消未记录、重试、停止等待、重开到已取消。终态关闭时断网能返回账本，联网后可开新批次。保留待取消和已取消截图及网络 trace，注入的 409 与预期状态吻合。Web、Android、iOS 共用布局、绑定与状态。Android Host 现金导入专项 156 项通过，`:shared:iosSimulatorArm64Test` 1,022 项通过。Android 全量 1,144 项中 17 项在缺少其他业务合同夹具目录和投资测试宿主时失败，10 项标记跳过；未将该全量任务记为通过。原生设备交互不在本期默认范围。
 - [ ] 实际 npm 安装包的 19 文件本机专项。2026-11-27 第二轮上传并完整读完 202 为 3.228 秒，代理见上传结束至 202 为 3.031 秒。90 次状态请求最大 46.44 毫秒，原键收据 162.08 毫秒，行分页 296.66 毫秒，关联分页 76.96 毫秒。核对 94.153 秒，确认及完整归档 69.494 秒、3,533,996,032 字节，冷启动读档 4.348 秒。12,724 条正式流水、1,700 个重复项、2,995 条确认关联按成员身份比对，一次写集只有一张原收据。第三轮与宿主 Wasm 构建并行时核对 163.619 秒，超过 150 秒，受理请求 8.011 秒被终端中断。服务端已受理，同库重启由第 2 代持原键执行，只写一张收据，随后已清理持久写集。继续保留该超限证据及隔离复测。
 ## 7. 发布
 - [ ] 文档、迁移、回滚与归档。性能门禁、托管 CI 校准及主分支保护由其独立变更负责。

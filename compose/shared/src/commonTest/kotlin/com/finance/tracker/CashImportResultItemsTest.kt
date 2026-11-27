@@ -41,7 +41,7 @@ class CashImportResultItemsTest {
         }
         val edge = CashMutationResultDto("9007199254741993", "relation", "relation:0", "duplicate", relationId = "42")
         val store = Store(); val cursors = mutableListOf<String>(); var checks = 0
-        val api = FinanceApiClient({ "invalid later origin" }, store, MockEngine { request ->
+        val api = FinanceApiClient({ "invalid later origin" }, store, cashImportMockEngine { request ->
             assertEquals(HttpMethod.Get, request.method); assertEquals("original.test", request.url.host)
             assertEquals("Bearer original-token", request.headers[HttpHeaders.Authorization])
             assertEquals(listOf("工作区/+?&"), request.url.parameters.getAll("workspace_id"))
@@ -67,7 +67,7 @@ class CashImportResultItemsTest {
             listOf(row.copy(relationId = "42")), listOf(row.copy(accountId = "10")),
         )
         for (items in cases) {
-            val api = FinanceApiClient({ "invalid" }, Store(), MockEngine { respond(page(items), headers = headers) })
+            val api = FinanceApiClient({ "invalid" }, Store(), cashImportMockEngine { respond(page(items), headers = headers) })
             try { assertFailsWith<Exception> { api.readCashImportResultItems("workspace", localCashWriteSetReceiptFixture(), credentials) {} } }
             finally { api.close() }
         }
@@ -77,7 +77,7 @@ class CashImportResultItemsTest {
         val row = localCashImportServerResultItemsFixture().single()
         for ((items, cursor) in listOf(emptyList<CashMutationResultDto>() to "1", listOf(row) to "2", listOf(row) to "1", listOf(row) to "0", listOf(row) to "01")) {
             var requests = 0
-            val api = FinanceApiClient({ "invalid" }, Store(), MockEngine { requests++; respond(page(items, cursor), headers = headers) })
+            val api = FinanceApiClient({ "invalid" }, Store(), cashImportMockEngine { requests++; respond(page(items, cursor), headers = headers) })
             try {
                 assertFailsWith<Exception> { api.readCashImportResultItems("workspace", localCashWriteSetReceiptFixture(), credentials) {} }
                 assertEquals(1, requests)
@@ -88,7 +88,7 @@ class CashImportResultItemsTest {
     @Test fun transportFailureAndCancellationKeepTheOriginalFailureAndDoNotRetry() = runTest {
         for (fault in listOf(IOException("synthetic disconnected result read"), CancellationException("synthetic cancel"))) {
             var requests = 0; val store = Store()
-            val api = FinanceApiClient({ "invalid" }, store, MockEngine { requests++; throw fault })
+            val api = FinanceApiClient({ "invalid" }, store, cashImportMockEngine { requests++; throw fault })
             try {
                 val thrown = assertFailsWith<Exception> { api.readCashImportResultItems("workspace", localCashWriteSetReceiptFixture(), credentials) {} }
                 assertTrue(generateSequence<Throwable>(thrown) { it.cause }.any { it === fault })
@@ -96,7 +96,7 @@ class CashImportResultItemsTest {
             } finally { api.close() }
         }
         var requests = 0
-        val api = FinanceApiClient({ "invalid" }, Store(), MockEngine { requests++; respond(page(localCashImportServerResultItemsFixture()), headers = headers) })
+        val api = FinanceApiClient({ "invalid" }, Store(), cashImportMockEngine { requests++; respond(page(localCashImportServerResultItemsFixture()), headers = headers) })
         try {
             var checks = 0
             assertFailsWith<CancellationException> {
@@ -108,7 +108,7 @@ class CashImportResultItemsTest {
 
     @Test fun genuineUnauthorizedReadPreservesRejectedOriginalTokenAndNeverClearsLaterLogin() = runTest {
         val store = Store()
-        val api = FinanceApiClient({ "invalid" }, store, MockEngine { respond("broken response", HttpStatusCode.Unauthorized, headers) })
+        val api = FinanceApiClient({ "invalid" }, store, cashImportMockEngine { respond("broken response", HttpStatusCode.Unauthorized, headers) })
         try {
             val failure = assertFailsWith<ApiFailure> { api.readCashImportResultItems("workspace", localCashWriteSetReceiptFixture(), credentials) {} }
             assertEquals(401, failure.status); assertEquals("original-token", failure.rejectedToken)
@@ -119,7 +119,7 @@ class CashImportResultItemsTest {
     @Test fun anExplicitlyEmptyCommandHasNoMissingOutcomesAndRequiresNoNetwork() = runTest {
         val original = localCashWriteSetReceiptFixture()
         val receipt = original.copy(writeSetResult = original.writeSetResult!!.copy(transactions = emptyList(), relations = emptyList()))
-        val api = FinanceApiClient({ "invalid" }, Store(), MockEngine { error("no result items exist") })
+        val api = FinanceApiClient({ "invalid" }, Store(), cashImportMockEngine { error("no result items exist") })
         try { assertEquals(emptyList(), api.readCashImportResultItems("workspace", receipt, credentials) {}) }
         finally { api.close() }
     }

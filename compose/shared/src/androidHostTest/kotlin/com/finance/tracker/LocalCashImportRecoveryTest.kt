@@ -18,6 +18,9 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readString
 import kotlinx.serialization.json.*
 import com.finance.tracker.business.contracts.CashImportCommitOutcomeDto
 import java.io.File
@@ -296,7 +299,7 @@ class LocalCashImportRecoveryTest {
         lateinit var f: Fixture
         f = openFixture(plan.source, plan.files, plan.review) { http ->
             if (http.method == HttpMethod.Get) {
-                val key = http.url.parameters["key"]
+                val key = http.headers["Idempotency-Key"]
                 if (key == "batch" && posts.isNotEmpty()) assertTrue(f.source.reads >= 2)
                 missing()
             } else {
@@ -324,7 +327,7 @@ class LocalCashImportRecoveryTest {
         val plan = LocalCashImportRebaseFixture(); var committed = false; var posts = 0
         val f = openFixture(plan.source, plan.files, plan.review) { http ->
             if (http.method == HttpMethod.Get) {
-                if (committed) { assertEquals("batch:attempt:1", http.url.parameters["key"]); receipt() } else missing()
+                if (committed) { assertEquals("batch:attempt:1", http.headers["Idempotency-Key"]); receipt() } else missing()
             } else {
                 posts++
                 if (http.headers["Idempotency-Key"] == "batch") rejected()
@@ -620,7 +623,7 @@ class LocalCashImportRecoveryTest {
             assertEquals("Bearer original-token", http.headers[HttpHeaders.Authorization])
             assertEquals("workspace", http.url.parameters["workspace_id"])
             if (http.method == HttpMethod.Get) {
-                gets++; assertEquals("batch", http.url.parameters["key"])
+                gets++; assertEquals("batch", http.headers["Idempotency-Key"])
                 if (committed) receipt() else missing()
             } else {
                 posts++; assertEquals("batch", http.headers["Idempotency-Key"])
@@ -663,8 +666,7 @@ class LocalCashImportRecoveryTest {
     }
 
     @Test fun receiptStorageFailurePreservesTheKeyAndCanBeVerifiedAgain() = runTest {
-        var gets = 0
-        val f = openFixture { assertEquals(HttpMethod.Get, it.method); gets++; receipt() }
+        val f = openFixture { assertEquals(HttpMethod.Get, it.method); receipt() }
         try {
             f.owner.prepareImportSubmission("batch", localCashWriteSetFixture())
             f.sql("CREATE TRIGGER reject_receipt BEFORE UPDATE ON ledger_cache_import_files BEGIN SELECT RAISE(ABORT, 'synthetic receipt disk failure'); END")
@@ -675,7 +677,7 @@ class LocalCashImportRecoveryTest {
             assertNull(f.readSubmission()?.receipt())
             f.sql("DROP TRIGGER reject_receipt")
             assertNull(f.owner.resumeImportSubmission("batch").recoveryFailure)
-            assertEquals(2, gets); assertNull(f.readSubmission())
+            assertEquals(2, f.statusReads); assertNull(f.readSubmission())
         } finally { f.close() }
     }
 
@@ -1259,6 +1261,9 @@ class LocalCashImportRecoveryTest {
         private val session = SessionDto(UserDto("synthetic@example.test"), "workspace", listOf(WorkspaceDto("workspace", "Synthetic", Role.EDITOR)))
         val scope = LedgerCacheScope(origin, ledgerOfflinePrincipal(session.user.email), "workspace")
         var token = "original-token"
+        private val committedReceipts = mutableMapOf<String, String>()
+        var statusReads = 0
+            private set
         val api = FinanceApiClient({ origin }, object : TokenStore {
             override suspend fun get() = token
             override suspend fun set(value: String) { token = value }
@@ -1270,7 +1275,39 @@ class LocalCashImportRecoveryTest {
                 assertEquals("workspace", request.url.parameters["workspace_id"])
                 respond(Json.encodeToString(com.finance.tracker.business.contracts.CashMutationResultPageDto(
                     localCashImportServerResultItemsFixture(), null, emptyList(), 0)), headers = jsonHeaders)
-            } else handler(request)
+            } else {
+                val key = request.headers["Idempotency-Key"]
+                val path = request.url.encodedPath
+                val statusRead = path.endsWith("/write-set/status")
+                val receiptRead = path.endsWith("/write-set/receipt")
+                if (statusRead) statusReads++
+                val prior = key?.let(committedReceipts::get)
+                if (statusRead && prior != null) {
+                    val id = Json.parseToJsonElement(prior).jsonObject.getValue("receipt_id")
+                    respond("""{"operation_id":"$key","status":"committed","receipt_id":$id}""", headers = jsonHeaders)
+                } else if (receiptRead && prior != null) {
+                    respond(prior, headers = jsonHeaders)
+                } else {
+                    val response = handler(request)
+                    if (!statusRead && request.method != HttpMethod.Post) return@addHandler response
+                    val body = (response.body as ByteReadChannel).readRemaining().readString()
+                    if (key != null && response.statusCode.isSuccess()) {
+                        val receipt = Json.parseToJsonElement(body).jsonObject
+                        val id = receipt["receipt_id"]
+                        if (id != null) {
+                            committedReceipts[key] = body
+                            if (statusRead) return@addHandler respond(
+                                """{"operation_id":"$key","status":"committed","receipt_id":$id}""", headers = jsonHeaders)
+                            return@addHandler respond("""{"operation_id":"$key","status":"accepted"}""",
+                                HttpStatusCode.Accepted, jsonHeaders)
+                        }
+                    }
+                    val output = if (statusRead && response.statusCode == HttpStatusCode.NotFound)
+                        """{"error":{"code":"import_confirmation_not_found"}}"""
+                    else body
+                    respond(output, response.statusCode, response.headers)
+                }
+            }
         } }))
         var sessionRefreshFailure: Throwable? = null
         lateinit var sessions: SessionCacheRepository

@@ -808,6 +808,13 @@
     <string name="cash_import_currency_will_add">将为目标账户新增币种：%1$s</string>
     <string name="cash_import_create_account_option">＋新建账户</string>
     <string name="cash_import_account_currency_missing">无法为所选账户添加币种：%1$s</string>
+    <string name="cash_import_confirmation_cancelled">导入已取消</string>
+    <string name="cash_import_confirmation_cancelling">正在取消导入</string>
+    <string name="cash_import_confirmation_submitting">正在提交导入</string>
+    <string name="cash_import_confirmation_running">正在导入</string>
+    <string name="cash_import_confirmation_cancel_not_recorded">这次取消尚未记录，请再次取消。</string>
+    <string name="cash_import_cancel_confirmation">取消导入</string>
+    <string name="cash_import_stop_confirmation_wait">停止等待</string>
     <string name="cash_import_confirm_all">确认整份导入</string>
     <string name="cash_import_complete_attention">导入结果</string>
     <string name="cash_import_result_created">新增收支记录</string>

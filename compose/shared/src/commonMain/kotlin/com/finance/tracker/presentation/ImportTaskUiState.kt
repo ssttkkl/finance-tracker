@@ -1,6 +1,8 @@
 package com.finance.tracker.presentation
 
 import com.finance.tracker.domain.*
+import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import kotlin.random.Random
 
 enum class ImportTaskPhase { PREPARE, REVIEW, RESULT }
@@ -46,9 +48,18 @@ data class ImportTaskUiState(
     val errorDiagnostic: ImportDiagnostic? = null,
     val internalFailure: Throwable? = null,
     val completionRetryExhausted: Boolean = false,
+    val observedConfirmation: CashImportConfirmation? = null,
+    val cancellationError: String? = null,
+    val requestingCancellation: Boolean = false,
 ) {
+    val canStopWaiting: Boolean get() = recoveryBatchId != null && receipt == null && busy &&
+        submission in setOf(ImportSubmissionState.SAVING, ImportSubmissionState.CHECKING)
+    val confirmationStatus: CashImportConfirmationStatus? get() = observedConfirmation?.status
+    val confirmationCancelled: Boolean get() = confirmationStatus == CashImportConfirmationStatus.CANCELLED
+    val canCancelConfirmation: Boolean get() = recoveryBatchId != null && receipt == null && internalFailure == null &&
+        confirmationStatus in setOf(CashImportConfirmationStatus.ACCEPTED, CashImportConfirmationStatus.RUNNING)
     val hasSubmission: Boolean get() = frozenCommand != null || recoveryBatchId != null
-    val showRecoveryAction: Boolean get() = if (receipt != null) recoveryBatchId != null && internalFailure == null &&
+    val showRecoveryAction: Boolean get() = if (confirmationCancelled) false else if (receipt != null) recoveryBatchId != null && internalFailure == null &&
         submission in setOf(ImportSubmissionState.COMPLETE, ImportSubmissionState.CHECKING) else
         (internalFailure == null || submission != ImportSubmissionState.RETRY_ORIGINAL) && hasSubmission
 
@@ -224,11 +235,13 @@ data class ImportTaskUiState(
         return requestStarted().copy(frozenCommand = ImportFrozenCommand(current.planId, current.sessionRevision, key),
             recoveryBatchId = context?.takeIf { it.origin == ImportContextOrigin.LOCAL }?.sessionId,
             submission = ImportSubmissionState.SAVING, busy = true, errorCode = null, errorDiagnostic = null,
-            completionRetryExhausted = false)
+            completionRetryExhausted = false, observedConfirmation = null, cancellationError = null)
     }
 
     fun confirmationFailed(request: ImportTaskRequest, failure: DomainFailure): ImportTaskUiState {
         if (activeRequest != request || !hasSubmission) return this
+        if (failure.code == "import_cancelled" && confirmationCancelled && receipt == null) return copy(
+            cancellationError = null, busy = false, errorCode = null, errorDiagnostic = null)
         if (receipt != null) return if (recoveryBatchId == null) this else copy(submission = ImportSubmissionState.COMPLETE,
             busy = false, errorCode = failure.code, errorDiagnostic = failure.diagnostic)
         return copy(submission = if (failure.commitState == "not_committed") ImportSubmissionState.RETRY_ORIGINAL else ImportSubmissionState.UNKNOWN,

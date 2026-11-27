@@ -1,5 +1,7 @@
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -312,13 +314,39 @@ test("新建账户重试沿用原保存，返回时刷新账户列表", async ({
   }
 });
 
-for (const scenario of ["normal", "conflict", "completion", "size-refusal"] as const) {
+async function holdImportTable(table: "cash_transactions" | "cash_import_confirmations") {
+  const database = new URL(process.env.FT_TEST_POSTGRES_URL ?? "");
+  if (database.protocol !== "postgresql:" || database.hostname !== "127.0.0.1" || !database.pathname.endsWith("_test"))
+    throw new Error("An explicit loopback PostgreSQL _test database is required");
+  const child = spawn("psql", ["-XqAt", "-v", "ON_ERROR_STOP=1", database.href], { stdio: ["pipe", "pipe", "pipe"] });
+  const exited = once(child, "exit");
+  try {
+    const acquired = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("PostgreSQL test lock was not acquired")), 5_000);
+      child.stdout.on("data", (data) => { if (data.toString().includes("ft-lock-acquired")) { clearTimeout(timer); resolve(); } });
+      child.once("error", (error) => { clearTimeout(timer); reject(error); });
+    });
+    child.stdin.write(`BEGIN; LOCK TABLE ${table} IN SHARE MODE;\n\\echo ft-lock-acquired\n`);
+    await acquired;
+    return { release: async () => {
+      if (child.exitCode !== null) return;
+      child.stdin.end("ROLLBACK;\n\\q\n");
+      expect((await exited)[0]).toBe(0);
+    } };
+  } catch (error) {
+    child.kill();
+    await exited;
+    throw error;
+  }
+}
+
+for (const scenario of ["normal", "conflict", "completion", "size-refusal", "cancel-confirmation"] as const) {
 const recheckAfterConflict = scenario === "conflict";
 const unchangedAfterConflict = scenario === "rebase" || scenario === "rebase-worker";
 const interruptCompletion = scenario === "completion";
 const interruptArchive = scenario === "archive-worker";
 const interruptSnapshot = scenario === "snapshot-worker";
-test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整文件" : `新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
+test(scenario === "cancel-confirmation" ? "异步现金导入可停止等待并恢复已取消的结果" : scenario === "size-refusal" ? "确认明确超限后回到原批次调整文件" : `新登录后离线解析和核对 CSV${recheckAfterConflict ? "，冲突后重新核对" : unchangedAfterConflict ? (scenario === "rebase-worker" ? "，重算 Worker 崩溃后继续保存" : "，无关账本变更后后台重算") : interruptCompletion ? "，已保存后恢复结果整理" : interruptArchive ? "，归档 Worker 崩溃后恢复结果" : interruptSnapshot ? "，快照 Worker 崩溃后重新打开继续整理" : scenario === "pack-fence" ? "，封装写集时会话代次变化停止写入" : ""}，联网保存原写集并离线冷启动账本与结果`, async ({ baseURL }, info) => {
   test.skip(!!process.env.CI, "Canvas import account-picker timing differs on CI runners; covered by local runs and shared import tests");
   test.setTimeout(180_000);
   if (!baseURL) throw new Error("A real Kotlin backend preview is required");
@@ -370,7 +398,7 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
   const observeRequests = (target: Page) => target.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (/\/cash-import\/(sessions|plans)(?:\/|$)/.test(path)) oldImportRequests.push(path);
-    if (path === "/api/v1/cash-mutations/receipts/by-key") receiptLookups.push(request.url());
+    if (path === "/api/v1/cash-import/write-set/receipt") receiptLookups.push(request.url());
     if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
       writeKeys.push(request.headers()["idempotency-key"] ?? "");
     }
@@ -604,7 +632,7 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
   if (interruptCompletion) await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (request.method() === "POST" && path === "/api/v1/cash-import/write-set") {
+    if (request.method() === "GET" && path === "/api/v1/cash-import/write-set/receipt") {
       const response = await route.fetch();
       if (response.status() === 200) blockCompletionRefresh = true;
       return route.fulfill({ response });
@@ -623,10 +651,11 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
       data: { expected_revision: 1, patch: { name: "本地导入现金已更名" } },
     });
     expect(changed.status()).toBe(200);
-    const rejected = page.waitForResponse((response) => response.request().method() === "POST"
-      && new URL(response.url()).pathname === "/api/v1/cash-import/write-set");
+    const rejected = page.waitForResponse(async (response) => response.request().method() === "GET"
+      && new URL(response.url()).pathname === "/api/v1/cash-import/write-set/status" && response.status() === 200
+      && (await response.json()).rejection?.code === "ledger_base_changed");
     await page.mouse.click(1350, 1072);
-    expect((await rejected).status()).toBe(409);
+    expect((await (await rejected).json()).status).toBe("rejected");
     const updatedReview = page.locator('[id="cash.import.review"]:visible').last();
     await expect(updatedReview).toBeEnabled({ timeout: 30_000 });
     await expect(page.locator('[id^="cash.import.account-group-"]:visible')).toHaveCount(1);
@@ -668,10 +697,11 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
       };
     }, scenario === "rebase-worker");
     if (scenario === "rebase-worker") {
-      const rejected = page.waitForResponse((response) => response.request().method() === "POST"
-        && new URL(response.url()).pathname === "/api/v1/cash-import/write-set" && response.status() === 409);
+      const rejected = page.waitForResponse(async (response) => response.request().method() === "GET"
+        && new URL(response.url()).pathname === "/api/v1/cash-import/write-set/status" && response.status() === 200
+        && (await response.json()).rejection?.code === "ledger_base_changed");
       await page.mouse.click(1350, 1072);
-      expect((await rejected).status()).toBe(409);
+      expect((await (await rejected).json()).status).toBe("rejected");
       const resume = page.locator('[id="cash.import.resolve"]:visible').last();
       await expect(resume).toBeEnabled({ timeout: 30_000 });
       expect(writeKeys).toHaveLength(1);
@@ -704,6 +734,49 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
     expect(writeKeys).toEqual([]);
     return;
   }
+  if (scenario === "cancel-confirmation") {
+    const transactions = await holdImportTable("cash_transactions");
+    try {
+      const running = page.waitForResponse(async (response) => new URL(response.url()).pathname === "/api/v1/cash-import/write-set/status"
+        && response.status() === 200 && (await response.json()).status === "running");
+      await page.mouse.click(1350, 1072);
+      await running;
+      const cancel = page.locator('[id="cash.import.cancel-confirmation"]:visible').last();
+      await expect(cancel).toBeEnabled();
+      const journal = await holdImportTable("cash_import_confirmations");
+      try {
+        const unrecorded = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/cash-import/write-set/cancel");
+        await clickStableComposeTarget(page, cancel);
+        expect((await unrecorded).status()).toBe(409);
+        await expect(page.getByText("这次取消尚未记录，请再次取消。", { exact: true }).last()).toBeVisible();
+        await expect(page.getByText("正在取消导入", { exact: true })).toHaveCount(0);
+      } finally { await journal.release(); }
+      const recorded = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/cash-import/write-set/cancel");
+      await clickStableComposeTarget(page, cancel);
+      expect((await (await recorded).json()).status).toBe("cancel_requested");
+      await expect(page.getByText("正在取消导入", { exact: true }).last()).toBeVisible();
+      await page.screenshot({ path: info.outputPath("cash-import-cancellation-requested.png") });
+      await clickStableComposeTarget(page, page.locator('[id="cash.import.stop-confirmation-wait"]:visible').last());
+      await expect(page.locator('[id="cash.import.dialog"]:visible')).toHaveCount(0);
+    } finally { await transactions.release(); }
+    await page.goto(`${baseURL}/w/${workspace}/cash-import`);
+    await expect(page.getByText("导入已取消", { exact: true }).last()).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: info.outputPath("cash-import-cancelled.png") });
+    await page.context().setOffline(true);
+    await clickStableComposeTarget(page, page.locator('[id="cash.import.return"]:visible').last());
+    await expect(page.locator('[id="cash.import.dialog"]:visible')).toHaveCount(0);
+    await page.context().setOffline(false);
+    await page.goto(`${baseURL}/w/${workspace}/cash-import`);
+    await expect(page.locator('[id="cash.import.task"]:visible')).toHaveCount(1);
+    await expect(page.getByText("导入已取消", { exact: true })).toHaveCount(0);
+    expect(writeKeys).toHaveLength(1);
+    const snapshot = await page.request.get(`${baseURL}/api/v1/ledger/snapshot?workspace_id=${workspace}`, { headers: setupHeaders });
+    expect((await snapshot.json()).facts.cash_transactions).toEqual([]);
+    return;
+  }
+  const readReceipt = page.waitForResponse((response) => response.request().method() === "GET"
+    && new URL(response.url()).pathname === "/api/v1/cash-import/write-set/receipt" && response.status() === 200,
+    { timeout: 30_000 });
   const saved = page.waitForResponse((response) => response.request().method() === "POST"
     && new URL(response.url()).pathname === "/api/v1/cash-import/write-set"
     && (!unchangedAfterConflict || response.status() !== 409), { timeout: 30_000 });
@@ -720,8 +793,10 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
     await clickStableComposeTarget(page, retry);
   }
   const response = await saved;
-  expect(response.status()).toBe(200);
-  const receipt = await response.json();
+  expect(response.status()).toBe(202);
+  const accepted = await response.json();
+  expect(accepted).toMatchObject({ operation_id: writeKeys.at(-1), status: "accepted" });
+  const receipt = await (await readReceipt).json();
   expect(receipt.committed).toBe(true);
   expect(receipt.summary.created_posted).toBe(1);
   if (unchangedAfterConflict) {
@@ -785,7 +860,7 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
   expect(snapshot.facts.cash_transactions).toHaveLength(1);
   expect(snapshot.facts.cash_transactions[0].account_id).toBe(accountId);
   expect(snapshot.facts.cash_transactions[0].counterparty).toBe("合成商户");
-  expect(snapshot.facts.cash_transactions[0].amount).toMatch(/^-20(?:\.0+)?$/);
+  expect(snapshot.facts.cash_transactions[0].amount).toMatch(/^(?:-20(?:\.0+)?|-2E\+1)$/);
   await waitForCanvasToSettle(page);
   expect(writeKeys).toHaveLength((recheckAfterConflict || unchangedAfterConflict) ? 2 : 1);
   if (recheckAfterConflict) expect(writeKeys[1]).toBe(`${writeKeys[0]}:attempt:1`);
@@ -797,10 +872,10 @@ test(scenario === "size-refusal" ? "确认明确超限后回到原批次调整�
   expect(diagnostics.failedRequests).toEqual([]);
   expect(diagnostics.staticHttpErrors).toEqual([]);
   const expectedApiErrors = recheckAfterConflict || unchangedAfterConflict ? [
-    "404 /api/v1/cash-mutations/receipts/by-key", "409 /api/v1/cash-import/write-set",
-    "404 /api/v1/cash-mutations/receipts/by-key", "404 /api/v1/cash-mutations/receipts/by-key",
-    ...(scenario === "rebase-worker" ? ["404 /api/v1/cash-mutations/receipts/by-key", "404 /api/v1/cash-mutations/receipts/by-key"] : []),
-  ] : ["404 /api/v1/cash-mutations/receipts/by-key",
+    "404 /api/v1/cash-import/write-set/status",
+    "404 /api/v1/cash-import/write-set/receipt", "404 /api/v1/cash-import/write-set/status",
+    ...(scenario === "rebase-worker" ? ["404 /api/v1/cash-import/write-set/receipt", "404 /api/v1/cash-import/write-set/receipt"] : []),
+  ] : ["404 /api/v1/cash-import/write-set/status",
     ...completionFailures.map((path) => "503 " + path)];
   expect(diagnostics.expectedApiErrors).toEqual(expectedApiErrors);
   if (interruptCompletion) {
