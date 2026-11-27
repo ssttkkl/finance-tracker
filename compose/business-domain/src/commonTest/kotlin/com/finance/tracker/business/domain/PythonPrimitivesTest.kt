@@ -30,6 +30,10 @@ class PythonPrimitivesTest {
         assertEquals(0, pythonStringOrder("同", "同"))
         assertTrue(pythonStringOrder("\uFFFF", "\uD800\uDC00") < 0)
         assertTrue(pythonStringOrder("\uD800\uDC00", "\uFFFF") > 0)
+        assertTrue(pythonStringOrder("x\uD800", "x\uD800\uDC00") < 0)
+        assertTrue(pythonStringOrder("x\uD800\uDC00", "x\uD800\uDC00a") < 0)
+        assertTrue(pythonStringOrder("x\uD83D\uDE00a", "x\uD83D\uDE00b") < 0)
+        assertEquals(0, pythonStringOrder("x\uD800\uDC00", "x\uD800\uDC00"))
     }
 
     @Test
