@@ -159,6 +159,7 @@ function measure(prepared, phase, selected, enforceBudget) {
     delete env[variable];
   }
   delete env.FT_PERF_LIVE_MEMORY_FLOWS;
+  delete env.FT_PERF_LIVE_MEMORY_FORCE_GC;
   delete env.FT_PERF_ISOLATED_BACKEND;
   delete env.FT_PERF_LEGACY_COMPARISON;
   const legacyComparison = !enforceBudget && !existsSync(join(prepared.checkout,

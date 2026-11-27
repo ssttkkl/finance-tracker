@@ -70,6 +70,7 @@ export async function measureCommand(bin, args, { env, input, timeoutMs, outputD
         const probeOptions = [
             ...(collectGc ? [`--import=${new URL('./large-gc-observer.mjs', import.meta.url).href}`] : []),
             ...(collectLiveMemory ? [`--import=${new URL('./live-memory-probe.mjs', import.meta.url).href}`] : []),
+            ...(collectLiveMemory && env.FT_PERF_LIVE_MEMORY_FORCE_GC === '1' ? ['--expose-gc'] : []),
         ];
         const probeEnv = probeOptions.length ? {
             NODE_OPTIONS: [env.NODE_OPTIONS, ...probeOptions].filter(Boolean).join(' '),

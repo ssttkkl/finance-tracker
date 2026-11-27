@@ -1,3 +1,4 @@
+import { Cipheriv, Decipheriv } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { PerformanceObserver } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,6 +9,9 @@ const linux = process.platform === 'linux';
 const large = 1024 ** 2;
 const reads = { session: 0, ledger: 0, import: 0, other: 0 };
 const writes = { session: 0, ledger: 0, import: 0, other: 0 };
+const cryptoBytes = { cipherUpdate: 0, decipherUpdate: 0 };
+const forcePhaseGc = process.env.FT_PERF_LIVE_MEMORY_FORCE_GC === '1';
+if (forcePhaseGc && typeof globalThis.gc !== 'function') throw new Error('Retained-heap sampling requires --expose-gc');
 let phase = 'startup';
 let busy = false;
 
@@ -31,7 +35,7 @@ function sample(event) {
             }
         }
         appendFileSync(destination, JSON.stringify({ t: performance.now(), phase, event, ...memory,
-            v8MallocBytes, v8CommittedBytes, kernel, reads, writes }) + '\n');
+            v8MallocBytes, v8CommittedBytes, kernel, reads, writes, cryptoBytes }) + '\n');
     } finally {
         busy = false;
     }
@@ -65,12 +69,30 @@ DatabaseSync.prototype.prepare = function (sql) {
     return statement;
 };
 
+function sampleCipherUpdate(Type, metric) {
+    const update = Type.prototype.update;
+    Type.prototype.update = function (data, ...args) {
+        const result = update.call(this, data, ...args);
+        if (ArrayBuffer.isView(data)) {
+            cryptoBytes[metric] += data.byteLength;
+            if (data.byteLength >= large) sample(metric);
+        }
+        return result;
+    };
+}
+sampleCipherUpdate(Cipheriv, 'cipherUpdate');
+sampleCipherUpdate(Decipheriv, 'decipherUpdate');
+
 const stderrWrite = process.stderr.write;
 process.stderr.write = function (chunk, ...args) {
     const match = typeof chunk === 'string' && /^ft import: ([a-z_]+)\n$/.exec(chunk);
     if (match) {
         phase = match[1];
         sample('import-phase');
+        if (forcePhaseGc) {
+            globalThis.gc();
+            sample('import-phase-after-gc');
+        }
     }
     return stderrWrite.call(this, chunk, ...args);
 };

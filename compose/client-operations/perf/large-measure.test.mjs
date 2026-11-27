@@ -36,8 +36,11 @@ test('phase and GC evidence is observable on a real Node subprocess', async () =
         const outcome = await measureCommand(process.execPath, ['--expose-gc', '-e', [
             'process.stderr.write("ft import: read_files\\n");',
             'global.gc();',
+            'const cipher=require("node:crypto").createCipheriv("aes-256-gcm",new Uint8Array(32),new Uint8Array(12));',
+            'cipher.update(new Uint8Array(1024 ** 2));',
             'setImmediate(() => console.log("{}"));',
-        ].join('')], { outputDir, label: 'phases', timeoutMs: 5_000, collectGc: true, collectLiveMemory: true, env: process.env });
+        ].join('')], { outputDir, label: 'phases', timeoutMs: 5_000, collectGc: true, collectLiveMemory: true,
+            env: { ...process.env, FT_PERF_LIVE_MEMORY_FORCE_GC: '1' } });
         assert.equal(outcome.process.phases[0].phase, 'read_files');
         assert.ok(outcome.process.userCpuMs >= 0);
         assert.ok(outcome.process.phases[0].pressure.utc);
@@ -50,6 +53,8 @@ test('phase and GC evidence is observable on a real Node subprocess', async () =
         assert.ok(phase.rss > 0 && phase.heapUsed > 0);
         assert.ok(phase.external >= phase.arrayBuffers);
         if (process.platform === 'linux') assert.ok(phase.kernel.VmHWM > 0);
+        assert.ok(live.some(sample => sample.event === 'import-phase-after-gc'));
+        assert.equal(live.find(sample => sample.event === 'cipherUpdate').cryptoBytes.cipherUpdate, 1024 ** 2);
         assert.ok(live.some(sample => sample.event === 'exit'));
     } finally {
         rmSync(outputDir, { recursive: true, force: true });
