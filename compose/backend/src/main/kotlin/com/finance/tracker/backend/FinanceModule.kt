@@ -78,7 +78,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     syncOperations: SyncHttpService = SyncHttpService(database),
     xlsParses: CashXlsParseService = CashXlsParseService(),
     writeSetSubmissions: CashImportWriteSetSubmissionService = CashImportWriteSetSubmissionService(database, now = clock),
-    sentry: BackendSentry? = null) {
+    sentry: BackendSentry? = null,
+    assistantInference: LedgerAssistantInference? = null) {
     install(RequestDiagnostics)
     installPortfolioRuntime(portfolio)
     val configuredOrigin = validateWebOrigin(allowedOrigin)
@@ -581,7 +582,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     if(path=="/api/v1/cash-mutations/receipts/by-key") receiptKeyQuery(query)
                     else if(path.startsWith("/api/v1/cash-mutations/receipts/") && (path.endsWith("/rows") || path.endsWith("/relations"))) receiptPageQuery(query)
                 }
-                if (write && principal.role?.canWrite == false) {
+                if (write && path != LEDGER_ASSISTANT_INFERENCE_PATH && principal.role?.canWrite == false) {
                     if(path.startsWith("/api/v1/cash-import") || path.startsWith("/api/v1/cash-mutations") || path.startsWith("/api/v1/cash-projections/") || path.startsWith("/api/v1/cash-records/") && path.endsWith("/draft")) call.respond(HttpStatusCode.Forbidden,kotlinx.serialization.json.buildJsonObject {
                         put("error",kotlinx.serialization.json.buildJsonObject {put("code",JsonPrimitive("workspace_forbidden"));put("message",JsonPrimitive("当前角色仅可查看账本。"));put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(false))})
                     }) else call.respond(HttpStatusCode.Forbidden, ErrorBody(ErrorDetail("workspace_forbidden", "当前角色仅可查看账本。")))
@@ -593,6 +594,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val router = routing {
         cashImportWriteSetRoutes(writeSetSubmissions, requestPrincipalKey)
         ledgerReadRoutes(ledgerReads, requestPrincipalKey)
+        ledgerAssistantInferenceRoute(requestPrincipalKey, assistantInference)
         cashPdfParseRoutes(pdfParses, services, requestPrincipalKey)
         cashXlsParseRoutes(xlsParses, services, requestPrincipalKey)
         get("/health") { call.respondText("ok") }

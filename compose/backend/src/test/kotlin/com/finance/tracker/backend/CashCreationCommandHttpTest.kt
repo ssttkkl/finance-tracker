@@ -63,6 +63,22 @@ class CashCreationCommandHttpTest {
                 val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                 assertEquals(JsonPrimitive(true), json["committed"])
                 assertFalse("sensitive note" in json.toString())
+                if (path.contains("cash-records")) {
+                    val recordId = json.getValue("retained_transaction_id").jsonPrimitive.content
+                    val stored = database.read { connection ->
+                        connection.jooq(database.sqlite).fetchExists(CASH_TRANSACTIONS,
+                            CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace).and(CASH_TRANSACTIONS.ID.eq(recordId.toLong())))
+                    }
+                    assertTrue(stored)
+                    val replay = client.get("/api/v1/cash-mutations/receipts/by-key/$key") {
+                        bearerAuth(token)
+                        header("X-FT-Workspace-ID", workspace)
+                    }
+                    assertEquals(HttpStatusCode.OK, replay.status)
+                    val restored = Json.parseToJsonElement(replay.bodyAsText()).jsonObject
+                    assertEquals(json["receipt_id"], restored["receipt_id"])
+                    assertEquals(JsonPrimitive(recordId), restored["retained_transaction_id"])
+                }
                 return json.getValue("receipt_id").jsonPrimitive.content
             }
             val manual = "/api/v1/cash-records/commands"

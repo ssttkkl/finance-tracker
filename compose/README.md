@@ -124,6 +124,18 @@ The Kotlin backend and the pure business modules (`business-contracts`, `busines
 
 `shared` is intentionally outside this gate because it contains Compose UI; Compose rules and Android Lint are not enabled. ktlint formatting rules are limited to unused imports, trailing spaces and final newline until the migrated code is reformatted.
 
+## 账本助手
+
+服务端通过以下三个环境变量启用推理。三项都省略时，推理接口返回暂不可用。
+
+| 变量 | 用途 |
+|---|---|
+| `FT_ASSISTANT_COMPLETIONS_URL` | 支持工具调用的 HTTPS Chat Completions 完整地址 |
+| `FT_ASSISTANT_MODEL` | 该地址所用的模型名称 |
+| `FT_ASSISTANT_API_KEY` | 由服务端保管的供应商凭据 |
+
+`POST /api/v1/ledger-assistant/inference` 使用当前登录会话和工作区，允许仅查看成员查询。它只代理推理，普通记账仍通过原命令及收据接口。服务端日志记录请求路径、状态和耗时。客户端保留设备上的对话，供应商是否留存请求由所选服务和配置决定。
+
 ## 账本 CLI
 
 CLI 通过本地 npm 包安装为 `ft`。构建使用 JDK 21，运行使用 Node.js 26.2.0 或更新版本。

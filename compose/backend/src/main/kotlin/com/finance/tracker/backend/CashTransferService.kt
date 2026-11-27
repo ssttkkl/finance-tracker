@@ -201,7 +201,7 @@ class CashTransferService(private val database:Database,private val now:()->Inst
                     })
                 }
             }
-            if (command == null) writeTransfer() else command.apply(c, database.sqlite, principal, kind, now) { writeTransfer() }
+            if (command == null) writeTransfer() else command.apply(c, database.sqlite, principal, kind, now) { writeTransfer(); null }
         }
     }
 }

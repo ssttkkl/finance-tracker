@@ -32,11 +32,12 @@ private fun runServer() {
     database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
     database.bootstrapSchema()
     database.validateSchema()
+    val assistant = ledgerAssistantInference(environment)
     BackendSentry.create(environment["FT_SENTRY_DSN"], environment["FT_RELEASE"] ?: environment["RENDER_GIT_COMMIT"]).use { sentry ->
         ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
             embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host=bindHost;this.port=port};configureFinanceHttp()}) {
                 installParsedImportRuntime(parsedImports)
-                financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store), sentry = sentry)
+                financeModule(database, origin, mutationPlans = MutationPlanService(database, staging = parsedImports.store), sentry = sentry, assistantInference = assistant)
             }.start(wait = true)
         }
     }

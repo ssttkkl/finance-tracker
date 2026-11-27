@@ -247,7 +247,9 @@ class ManualCashService(private val database:Database,private val now:()->Instan
                 beforeReturn();reads.lockedContext(c,token,workspace,write=true)
                 return result
             }
-            if (command == null) writeRecord() else command.apply(c, database.sqlite, principal, kind, now) { writeRecord() }
+            if (command == null) writeRecord() else command.apply(c, database.sqlite, principal, kind, now) {
+                writeRecord().getValue("record").jsonObject.getValue("id").jsonPrimitive.content
+            }
         }
     }
 }

@@ -11987,6 +11987,10 @@
                       "title": "Created At",
                       "type": "string"
                     },
+                    "retained_transaction_id": {
+                      "description": "The saved transaction's exact ID. Older receipts may omit this field.",
+                      "type": "string"
+                    },
                     "ledger_seq": {
                       "description": "Non-negative signed 64-bit version encoded as exact decimal text",
                       "maxLength": 19,
@@ -13388,6 +13392,36 @@
         "tags": [
           "ledger-sync"
         ]
+      }
+    },
+    "/api/v1/ledger-assistant/inference": {
+      "post": {
+        "operationId": "inferLedgerAssistant",
+        "summary": "Continue a ledger assistant conversation in the authenticated workspace",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "X-FT-Workspace-ID", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "object", "required": ["role"] }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "One model message with role assistant and text or tool calls" },
+          "400": { "description": "Invalid message context" },
+          "401": { "description": "Authentication required" },
+          "403": { "description": "Workspace access denied" },
+          "413": { "description": "Message context exceeds the supported size" },
+          "503": { "description": "Inference unavailable" }
+        }
       }
     },
     "/api/v1/ledger/version": {

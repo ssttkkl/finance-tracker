@@ -42,10 +42,11 @@ internal class CashCreationCommand(val key: String, val accountIds: List<Long>, 
     }
 
     fun apply(connection: Connection, sqlite: Boolean, principal: Principal, kind: String,
-        now: () -> Instant, write: () -> Unit): JsonObject {
+        now: () -> Instant, write: () -> String?): JsonObject {
         connection.createStatement().use { it.execute("SAVEPOINT cash_creation") }
+        var transactionId: String? = null
         val rejected = try {
-            write()
+            transactionId = write()
             null
         } catch (_: ManualCashBusinessFailure) {
             "row_save_failed"
@@ -56,16 +57,17 @@ internal class CashCreationCommand(val key: String, val accountIds: List<Long>, 
             if (rejected != null) it.execute("ROLLBACK TO SAVEPOINT cash_creation")
             it.execute("RELEASE SAVEPOINT cash_creation")
         }
-        return record(connection, sqlite, principal, kind, now, rejected)
+        return record(connection, sqlite, principal, kind, now, rejected, transactionId)
     }
 
     private fun record(connection: Connection, sqlite: Boolean, principal: Principal, kind: String,
-        now: () -> Instant, rejected: String?): JsonObject {
+        now: () -> Instant, rejected: String?, transactionId: String? = null): JsonObject {
         val workspace = requireNotNull(principal.workspaceId)
         val sequence = connection.jooq(sqlite).select(WORKSPACES.LEDGER_SEQ).from(WORKSPACES)
             .where(WORKSPACES.ID.eq(workspace)).fetchSingle(WORKSPACES.LEDGER_SEQ)!!
         val summary = buildMap<String, Any> {
             put("ledger_seq", sequence.toString())
+            transactionId?.let { put("retained_transaction_id", it) }
             if (rejected != null) {
                 put("status", "failed")
                 put("commit_outcome", mapOf("has_new_failures" to true, "has_business_writes" to false, "reason_codes" to listOf(rejected)))
@@ -76,7 +78,7 @@ internal class CashCreationCommand(val key: String, val accountIds: List<Long>, 
     }
 
     private fun publicResult(result: JsonObject): JsonObject =
-        JsonObject(result.filterKeys { it in setOf("receipt_id", "operation_kind", "committed", "created_at", "ledger_seq", "status", "commit_outcome") })
+        JsonObject(result.filterKeys { it in setOf("receipt_id", "operation_kind", "committed", "created_at", "ledger_seq", "status", "commit_outcome", "retained_transaction_id") })
 }
 
 internal suspend fun ApplicationCall.cashCreationCommand(principal: Principal, accountCount: Int): Pair<ByteArray, CashCreationCommand> {
