@@ -6,8 +6,8 @@ const optional = expectation(0, Infinity);
 const sessionReads = { session: optional, version: optional };
 const committedReads = {
     receipt: expectation(1, Infinity, [200, 404]),
-    receiptRows: expectation(2, Infinity),
-    receiptRelations: expectation(2, Infinity),
+    receiptRows: expectation(64, 64),
+    receiptRelations: expectation(15, 15),
 };
 
 const flows = {
@@ -23,8 +23,8 @@ const flows = {
     resume: { ...sessionReads, status: expectation(1, Infinity), receipt: expectation(1, Infinity),
         receiptRows: expectation(15, 15), receiptRelations: expectation(1, 1) },
     status: { ...sessionReads, status: { ...expectation(1, Infinity), concurrent: true } },
-    result: {},
-    batches: {},
+    result: { session: expectation(2, 2), version: expectation(2, 2), snapshot: expectation(1, 1) },
+    batches: { session: expectation(1, 1), version: expectation(1, 1) },
     'cold-snapshot': { ...sessionReads, snapshot: expectation(1, 1) },
     revalidated: { ...sessionReads, version: expectation(1, Infinity) },
     'refreshed-snapshot': { ...sessionReads, snapshot: expectation(1, 1) },
@@ -109,7 +109,9 @@ export function evaluateMaximumHttpGate(details, replayDetails) {
     }
 
     const result = evaluateImportRequests(requestLimits, coverage, {
-        requests: real.requests, replays: matches, concurrentServicePeakBytes: details?.concurrentServicePeakBytes,
+        requests: real.requests, replays: matches,
+        rawReplays: replay.requests.map(row => ({ ...row, asserted: replayDetails?.checks.completed === true })),
+        concurrentServicePeakBytes: details?.concurrentServicePeakBytes,
         concurrentSamplingMethod: details?.concurrentSamplingMethod,
     });
     return {

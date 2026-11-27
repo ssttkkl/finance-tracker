@@ -95,11 +95,22 @@ export function evaluateImportRequests(routes, flows, report) {
             continue;
         }
         replayed.add(row.sequence);
-        // The replay must complete the same business request in its independently prepared state.
-        if (row.asserted !== true) errors.push(`${label}: replay result was not verified`);
+    }
+    for (const row of report?.rawReplays ?? report?.replays ?? []) {
+        const flow = row.flow ?? originals.get(row.sequence)?.flow;
+        const label = `isolated ${flow}/${row.route} #${row.sequence}`;
+        const requirement = expected.get(flow)?.get(row.route);
+        if (!requirement || !Object.hasOwn(routes, row.route)) {
+            errors.push(`${label}: unexpected replay request`);
+            continue;
+        }
+        if (!requirement.statuses.includes(row.status) || row.isolated !== true ||
+            row.prewarmed !== true || row.method !== 'linux-cgroup-v2-memory-peak' || row.asserted !== true) {
+            errors.push(`${label}: invalid or unverified isolated request`);
+        }
         commonMetrics(label, row);
         if (!peak(row.baselineServiceBytes) || row.peakServiceBytes < row.baselineServiceBytes) {
-            errors.push(`${label}: invalid baseline RSS`);
+            errors.push(`${label}: invalid service memory baseline`);
         }
         metric(label, row.route, 'peakServiceBytes', 'maxPeakServiceBytes', row.peakServiceBytes, peak);
         metric(label, row.route, 'serviceIncreaseBytes', 'maxServiceIncreaseBytes',

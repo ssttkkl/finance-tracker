@@ -72,3 +72,11 @@ test('uncalibrated budgets collect valid samples but cannot pass the gate', () =
     assert.equal(result.ok, false);
     assert.match(result.errors.join('\n'), /uncalibrated/);
 });
+
+test('a repeated isolated poll still blocks on its own memory peak', () => {
+    const rawReplays = replays.map(row => ({ ...row, flow: 'confirm' }));
+    rawReplays.push({ ...rawReplays[1], sequence: 4, peakServiceBytes: 15_000 });
+    const result = check({ ...report, rawReplays });
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join('\n'), /isolated confirm\/poll #4: peakServiceBytes/);
+});
