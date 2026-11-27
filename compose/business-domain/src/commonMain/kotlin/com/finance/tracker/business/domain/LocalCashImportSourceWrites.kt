@@ -48,6 +48,7 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
             val occurrence = sources.rows.rows.getValue(update.getValue("row_ref").jsonPrimitive.content)
             val proof = occurrence.documentPage?.let { (_, page) -> occurrence.coverage.copy(
                 pageFingerprints = mapOf(page to occurrence.coverage.pageFingerprints.getValue(page))) } ?: occurrence.coverage
+            var encodedCoverage: JsonElement? = null
             for (key in occurrence.bindingSpecs) {
                 val previous = oldBindings[key]
                 val pending = bindings[key]
@@ -57,7 +58,7 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
                 bindings[key] = CashSourceBindingWriteDto(previous?.let { version(it.id, it.revision) }
                     ?: CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("binding:${key.key}"), null), row.target.reference,
                     key.sourceType, key.scopeKind, key.scopeKey, key.identityKind, key.identityKey, key.identityStrength,
-                    evidence, occurrence.parserVersion, coverage(proof))
+                    evidence, occurrence.parserVersion, encodedCoverage ?: coverage(proof).also { encodedCoverage = it })
             }
         }
     }

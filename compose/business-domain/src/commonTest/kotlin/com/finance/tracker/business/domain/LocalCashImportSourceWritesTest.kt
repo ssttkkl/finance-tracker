@@ -63,7 +63,11 @@ class LocalCashImportSourceWritesTest {
         val before = plan.toString(); val result = buildLocalCashImportSourceWrites(source, files, prepared.source, plan)
         val row = result.transactions.single(); val occurrence = prepared.source.rows.rows.values.single()
         assertEquals(occurrence.bindingSpecs.size, result.sourceBindings.size)
+        assertTrue(result.sourceBindings.size > 1)
+        val sharedCoverage = result.sourceBindings.first().coverage
+        assertEquals(coverage(occurrence.coverage).toString(), sharedCoverage.toString())
         for ((binding, key) in result.sourceBindings.zip(occurrence.bindingSpecs)) {
+            assertSame(sharedCoverage, binding.coverage)
             assertEquals(row.target.reference, binding.transaction)
             assertEquals(key.identityKey, binding.identityKey); assertEquals(key.identityStrength, binding.identityStrength)
             assertTrue(binding.target.reference is NewCashWriteReferenceDto); assertNull(binding.target.expectedRevision)
