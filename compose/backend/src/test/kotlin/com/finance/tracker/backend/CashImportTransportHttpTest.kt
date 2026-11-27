@@ -64,17 +64,17 @@ class CashImportTransportHttpTest(private val backend: String) {
             } }
         }
 
-    private fun changes(account: Long): CashWriteSetDto {
+    private fun changes(account: Long, note: String = "S"): CashWriteSetDto {
         val target = CashWriteVersionedReferenceDto(NewCashWriteReferenceDto("transport-row"), null)
         val row = CashTransactionWriteDto(target, CashTransactionWriteValuesDto(account.toString(), "posted", "import", null, "atomic",
             "ccb_debit", "transport-source", empty, empty, null, empty, "2026-11-14T00:00:00Z", "-12.30", "CNY", "Party", "", array,
-            "S", null, "consumption", "not_applicable"),
+            note, null, "consumption", "not_applicable"),
             listOf(CashComponentWriteDto(NewCashWriteReferenceDto("transport-part"), account.toString(), "-12.30", "CNY", "0", "", "", empty)))
         val values = buildJsonObject {
-            put("category_id", JsonNull); put("note", "S"); put("counterparty", "Party")
+            put("category_id", JsonNull); put("note", note); put("counterparty", "Party")
             put("counterparty_account", ""); put("counterparty_account_attrs", array)
         }
-        val entry = CashEntryWriteDto(target, null, "S", "Party", "", array, emptyList(),
+        val entry = CashEntryWriteDto(target, null, note, "Party", "", array, emptyList(),
             listOf(CashEntryMemberWriteDto(target, values, emptyList())))
         return CashWriteSetDto(transactions = listOf(row), entries = listOf(entry))
     }
@@ -218,8 +218,14 @@ class CashImportTransportHttpTest(private val backend: String) {
     @Test fun acceptedUploadCanPersistItsStrictJsonSpellingAndReplayAcrossWorkerRestart() = authenticated { db, ws, account, token ->
         org.junit.Assume.assumeTrue("Asynchronous confirmation is validated on PostgreSQL", backend == "postgres")
         val base = sequence(db, ws)
-        val input = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account))).jsonObject
-        val original = " \n" + JsonObject(input.toList().reversed().toMap()).toString() + "\t "
+        val note = "合成 / 😀"
+        val input = json.encodeToJsonElement(CashWriteSetRequestDto(base.toString(), CASH_RULES_VERSION, changes(account, note)))
+        fun reorder(value: JsonElement): JsonElement = when (value) {
+            is JsonObject -> JsonObject(value.entries.reversed().associate { (key, field) -> key to reorder(field) })
+            is JsonArray -> JsonArray(value.map(::reorder))
+            is JsonPrimitive -> value
+        }
+        val original = " \n" + reorder(input).toString().replace(note, "\\u5408成 \\/ \\ud83d\\ude00") + "\t "
         val key = "async-raw-validated-body"
         testApplication {
             application { financeModule(db, clock = clock, runCashImportWorker = false) }
@@ -229,7 +235,11 @@ class CashImportTransportHttpTest(private val backend: String) {
                 contentType(ContentType.Application.Json)
                 setBody(text)
             }
-            assertEquals(202, submit(original).status.value)
+            val accepted = submit(original)
+            val pendingReplay = submit(input.toString())
+            assertEquals(202, accepted.status.value)
+            assertEquals(202, pendingReplay.status.value)
+            assertEquals(accepted.bodyAsText(), pendingReplay.bodyAsText())
             db.read { connection ->
                 val jobs = CASH_IMPORT_CONFIRMATIONS
                 val queued = connection.jooq(db.sqlite).select(jobs.PAYLOAD).from(jobs)
@@ -244,6 +254,7 @@ class CashImportTransportHttpTest(private val backend: String) {
             assertEquals(200, replay.status.value)
             assertEquals(committed.receiptId, Json.parseToJsonElement(replay.bodyAsText()).jsonObject["receipt_id"]?.jsonPrimitive?.content)
             assertEquals(base + 1, sequence(db, ws))
+            assertEquals(note, db.read { LedgerSnapshotRepository(it, ws, db.sqlite).facts().cashTransactions.single().note })
         }
     }
 

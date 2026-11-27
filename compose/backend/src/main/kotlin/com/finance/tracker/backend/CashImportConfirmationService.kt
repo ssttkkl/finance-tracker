@@ -5,7 +5,6 @@ import com.finance.tracker.business.contracts.CashImportConfirmationRejection
 import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import java.sql.Connection
 import java.time.Instant
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 internal class CashImportConfirmationService(
