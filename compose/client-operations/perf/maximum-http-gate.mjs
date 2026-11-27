@@ -40,7 +40,7 @@ const requestLimits = Object.fromEntries(Object.entries(flows).flatMap(([flow, r
         const limit = method === 'GET' ? 0 : id === 'submit' ? 64 * 1024 ** 2 : null;
         return [workloadRoute(flow, id), {
             method, template, maxServerMs: 8000, maxRequestWireBytes: limit, maxRequestDecodedBytes: limit,
-            maxResponseWireBytes: null, maxResponseDecodedBytes: null, maxPeakRssBytes: null, maxRssIncreaseBytes: null,
+            maxResponseWireBytes: null, maxResponseDecodedBytes: null, maxPeakServiceBytes: null, maxServiceIncreaseBytes: null,
         }];
     })));
 
@@ -64,7 +64,7 @@ export function evaluateMaximumHttpGate(details) {
         }
     }
     const result = evaluateImportRequests(requestLimits, coverage, {
-        requests, replays: details.requestReplays, concurrentProcessPeakRssBytes: details.concurrentProcessPeakRssBytes,
+        requests, replays: details.requestReplays, concurrentServicePeakBytes: details.concurrentServicePeakBytes,
         concurrentSamplingMethod: details.concurrentSamplingMethod,
     });
     return {

@@ -80,7 +80,7 @@ export function evaluateImportRequests(routes, flows, report) {
         }
     }
     if ([...originals.values()].some((row) => row.concurrent) &&
-        (!peak(report.concurrentProcessPeakRssBytes) || report.concurrentSamplingMethod !== 'linux-vmhwm')) {
+        (!peak(report.concurrentServicePeakBytes) || report.concurrentSamplingMethod !== 'linux-cgroup-v2-memory-peak')) {
         errors.push('missing concurrent backend process peak RSS');
     }
 
@@ -90,20 +90,31 @@ export function evaluateImportRequests(routes, flows, report) {
         const label = `isolated ${original?.flow}/${row.route} #${row.sequence}`;
         if (!original || replayed.has(row.sequence) || row.route !== original.route ||
             row.status !== original.status || row.requestWireBytes !== original.requestWireBytes || row.requestDecodedBytes !== original.requestDecodedBytes ||
-            row.isolated !== true || row.prewarmed !== true || row.method !== 'linux-vmhwm') {
+            row.isolated !== true || row.prewarmed !== true || row.method !== 'linux-cgroup-v2-memory-peak') {
             errors.push(`${label}: invalid or non-equivalent isolated replay`);
             continue;
         }
         replayed.add(row.sequence);
-        // The replay must complete the same business request in its independently prepared state.
-        if (row.asserted !== true) errors.push(`${label}: replay result was not verified`);
-        commonMetrics(label, row);
-        if (!peak(row.baselineRssBytes) || row.peakRssBytes < row.baselineRssBytes) {
-            errors.push(`${label}: invalid baseline RSS`);
+    }
+    for (const row of report?.rawReplays ?? report?.replays ?? []) {
+        const flow = row.flow ?? originals.get(row.sequence)?.flow;
+        const label = `isolated ${flow}/${row.route} #${row.sequence}`;
+        const requirement = expected.get(flow)?.get(row.route);
+        if (!requirement || !Object.hasOwn(routes, row.route)) {
+            errors.push(`${label}: unexpected replay request`);
+            continue;
         }
-        metric(label, row.route, 'peakRssBytes', 'maxPeakRssBytes', row.peakRssBytes, peak);
-        metric(label, row.route, 'rssIncreaseBytes', 'maxRssIncreaseBytes',
-            row.peakRssBytes - row.baselineRssBytes, size);
+        if (!requirement.statuses.includes(row.status) || row.isolated !== true ||
+            row.prewarmed !== true || row.method !== 'linux-cgroup-v2-memory-peak' || row.asserted !== true) {
+            errors.push(`${label}: invalid or unverified isolated request`);
+        }
+        commonMetrics(label, row);
+        if (!peak(row.baselineServiceBytes) || row.peakServiceBytes < row.baselineServiceBytes) {
+            errors.push(`${label}: invalid service memory baseline`);
+        }
+        metric(label, row.route, 'peakServiceBytes', 'maxPeakServiceBytes', row.peakServiceBytes, peak);
+        metric(label, row.route, 'serviceIncreaseBytes', 'maxServiceIncreaseBytes',
+            row.peakServiceBytes - row.baselineServiceBytes, size);
     }
     for (const [sequence, row] of originals) {
         if (!replayed.has(sequence)) errors.push(`${row.flow}/${row.route} #${sequence}: isolated replay missing`);
