@@ -44,13 +44,15 @@ class CashWriteSetReceiptSerializationTest {
         }
     }
     @Test fun everyNumericIdentityAndRevisionRequiresCanonicalPositiveLongString() {
-        for (invalid in listOf(JsonPrimitive(1), JsonPrimitive(true), JsonNull, JsonPrimitive("0"), JsonPrimitive("-1"), JsonPrimitive("01"),
-            JsonPrimitive("+1"), JsonPrimitive("1.0"), JsonPrimitive("9223372036854775808"))) {
+        for (invalid in listOf(JsonPrimitive(1), JsonPrimitive(true), JsonNull, JsonPrimitive(""), JsonPrimitive("0"),
+            JsonPrimitive("-1"), JsonPrimitive("01"), JsonPrimitive("+1"), JsonPrimitive("1.0"), JsonPrimitive("９"),
+            JsonPrimitive("9223372036854775808"), JsonPrimitive("100000000000000000000"))) {
             val row = result.getValue("transactions").jsonArray.single().jsonObject
             for (field in listOf("id", "row_revision", "component_ids")) {
                 val changed = JsonObject(row + (field to if (field == "component_ids") JsonArray(listOf(invalid)) else invalid))
                 val input = JsonObject(result + ("transactions" to JsonArray(listOf(changed))))
                 assertFailsWith<SerializationException> { Json.decodeFromJsonElement<CashMutationReceiptDto>(receipt(input)) }
+                assertFailsWith<SerializationException> { decodeArchivedCashMutationReceipt(receipt(input).toString()) }
             }
             for (field in listOf("source_bindings", "issues", "statement_account_mappings", "relations")) {
                 val input = JsonObject(result + (field to JsonArray(listOf(buildJsonObject { put("id", invalid); put("revision", "1") }))))
@@ -78,6 +80,7 @@ class CashWriteSetReceiptSerializationTest {
             val retired = JsonObject(result + ("retired_entry_ids" to JsonArray(listOf(id))))
             for (input in listOf(entries, retired)) {
                 assertFailsWith<SerializationException> { Json.decodeFromJsonElement<CashMutationReceiptDto>(receipt(input)) }
+                assertFailsWith<SerializationException> { decodeArchivedCashMutationReceipt(receipt(input).toString()) }
             }
         }
     }
