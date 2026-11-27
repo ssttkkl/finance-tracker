@@ -223,13 +223,19 @@ class OpenApiContractTest {
     }
     @Test fun fullRuntimeDocumentsExactlyConnectedOperationsAndCanonicalParameterAliases() = testApplication {
         module(); val document = document(); val paths = document.getValue("paths").jsonObject
-        assertEquals(75, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
+        assertEquals(76, paths.values.sumOf { it.jsonObject.keys.count { method -> method in setOf("get", "post", "put", "patch", "delete") } })
         assertFalse("get" in paths.getValue("/api/v1/cash-projections").jsonObject)
         assertTrue("delete" in paths.getValue("/api/v1/cash-projections").jsonObject)
         for (retired in listOf("/api/v1/cash-projections/{projection_id}", "/api/v1/evidence/cash-projections/{projection_id}",
             "/api/v1/cash-records/{transaction_id}/projection", "/api/v1/operations/projections", "/api/v1/operations/projections/rebuild")) {
             assertFalse(retired in paths, retired)
         }
+        val assistant = paths.getValue("/api/v1/ledger-assistant/inference").jsonObject.getValue("post").jsonObject
+        assertEquals(JsonPrimitive("inferLedgerAssistant"), assistant["operationId"])
+        assertTrue(assistant.getValue("parameters").jsonArray.any { parameter ->
+            parameter.jsonObject["name"] == JsonPrimitive("X-FT-Workspace-ID") &&
+                parameter.jsonObject["required"] == JsonPrimitive(true)
+        })
         val ledgerVersion = paths.getValue("/api/v1/ledger/version").jsonObject.getValue("get").jsonObject
         assertEquals(JsonPrimitive("getLedgerVersion"), ledgerVersion["operationId"])
         assertEquals(JsonPrimitive("string"), document.getValue("components").jsonObject.getValue("schemas").jsonObject
