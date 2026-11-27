@@ -16,7 +16,9 @@ internal val process: dynamic = js("globalThis.process")
 
 internal class CliFailure(val code: String, val parameter: String? = null, val exitCode: Int = 2) : Exception(code)
 
-internal data class TerminalResult(val value: JsonElement, val text: String)
+internal class TerminalResult(val text: String, val json: () -> String) {
+    constructor(value: JsonElement, text: String) : this(text, { value.toString() })
+}
 
 internal val outputJson = Json { encodeDefaults = true }
 
@@ -37,7 +39,7 @@ suspend fun main() {
     val machine = "--json" in args
     try {
         val result = dispatch(args.filterNot { it == "--json" })
-        println(if (machine) result.value.toString() else result.text)
+        println(if (machine) result.json() else result.text)
     } catch (failure: CliFailure) {
         report(machine, failure.code, failure.exitCode, failure.parameter)
     } catch (failure: ClientOperationFailure) {
@@ -160,7 +162,7 @@ internal fun Map<String, String>.revision(flag: String): Long =
     required(flag).toLongOrNull()?.takeIf { it > 0 } ?: throw CliFailure("invalid_parameter", flag)
 
 
-private val exactReadIdentifiers = setOf("id", "account_id", "revision", "row_revision", "account_revision", "projection_version",
+internal val exactReadIdentifierFields = setOf("id", "account_id", "revision", "row_revision", "account_revision", "projection_version",
     "plan_revision", "session_revision", "category_revision", "expected_account_revision")
 
 internal fun exactReadIdentifiers(value: JsonElement): JsonElement = when (value) {
@@ -179,7 +181,7 @@ internal fun exactReadIdentifiers(value: JsonElement): JsonElement = when (value
         for ((key, field) in value) {
             val exact = when {
                 key == "evidence" -> field
-                key in exactReadIdentifiers && field is JsonPrimitive && !field.isString && field.content.toLongOrNull() != null ->
+                key in exactReadIdentifierFields && field is JsonPrimitive && !field.isString && field.content.toLongOrNull() != null ->
                     JsonPrimitive(field.content)
                 else -> exactReadIdentifiers(field)
             }

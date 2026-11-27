@@ -22,6 +22,10 @@ import com.finance.tracker.client.ClientCashImportResume
 import com.finance.tracker.client.ClientImportConfirmationOutcome
 import com.finance.tracker.client.ImportAccountChangeResult
 import com.finance.tracker.client.PreparedCashImport
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -269,14 +273,34 @@ private fun importResult(result: CashImportResultContent, kind: String = "row", 
         throw CliFailure("invalid_parameter", "--offset")
     } else null
     val receipt = result.displayReceipt()
-    return TerminalResult(buildJsonObject {
-        put("batch_id", result.batchId)
-        put("receipt", exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), receipt)))
-        put("items_complete", result.hasServerItems)
-        page?.let { put("page", outputJson.encodeToJsonElement(CashImportArchivePage.serializer(), it)) }
-    }, buildString {
+    val text = buildString {
         appendLine("Batch ${result.batchId}  Receipt ${receipt.receiptId}")
         for ((key, count) in receipt.summary) appendLine("$key  $count")
         if (!result.hasServerItems) appendLine("Saved. Use ft import resume ${result.batchId} to finish retrieving results.")
-    }.trimEnd())
+    }.trimEnd()
+    val output = ImportResultOutput(result.batchId, receipt, result.hasServerItems, page)
+    return TerminalResult(text, output::encode)
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+private data class ImportResultOutput(
+    @SerialName("batch_id") val batchId: String,
+    val receipt: CashMutationReceiptDto,
+    @SerialName("items_complete") val itemsComplete: Boolean,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val page: CashImportArchivePage? = null,
+) {
+    fun encode(): String {
+        if (receipt.projectionVersion == null && receipt.accountRevision == null && receipt.account == null &&
+            receipt.summary.keys.none { it in exactReadIdentifierFields } &&
+            receipt.legacyByAccount.keys.none { it in exactReadIdentifierFields })
+            return outputJson.encodeToString(this)
+        // Permitted historical receipt metadata still uses the same exact numeric identifier conversion.
+        return buildJsonObject {
+            put("batch_id", batchId)
+            put("receipt", exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), receipt)))
+            put("items_complete", itemsComplete)
+            page?.let { put("page", outputJson.encodeToJsonElement(CashImportArchivePage.serializer(), it)) }
+        }.toString()
+    }
 }
