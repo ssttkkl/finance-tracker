@@ -132,13 +132,55 @@ test('large state writes preserve UTF-8 boundaries without whole plaintext buffe
     }
 });
 
+test('the frozen request is stored byte for byte without one large JSON encoding', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ft-frozen-state-text-'));
+    const previousRoot = process.env.FT_CLI_STATE_DIR;
+    const previousKey = process.env.FT_CLI_STORAGE_KEY;
+    process.env.FT_CLI_STATE_DIR = root;
+    process.env.FT_CLI_STORAGE_KEY = Buffer.alloc(32, 71).toString('base64');
+    const { openStore } = await import('../npm/lib/host.mjs');
+    const controls = String.fromCharCode(...Array.from({ length: 32 }, (_, index) => index));
+    const request = `${'a'.repeat(64 * 1024 - 1)}𐐷${'中文"\\\t\u0000'.repeat(260_000)}${controls}\udc00x\ud800`;
+    const metadata = '{"revision":9223372036854775807,"submission":{"key":"synthetic","request":"","baseRejected":false}}';
+    const expected = metadata.replace('""', JSON.stringify(request));
+    const stringify = JSON.stringify;
+    let fullEncodings = 0;
+    let chunkEncodings = 0;
+    const store = openStore('https://storage.test', true);
+    try {
+        JSON.stringify = function (...args) {
+            const encoded = stringify.apply(this, args);
+            if (encoded?.length >= request.length) fullEncodings++;
+            if (typeof args[0] === 'string' && args[0].length >= 64 * 1024 - 1) chunkEncodings++;
+            return encoded;
+        };
+        store.writeFrozenImportBatch('frozen', metadata, request);
+        assert.equal(store.read('frozen') === expected, true);
+        assert.equal(fullEncodings, 0);
+        assert.ok(chunkEncodings <= Math.ceil(request.length / (64 * 1024 - 1)));
+        assert.throws(() => store.writeFrozenImportBatch('frozen', metadata.replace('""', '"unexpected"'), request));
+        assert.equal(store.read('frozen') === expected, true);
+        const collision = metadata.replace('"submission":', '"decoy":"\\u0000ft.import.request","submission":');
+        store.writeFrozenImportBatch('collision', collision, request);
+        assert.equal(store.read('collision') === collision.replace('""', stringify(request)), true);
+    } finally {
+        JSON.stringify = stringify;
+        try { store.close(true); } finally {
+            if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
+            else process.env.FT_CLI_STATE_DIR = previousRoot;
+            if (previousKey === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+            else process.env.FT_CLI_STORAGE_KEY = previousKey;
+            rmSync(root, { recursive: true, force: true });
+        }
+    }
+});
+
 test('large import text round-trips through the old encrypted state JSON shape', async () => {
-    const { splitLargeImportRequest, encodeFrozenImportBatch } = await import('../npm/lib/host.mjs');
+    const { splitLargeImportRequest } = await import('../npm/lib/host.mjs');
     const request = JSON.stringify({ amount: '0.10', currency: 'USD', opaque: '说明😀"\\'.repeat(180_000) });
     const threshold = 1024 * 1024;
     const metadata = '{"revision":9223372036854775807,"submission":{"key":"synthetic","request":"","baseRejected":false}}';
-    const frozen = encodeFrozenImportBatch(metadata, request);
-    assert.equal(frozen, metadata.replace('""', JSON.stringify(request)));
+    const frozen = metadata.replace('""', JSON.stringify(request));
     assert.deepEqual(splitLargeImportRequest(frozen, 'submission', threshold), { metadata, request });
     const reviewed = '{"revision":9223372036854775807,"command":{"request":' + JSON.stringify(request) + '}}';
     assert.equal(splitLargeImportRequest(reviewed, 'command', threshold).request, request);
