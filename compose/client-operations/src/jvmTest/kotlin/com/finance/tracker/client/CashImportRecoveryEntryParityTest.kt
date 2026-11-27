@@ -94,6 +94,7 @@ class CashImportRecoveryEntryParityTest {
         var committed = false
         var posts = 0
         var ids = 0
+        val planning = mutableListOf<String>()
         val receipt = CashMutationReceiptDto("synthetic-receipt", operationKind = "cash_write_set", committed = true,
             createdAt = "2026-11-26T01:00:00Z", status = "completed", summary = mapOf("created_posted" to 1L),
             ledgerSeq = "9007199254740996", writeSetResult = CashWriteSetResultDto(
@@ -142,7 +143,7 @@ class CashImportRecoveryEntryParityTest {
         fun operations(): ClientCashImportOperations {
             val client = ClientSessionOperations(transport, store, { it }, { "2026-11-26T01:00:00Z" })
             val calendar = CashLedgerCalendar({ it == "UTC" }, { _, _ -> 0 }, { _, _ -> error("No dates requested") })
-            return ClientCashImportOperations(client, store, calendar, { "batch-${++ids}" })
+            return ClientCashImportOperations(client, store, calendar, { "batch-${++ids}" }, progress = { planning += it })
         }
 
         val start = operations()
@@ -153,6 +154,14 @@ class CashImportRecoveryEntryParityTest {
         assertEquals(1, mappings.size)
         val review = start.mapAccounts(workspace.id, prepared.batchId, prepared.revision, mappings, "UTC")
         assertTrue(review.plan.canCommit)
+        planning.clear()
+        val view = operations().reviewView(workspace.id, prepared.batchId, "UTC")
+        val page = review.items(null, 20)
+        assertEquals(page, view.items(null, 20))
+        assertEquals(review.item(page.items.single().previewItemId), view.item(page.items.single().previewItemId))
+        assertEquals(review.processing(null, 20), view.processing(null, 20))
+        assertTrue("build_write_set" !in planning)
+        assertEquals(review.plan.sessionRevision, store.batch?.revision)
         val failure = assertFailsWith<ClientOperationFailure> {
             start.confirm(workspace.id, prepared.batchId, review.plan.sessionRevision)
         }

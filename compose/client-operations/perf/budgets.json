@@ -2100,6 +2100,40 @@
       "signature": "requireCashImportConfirmation|requireCashImportConfirmation(kotlin.String;com.finance.tracker.business.contracts.CashImportConfirmation){}",
       "disposition": "implementation",
       "reason": "Included in confirmation and readback"
+    },
+    {
+      "signature": "CashImportReviewView.items|items(kotlin.String?;kotlin.Int;kotlin.String){}",
+      "scenarios": [
+        "import.items",
+        "cli.import-items"
+      ]
+    },
+    {
+      "signature": "CashImportReviewView.item|item(kotlin.String){}",
+      "scenarios": [
+        "import.item",
+        "cli.import-item"
+      ]
+    },
+    {
+      "signature": "CashImportReviewView.processing|processing(kotlin.String?;kotlin.Int){}",
+      "scenarios": [
+        "import.processing",
+        "cli.import-processing"
+      ]
+    },
+    {
+      "signature": "ClientCashImportOperations.reviewView|reviewView(kotlin.String?;kotlin.String;kotlin.String){}",
+      "scenarios": [
+        "cli.import-items",
+        "cli.import-item",
+        "cli.import-processing"
+      ]
+    },
+    {
+      "signature": "ClientCashImportStore.readPreview|readPreview(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Read-only preview storage; covered by installed review pagination commands"
     }
   ],
   "nonOperations": [

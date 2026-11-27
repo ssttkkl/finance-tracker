@@ -7,6 +7,10 @@ import com.finance.tracker.business.contracts.CashImportPreviewInput
 import com.finance.tracker.business.contracts.CashImportSessionDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.StoredCashImportSubmission
+import com.finance.tracker.business.domain.buildLocalCashImportBusinessPlan
+import com.finance.tracker.business.domain.freezeLocalCashImportPreviewPlan
+import com.finance.tracker.business.domain.identifyCashImportPreview
+import kotlin.time.Clock
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
@@ -52,6 +56,8 @@ fun interface ClientStatementParser {
 interface ClientCashImportStore {
     suspend fun batches(session: ClientStoredSession, workspaceId: String): List<ClientCashImportListing>
     suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch?
+    suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
+        read(session, workspaceId, batchId)
     /** Freezing an editable batch must atomically reject associated unresolved account commands. */
     suspend fun compareAndSave(
         session: ClientStoredSession,
@@ -311,6 +317,34 @@ class ClientCashImportOperations(
     ): CashImportReviewOperations.Review {
         val ledger = session.ledger(workspaceId)
         return review(ledger, batch(ledger, batchId), timezone, updatedChoices)
+    }
+
+    suspend fun reviewView(workspaceId: String?, batchId: String, timezone: String): CashImportReviewView {
+        val ledger = session.ledger(workspaceId)
+        val snapshot = ledger.ledger.snapshot
+        session.requireCurrent(ledger.binding)
+        val batch = store.readPreview(ledger.binding, snapshot.workspaceId, batchId)
+            ?: throw ClientOperationFailure("batch_not_found", 404)
+        session.requireCurrent(ledger.binding)
+        val planId = batch.planId
+        val reusable = batch.submission == null && batch.result == null && planId != null &&
+            batch.ledgerSeq == snapshot.ledgerSeq && snapshot.rulesVersion == CASH_RULES_VERSION
+        val previous = if (reusable) batch.review?.let(LocalCashImportReview::decode) else null
+        if (planId == null || previous?.conclusion() == null) {
+            return review(ledger, batch(ledger, batchId), timezone, updatedChoices = null).reads
+        }
+        calendar.validateImportZone(timezone)
+        val frozenChoices = freezeCashImportChoices(previous.inputJson())
+        val plan = buildLocalCashImportBusinessPlan(
+            parsedFiles(ledger, batch), snapshot, frozenChoices, previous.previousPlan(), previous.recordIds(),
+            requireActive = {}, now = Clock.System::now,
+        )
+        val reader = cashImportPlanReader(
+            identifyCashImportPreview(freezeLocalCashImportPreviewPlan(plan), planId, batchId, batch.revision), calendar,
+        )
+        reader.validateReadable()
+        session.requireCurrent(ledger.binding)
+        return CashImportReviewView(reader)
     }
 
     private suspend fun review(

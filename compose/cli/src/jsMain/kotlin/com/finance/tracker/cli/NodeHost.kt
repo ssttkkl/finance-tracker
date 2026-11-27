@@ -199,13 +199,20 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
 
     override suspend fun read(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? {
         val key = "${slot(session, workspaceId)}.import.$batchId"
-        val batch = read<ClientCashImportBatch>(key) ?: return null
-        if (batch.id != batchId) throw ClientOperationFailure("local_state_unreadable")
+        val batch = readPreviewBatch(key, batchId) ?: return null
         if (batch.planId == null || batch.submission != null || batch.result != null) return batch
         val review = read<StoredReviewedCommand>("$key.file.reviewed")
         return if (review != null && review.planId == batch.planId && review.revision == batch.revision &&
             review.ledgerSeq == batch.ledgerSeq) batch.copy(reviewed = review.command) else batch
     }
+
+    override suspend fun readPreview(session: ClientStoredSession, workspaceId: String, batchId: String): ClientCashImportBatch? =
+        readPreviewBatch("${slot(session, workspaceId)}.import.$batchId", batchId)
+
+    private fun readPreviewBatch(key: String, batchId: String): ClientCashImportBatch? =
+        read<ClientCashImportBatch>(key)?.also {
+            if (it.id != batchId) throw ClientOperationFailure("local_state_unreadable")
+        }
 
     override suspend fun compareAndSave(
         session: ClientStoredSession,

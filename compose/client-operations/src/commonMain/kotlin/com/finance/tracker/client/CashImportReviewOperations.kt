@@ -113,21 +113,30 @@ fun cashImportPlanReader(plan: JsonObject, calendar: CashLedgerCalendar): LocalC
         summarizeLocalCashImportMonths(rows) { text -> calendar.monthAt(parsePythonCashTimestamp(text, allowNaive = true), zone) }
     }
 
+class CashImportReviewView internal constructor(private val reader: LocalCashImportPlanReader) {
+    fun items(cursor: String?, limit: Int, status: String = "all"): CashPlanItemPageDto =
+        clientJson.decodeFromJsonElement(CashPlanItemPageDto.serializer(), reader.page("items", cursor, limit = limit, confirmationStatus = status))
+
+    fun item(id: String): CashPlanItemDetailDto =
+        clientJson.decodeFromJsonElement(CashPlanItemDetailDto.serializer(), reader.detail(id))
+
+    fun processing(cursor: String?, limit: Int): CashPlanProcessingPageDto =
+        clientJson.decodeFromJsonElement(CashPlanProcessingPageDto.serializer(), reader.page("processing_details", cursor, limit = limit))
+}
+
 class CashImportReviewOperations(private val workspaceId: String, private val calendar: CashLedgerCalendar) {
     class Review internal constructor(
         val workspaceId: String,
         val plan: CashImportPlanDto,
         val calculation: CashImportCalculation,
-        private val reader: LocalCashImportPlanReader,
+        internal val reads: CashImportReviewView,
     ) {
         fun items(cursor: String?, limit: Int, status: String = "all"): CashPlanItemPageDto =
-            clientJson.decodeFromJsonElement(CashPlanItemPageDto.serializer(), reader.page("items", cursor, limit = limit, confirmationStatus = status))
+            reads.items(cursor, limit, status)
 
-        fun item(id: String): CashPlanItemDetailDto =
-            clientJson.decodeFromJsonElement(CashPlanItemDetailDto.serializer(), reader.detail(id))
+        fun item(id: String): CashPlanItemDetailDto = reads.item(id)
 
-        fun processing(cursor: String?, limit: Int): CashPlanProcessingPageDto =
-            clientJson.decodeFromJsonElement(CashPlanProcessingPageDto.serializer(), reader.page("processing_details", cursor, limit = limit))
+        fun processing(cursor: String?, limit: Int): CashPlanProcessingPageDto = reads.processing(cursor, limit)
 
         fun resultInput(): LocalCashImportResultInput = LocalCashImportResultInput.freeze(calculation.plan)
     }
@@ -150,6 +159,6 @@ class CashImportReviewOperations(private val workspaceId: String, private val ca
         val reader = cashImportPlanReader(identifyCashImportPreview(computation.plan, planId, batchId, revision), calendar)
         reader.validateReadable()
         val plan = clientJson.decodeFromJsonElement(CashImportPlanDto.serializer(), reader.view(choices.timezoneName))
-        return Review(workspaceId, plan, computation, reader)
+        return Review(workspaceId, plan, computation, CashImportReviewView(reader))
     }
 }

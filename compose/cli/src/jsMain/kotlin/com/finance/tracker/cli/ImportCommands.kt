@@ -94,7 +94,7 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
                 reviewResult(operations.review(expected, batch, zone, choices))
             }
             "items" -> {
-                val review = operations.review(expected, batch, zone)
+                val review = operations.reviewView(expected, batch, zone)
                 val page = review.items(options["--cursor"], options.integer("--limit") ?: 50, options["--status"] ?: "all")
                 terminal(CashPlanItemPageDto.serializer(), page, buildString {
                     page.items.forEach { appendLine("${it.previewItemId}  ${it.confirmationStatus}  ${it.display.amount.orEmpty()}  ${it.display.currency.orEmpty()}") }
@@ -102,11 +102,11 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
                 }.trimEnd())
             }
             "item" -> {
-                val item = operations.review(expected, batch, zone).item(options.required("--id"))
+                val item = operations.reviewView(expected, batch, zone).item(options.required("--id"))
                 terminal(CashPlanItemDetailDto.serializer(), item, item.issues.joinToString("\n") { "${it.code}  ${it.message}" })
             }
             "processing" -> {
-                val page = operations.review(expected, batch, zone).processing(options["--cursor"], options.integer("--limit") ?: 50)
+                val page = operations.reviewView(expected, batch, zone).processing(options["--cursor"], options.integer("--limit") ?: 50)
                 terminal(CashPlanProcessingPageDto.serializer(), page, buildString {
                     page.items.forEach { appendLine("${it.rowRef.orEmpty()}  ${it.plannedAction}  ${it.code.orEmpty()}") }
                     page.nextCursor?.let { appendLine("Next cursor $it") }
