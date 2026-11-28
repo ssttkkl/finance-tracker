@@ -523,5 +523,9 @@ V8 分阶段采样定位到归一化来源及索引、预览行和图的映射�
 
 实装 `ft` 与真实 PostgreSQL 的独立并发用例在核对进入来源准备时暂停 3.5 秒。内存路径的普通 `cash list` 与其他批次 `import prepare` 分别为 3,874／4,037 ms。共库、独立 SQLite、独立文件分别为 167／308 ms、498／1,065 ms、411／667 ms。四组同批并发均恰一个新修订，另一进程 `plan_changed`，零 POST。三个磁盘组的胜者均为并行启动的第二进程，先打开临时工作区的进程明确未提交。此为人为暂停的锁竞争复现，原 19 文件整步时延使用无探针托管样本。原始 `local/ft-workspace-concurrency-memory.cisRHk`、`local/ft-workspace-concurrency-shared.ObZZgP`、`local/ft-workspace-concurrency-sqlite.9lbe4H`、`local/ft-workspace-concurrency-file.C74Mwr`。
 
+旧加密缓存的分块输入试验，精确源码为 `abe069bd` 和报告 `candidate.patch`，后端提交与实际 npm SHA-256 见同目录。Linux arm64、默认 Node 26.13.1、PostgreSQL 17.12 与原 19 文件完成全部实装业务断言。参考 `9e1153c9` 核对 76.14 秒／2,455,687,168 B，试验核对 106.78 秒／2,319,060,992 B，确认 60.51 秒／755,179,520 B，均超原固定预算。试验发送一次 65,403,801 B 主请求，收到 202、唯一原收据、12,724 入账、1,700 重复和 2,995 精确关系组，冷进程完整读回相同收据，并实际断网验证账本页。562 个请求无观测错误，并发服务整体峰值 715,452,416 B。核对 8 ms 磁盘采样 11,171 次，全部文件占用峰 119,009,280 B，临时文件字节峰 37,861,919 B，清理后临时文件零字节。该主机有 IO 波动，单次试验用于判断路线与失败边界。原始 `local/ft-client-review-full-fileproduct.rpAFjh`。
+
+同一分块输入的 300 行高转义试验，逻辑输入转义字节下界 72,000,000 B。首次 44.17 秒／1,964,773,376 B，明确 `payload_too_large` 和 `not_committed`，零 POST，时间断言先于数据库断言失败。补验先完成数据库及原键检查，再判资源。22.0 秒／1,948,803,072 B，零新 POST／账本写入／新收据，旧原键恢复唯一原收据和三个成员，RSS 仍超限。复验仅补正确性，不抵消首次超时或用于推断稳定提速。原始 `local/ft-review-oversize-fileproduct.9uUNrP`、`local/ft-review-oversize-fileproduct_recovery.GRimjT`。该分块读取试验未纳入正式候选。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。
