@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { measureCommand } from '../large-measure.mjs';
 
 function cpuSummary(profile) {
@@ -37,9 +38,11 @@ function cpuSummary(profile) {
     };
 }
 
-const [installDir, report] = process.argv.slice(2);
-assert(installDir && report && !process.env.FT_DIAGNOSTIC_CASH_PHASES);
-const installedHost = pathToFileURL(resolve(installDir, 'node_modules/finance-tracker-cli/lib/host.mjs'));
+const [baseInstall, candidateInstall, report] = process.argv.slice(2);
+assert(baseInstall && candidateInstall && report && !process.env.FT_DIAGNOSTIC_CASH_PHASES);
+const bins = Object.fromEntries(Object.entries({ base: baseInstall, candidate: candidateInstall })
+    .map(([key, directory]) => [key, resolve(directory, 'node_modules/.bin/ft')]));
+const installedHost = pathToFileURL(resolve(baseInstall, 'node_modules/finance-tracker-cli/lib/host.mjs'));
 const { openStore } = await import(installedHost);
 const source = new URL('../../src/jvmTest/resources/cash-operation-snapshot.json', import.meta.url);
 const root = mkdtempSync(join(tmpdir(), 'private-ft-cash-phases-'));
@@ -82,62 +85,111 @@ try {
         user: { email }, active_workspace_id: snapshot.workspace_id,
         workspaces: [{ id: snapshot.workspace_id, name: 'Synthetic', role: 'editor' }],
     };
-    process.env.FT_CLI_STATE_DIR = state;
-    process.env.FT_CLI_STORAGE_KEY = key;
-    const cache = openStore(origin, true);
-    let committed = false;
-    const plaintext = JSON.stringify({ generation: 'fixture', ledger: { snapshot, synced_at: transaction.created_at } });
-    try {
-        assert(!cache.error);
-        cache.write('session', JSON.stringify({ token, session }));
-        cache.write(cache.workspaceSlot(token, email, snapshot.workspace_id), plaintext);
-        committed = true;
-    } finally {
-        cache.close(committed);
+    function writeLedger(directory, value) {
+        process.env.FT_CLI_STATE_DIR = directory;
+        process.env.FT_CLI_STORAGE_KEY = key;
+        const cache = openStore(origin, true);
+        let committed = false;
+        const plaintext = JSON.stringify({ generation: 'fixture', ledger: { snapshot: value, synced_at: transaction.created_at } });
+        try {
+            assert(!cache.error);
+            cache.write('session', JSON.stringify({ token, session }));
+            cache.write(cache.workspaceSlot(token, email, value.workspace_id), plaintext);
+            committed = true;
+        } finally {
+            cache.close(committed);
+        }
+        return Buffer.byteLength(plaintext);
     }
-    const bin = resolve(installDir, 'node_modules/.bin/ft');
+    const cachePlainBytes = writeLedger(state, snapshot);
     const cases = [
         { name: 'first', filter: [], expectedCount: 20 },
         { name: 'other-page-and-filter', filter: ['--start-index', '20', '--ledger-seq', snapshot.ledger_seq, '--keyword', 'orchard'], expectedCount: 20 },
         { name: 'other-page-with-monthly-summaries', filter: ['--start-index', '20', '--keyword', 'orchard'], expectedCount: 20 },
     ];
+    const schedule = [
+        { variant: 'base', mode: 'plain' }, { variant: 'candidate', mode: 'plain' },
+        { variant: 'candidate', mode: 'plain' }, { variant: 'base', mode: 'plain' },
+        { variant: 'base', mode: 'traced' }, { variant: 'candidate', mode: 'traced' },
+        { variant: 'candidate', mode: 'cpu' }, { variant: 'base', mode: 'cpu' },
+    ];
     const results = [];
     for (const test of cases) {
-        const args = ['cash', 'list', '--limit', '20', ...test.filter, '--json'];
-        const trace = join(root, test.name + '-trace.jsonl');
-        const samples = {};
-        const cpuFile = test.name + '.cpuprofile';
-        for (const mode of ['plain', 'traced', 'cpu']) {
-            const run = await measureCommand(bin, args, {
+        const first = test.name === 'first';
+        const pinned = test.name === 'other-page-and-filter';
+        const total = first ? count : Math.ceil(count / 3);
+        const ordered = Array.from({ length: count }, (_, index) => index)
+            .filter(index => first || index % 3 === 0).map(index => 'cash-entry:example-entry-' + index)
+            .sort().reverse();
+        const offset = first ? 0 : 20;
+        const expectedIds = ordered.slice(offset, offset + test.expectedCount);
+        const args = ['cash', 'list', '--limit', '20', '--timezone', 'UTC', ...test.filter, '--json'];
+        const samples = [];
+        let reference;
+        for (const [index, { variant, mode }] of schedule.entries()) {
+            const label = test.name + '-' + variant + '-' + mode + '-' + index;
+            const trace = join(root, label + '-trace.jsonl');
+            const cpuFile = label + '.cpuprofile';
+            const run = await measureCommand(bins[variant], args, {
                 env: mode === 'traced' ? { ...env, FT_DIAGNOSTIC_CASH_PHASES: trace } : mode === 'cpu' ?
                     { ...env, NODE_OPTIONS: '--cpu-prof --cpu-prof-dir=' + root + ' --cpu-prof-name=' + cpuFile } : env,
-                timeoutMs: 30_000, outputDir: root, label: test.name + '-' + mode,
+                timeoutMs: 30_000, outputDir: root, label,
             });
-            assert.equal(run.value.page.items.length, test.expectedCount);
-            if (mode === 'plain') samples.value = run.value;
-            else assert.deepEqual(run.value, samples.value);
-            samples[mode] = { ms: run.ms, rssBytes: run.rssBytes };
+            reference ??= run.value;
+            assert(isDeepStrictEqual(run.value, reference), 'Cash list output differs between packages');
+            const page = run.value.page;
+            assert(isDeepStrictEqual(page.items.map(item => item.projection_id), expectedIds), 'Cash entries are out of order');
+            assert.equal(page.total_count ?? null, first ? null : total);
+            if (!first) {
+                assert.equal(page.items_before, offset);
+                assert.equal(page.items_after, total - offset - test.expectedCount);
+            }
+            const expectedExpense = first ? '-6318.080000000000000512' : '-2110.140000000000000171';
+            const expectedMonthly = pinned ? [] : [{ month: '2026-07', currencies: [{ currency: 'CNY', expense: expectedExpense, income: '0' }] }];
+            assert(isDeepStrictEqual(page.monthly_summaries, expectedMonthly), 'The filtered cash totals changed');
+            const expectedPositions = !first && !pinned ? [{ month: '2026-07', start_index: 0, end_index: total }] : [];
+            assert(isDeepStrictEqual(page.month_positions, expectedPositions), 'The month range changed');
+            const sample = { variant, mode, ms: run.ms, rssBytes: run.rssBytes };
+            if (mode === 'traced') {
+                sample.phases = readFileSync(trace, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+                const counts = Object.fromEntries(sample.phases.filter(phase => phase.count !== null).map(phase => [phase.phase, phase.count]));
+                assert.equal(counts.ledger_projection_facts, count);
+                assert.equal(counts.ledger_projections, count);
+                assert.equal(counts.ledger_entries, count);
+                assert.equal(counts.ledger_items_ready, test.expectedCount);
+                assert.equal(counts.ledger_scan_ready, total);
+            }
+            if (mode === 'cpu') {
+                sample.cpu = cpuSummary(JSON.parse(readFileSync(join(root, cpuFile), 'utf8')));
+                assert(sample.cpu.projectionMicros > 0 && sample.cpu.top.length > 0, 'Missing production projection samples');
+            }
+            samples.push(sample);
         }
-        const phases = readFileSync(trace, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-        for (const name of ['cache_blob_start', 'cache_blob_loaded', 'cache_authenticated', 'cache_utf8',
-            'ledger_cache_decoded', 'ledger_graph_start', 'ledger_items_ready', 'terminal_output_ready']) {
-            assert(phases.some(sample => sample.phase === name));
-        }
-        const counts = Object.fromEntries(phases.filter(sample => sample.count !== null).map(sample => [sample.phase, sample.count]));
-        assert.equal(counts.ledger_projection_facts, count);
-        assert.equal(counts.ledger_projections, count);
-        assert.equal(counts.ledger_entries, count);
-        assert.equal(counts.ledger_items_ready, test.expectedCount);
-        assert.equal(counts.ledger_option_transfer_views, 0);
-        assert.equal(counts.ledger_scan_ready, test.name === 'first' ? count : Math.ceil(count / 3));
-        assert.equal(samples.value.page.total_count ?? null, test.name === 'first' ? null : Math.ceil(count / 3));
-        assert.equal(samples.value.page.monthly_summaries.length, test.name === 'other-page-and-filter' ? 0 : 1);
-        const { plain, traced } = samples;
-        const cpu = cpuSummary(JSON.parse(readFileSync(join(root, cpuFile), 'utf8')));
-        assert(cpu.projectionMicros > 0, 'Missing production projection samples');
-        results.push({ case: test.name, items: test.expectedCount, plain, traced, phases, counts, cpu });
+        results.push({ case: test.name, items: test.expectedCount, total, samples });
     }
-    writeFileSync(report, JSON.stringify({ transactions: count, cachePlainBytes: Buffer.byteLength(plaintext), results }, null, 2));
+
+    const invalid = structuredClone(snapshot);
+    // The keyword excludes this row, and its cache is otherwise identical and correctly authenticated.
+    invalid.facts.cash_transactions[1].created_at = '0001-01-01T00:00:00+01:00';
+    const invalidState = join(root, 'invalid-state');
+    writeLedger(invalidState, invalid);
+    const errors = [];
+    for (const [variant, bin] of Object.entries(bins)) {
+        const label = variant + '-invalid-after-filter';
+        try {
+            await measureCommand(bin, ['cash', 'list', '--keyword', 'orchard', '--json'], {
+                env: { ...env, FT_CLI_STATE_DIR: invalidState }, timeoutMs: 30_000, outputDir: root, label,
+            });
+            assert.fail('Expected an out-of-range timestamp to fail before filtering');
+        } catch (failure) {
+            if (!failure.measurement || failure.measurement.code === 0) throw failure;
+            const parsed = JSON.parse(readFileSync(join(root, label + '.json'), 'utf8'));
+            assert(typeof parsed.error?.code === 'string');
+            errors.push({ code: parsed.error.code, exitCode: failure.measurement.code });
+        }
+    }
+    assert(isDeepStrictEqual(errors[0], errors[1]), 'The page-external validation failure changed');
+    writeFileSync(report, JSON.stringify({ transactions: count, cachePlainBytes, results, pageExternalBoundary: errors[0] }, null, 2));
 } finally {
     rmSync(root, { recursive: true, force: true });
 }

@@ -2,6 +2,12 @@ package com.finance.tracker.business.domain
 
 import kotlin.time.Instant
 
+private const val firstCashTimestampSecond = -62135596800L
+private const val afterLastCashTimestampSecond = 253402300800L
+
+internal fun isRepresentableCashTimestamp(value: Instant): Boolean =
+    value.epochSeconds >= firstCashTimestampSecond && value.epochSeconds < afterLastCashTimestampSecond
+
 /** Parse the existing Python ISO timestamp contract, truncating fractions to microseconds. */
 fun parsePythonCashTimestamp(
     value: String,
@@ -35,7 +41,7 @@ fun parsePythonCashTimestamp(
         epochDay * 86400 + seconds - direction * offsetSeconds,
         micros * 1000L - if (offsetSeconds == 0L) 0L else direction * offsetMicros * 1000L,
     )
-    if (instant.epochSeconds < -62135596800L || instant.epochSeconds >= 253402300800L) {
+    if (!isRepresentableCashTimestamp(instant)) {
         if (allowNaive) throw ArithmeticException("date value out of range")
         throw IllegalArgumentException("invalid timestamp")
     }

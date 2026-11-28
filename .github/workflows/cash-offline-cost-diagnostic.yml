@@ -1,19 +1,20 @@
-name: Offline cash projection diagnostic
+name: Offline cash timestamp validation comparison
 
 on:
   push:
-    branches: [perf/trace-cash-ledger-projection]
+    branches: [perf/cash-list-validate-timestamp]
 
 permissions:
   contents: read
 
 jobs:
-  offline-cash-read-phases:
+  offline-timestamp-range:
     runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v5
         with:
@@ -24,24 +25,35 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-      - name: Build and measure only the installed offline CLI
+      - name: Build and compare two installed CLI packages on the same offline fixture
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/cash-page-phases"
-          install="$RUNNER_TEMP/cash-list-install"
-          mkdir -p "$out" "$install"
-          git rev-parse HEAD > "$out/source.txt"
+          out="$RUNNER_TEMP/cash-timestamp-results"
+          packages="$RUNNER_TEMP/cash-timestamp-packages"
+          base="$RUNNER_TEMP/cash-timestamp-base"
+          mkdir -p "$out" "$packages/base" "$packages/candidate"
+          git worktree add --detach "$base" 291a0b80d7a85cdd55c661956dcd0d9f516db61f
+          git rev-parse HEAD > "$out/candidate-source.txt"
+          git -C "$base" rev-parse HEAD > "$out/base-source.txt"
           node --version > "$out/node.txt"
-          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm && ./gradlew --stop)
-          package=$(npm pack --pack-destination "$install" ./compose/cli/build/npm --silent)
-          sha256sum "$install/$package" | cut -d' ' -f1 > "$out/npm-sha256.txt"
-          npm --prefix "$install" install --no-audit --no-fund --ignore-scripts "$install/$package"
-          node compose/client-operations/perf/diagnosis/profile-offline-cash-list.mjs "$install" "$out/cli.json"
-      - name: Upload numeric phase timings
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
+            :business-domain:jvmTest --tests '**.PythonCashTimestampTest' --tests '**.LocalCashLedgerQueryTest' \
+            --tests '**.CashProjectionModelsTest' :cli:stageNpm)
+          (cd "$base/compose" && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm)
+          (cd compose && ./gradlew --stop)
+          npm pack --pack-destination "$packages/base" "$base/compose/cli/build/npm" --silent >/dev/null
+          npm pack --pack-destination "$packages/candidate" ./compose/cli/build/npm --silent >/dev/null
+          for variant in base candidate; do
+            sha256sum "$packages/$variant"/*.tgz | cut -d' ' -f1 > "$out/$variant-npm-sha256.txt"
+            npm install --prefix "$packages/$variant" --no-audit --no-fund --ignore-scripts "$packages/$variant"/*.tgz
+          done
+          node compose/client-operations/perf/diagnosis/profile-offline-cash-list.mjs \
+            "$packages/base" "$packages/candidate" "$out/cli.json"
+      - name: Upload timing, count and validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cash-ledger-projection
-          path: ${{ runner.temp }}/cash-page-phases
+          name: cash-timestamp-comparison
+          path: ${{ runner.temp }}/cash-timestamp-results
           if-no-files-found: error

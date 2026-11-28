@@ -11,7 +11,7 @@ internal fun buildLocalCashProjections(snapshot: LedgerSnapshotDto,
     sample: (String, Int?) -> Unit): CashProjectionBuild<Long, Instant> {
     val data = snapshot.facts
     val values = CashProjectionValues<Long, Instant>({ it > 0 },
-        { runCatching { formatPythonCashTimestamp(it) }.isSuccess }, ::pythonCashUpper)
+        ::isRepresentableCashTimestamp, ::pythonCashUpper)
     val projections = CashProjectionRules(values, ::localCashInstantText)
     val graph = CashRelationGraphRules(values, projections, { it as? Long }, String::toLong)
     val rows = data.cashTransactions.filter { it.deletedAt == null }.sortedBy { it.id.toLong() }

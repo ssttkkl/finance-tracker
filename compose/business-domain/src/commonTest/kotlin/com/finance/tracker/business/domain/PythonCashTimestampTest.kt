@@ -60,6 +60,21 @@ class PythonCashTimestampTest {
     }
 
     @Test
+    fun validationAcceptsExactlyTheFormatterUtcRange() {
+        val samples = listOf(
+            Instant.fromEpochSeconds(-62135596801L, 999999999L) to false,
+            Instant.fromEpochSeconds(-62135596800L) to true,
+            Instant.fromEpochSeconds(0) to true,
+            Instant.fromEpochSeconds(253402300799L, 999999999L) to true,
+            Instant.fromEpochSeconds(253402300800L) to false,
+        )
+        for ((time, accepted) in samples) {
+            assertEquals(accepted, isRepresentableCashTimestamp(time))
+            assertEquals(accepted, runCatching { formatPythonCashTimestamp(time) }.isSuccess)
+        }
+    }
+
+    @Test
     fun workbookDayFormattingKeepsGregorianMonthBoundariesAcrossEras() {
         for (year in (-400..400) + listOf(-10000000, -9999999, 1900, 2000, 9999, 10000, 9999999)) {
             val leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
