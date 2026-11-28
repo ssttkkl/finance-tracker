@@ -211,6 +211,67 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
     }
 });
 
+test('generated ledger snapshots publish from one cursor and keep the previous value on failure', async (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'ft-generated-ledger-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const previousRoot = process.env.FT_CLI_STATE_DIR;
+    const previousKey = process.env.FT_CLI_STORAGE_KEY;
+    t.after(() => {
+        if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
+        else process.env.FT_CLI_STATE_DIR = previousRoot;
+        if (previousKey === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+        else process.env.FT_CLI_STORAGE_KEY = previousKey;
+    });
+    process.env.FT_CLI_STATE_DIR = root;
+    const { openStore } = await import('../npm/lib/host.mjs');
+    const open = create => {
+        process.env.FT_CLI_STORAGE_KEY = Buffer.alloc(32, 73).toString('base64');
+        return openStore('https://generated.test', create);
+    };
+    const pieces = ['a'.repeat(65535) + '😀', '', '测试'.repeat(400000), ']'];
+    let store = open(true);
+    try {
+        let cursors = 0;
+        store.writeGeneratedState('ledger', () => {
+            assert.equal(++cursors, 1, 'snapshot rows were encoded twice');
+            let i = 0;
+            return () => pieces[i++] ?? null;
+        });
+        const generation = store.stateStamp('ledger');
+        assert.throws(() => store.writeGeneratedState('ledger', () => {
+            let emitted = false;
+            return () => {
+                if (emitted) throw new Error('interrupted cursor');
+                emitted = true;
+                return pieces[0];
+            };
+        }), /interrupted cursor/);
+        assert.equal(store.stateStamp('ledger'), generation);
+    } finally {
+        store.close(true);
+    }
+    store = open(false);
+    try {
+        assert.equal(store.read('ledger'), pieces.join(''));
+    } finally {
+        store.close(false);
+    }
+    const sqlite = new DatabaseSync(join(root, 'client.sqlite'));
+    try {
+        const { payload } = sqlite.prepare('SELECT payload FROM client_state WHERE slot = ?').get('ledger');
+        payload[12] ^= 1;
+        sqlite.prepare('UPDATE client_state SET payload = ? WHERE slot = ?').run(payload, 'ledger');
+    } finally {
+        sqlite.close();
+    }
+    store = open(false);
+    try {
+        assert.throws(() => store.read('ledger'), /authenticate|auth tag/i);
+    } finally {
+        store.close(false);
+    }
+});
+
 test('large state writes preserve UTF-8 boundaries without whole plaintext buffers', async () => {
     const root = mkdtempSync(join(tmpdir(), 'ft-encrypted-text-'));
     const previousRoot = process.env.FT_CLI_STATE_DIR;

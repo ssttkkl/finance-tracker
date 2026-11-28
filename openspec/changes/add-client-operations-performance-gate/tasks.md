@@ -622,5 +622,11 @@ D 两轮核对均比 B 和 C 快。B 的 RSS 比 D 分别少 1,273,856 B 和 14,
 
 JVM 共享操作 12 项、SQLite 和真实 PostgreSQL 合同各 13 项、OpenAPI 17 项、Wasm 编译、846 项公开 ABI 检查、npm 实装和 24 项 Node 回归通过。独立评审核验授权、版本固定、跨段完整性和预算，补足未协商、超窗口及回放尺寸不匹配的失败回归。原始报告 `local/ft-client-review-full-bundle_base.ocTR4K`、`local/ft-client-review-full-bundle_real.ZvmmpG`、`local/ft-client-review-full-bundle_base_replay.lLsLA8`、`local/ft-client-review-full-bundle_replay.FV9yPF`，首次失败 `local/ft-client-review-full-bundle_replay.6OwSCc`。实际 #126 仍为 `82bb0b03`，固定检查失败。
 
+### 单次遍历写入账本缓存
+
+原测试在真实 SQLite 写入期观测游标创建 2 次，要求 1 次。候选按实际 UTF-8 片段加密到可增长的缓冲区，绑定原 BLOB 长度。9 项轻量 Node 存储／HTTP 回归通过，覆盖跨 Unicode 分块、扩容、游标异常保留原代次、旧格式及篡改认证。仍有 SQLite 原有的原生拷贝。可增长缓冲区预留约 1 GB 虚拟地址空间，按需提交，受限地址空间尚无完整兼容证据。
+
+同机使用 Node 26.8.1 交错执行 3＋3 个独立进程，实际写入 SQLite 并提交，合成 UTF-8 7,867,154 B。两版旧读端逐字节相同。每次生成片段由 256 降至 128，墙钟中位数 52.30→40.49 ms，写入结束时进程峰值 90,000→89,936 KiB，两组 RSS 范围重叠。只证明无需第二次生成及本小夹具耗时收益。原始 `local/ft-single-cursor-bench.8pMR9n`，Linux 实装 19 文件和固定门禁另验。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。

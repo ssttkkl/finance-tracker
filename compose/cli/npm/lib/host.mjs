@@ -281,9 +281,29 @@ function* generatedStateText(createCursor) {
 }
 
 function sealGeneratedState(key, aad, createCursor) {
-    let bytes = 0;
-    for (const part of generatedStateText(createCursor)) bytes += Buffer.byteLength(part, 'utf8');
-    return sealStateChunks(key, aad, bytes, generatedStateText(createCursor));
+    const nonce = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    cipher.setAAD(aad);
+    // Reserve address space up to the bundled SQLite BLOB limit, committing it in bounded steps.
+    const maxBytes = 1_000_000_000;
+    const growth = 1024 * 1024;
+    const encrypted = new ArrayBuffer(28, { maxByteLength: maxBytes });
+    const ciphertext = new Uint8Array(encrypted);
+    ciphertext.set(nonce);
+    let written = 28;
+    function append(bytes) {
+        const end = written + bytes.length;
+        if (end > encrypted.byteLength) {
+            if (end > maxBytes) throw new RangeError('Generated state exceeds the SQLite BLOB limit');
+            encrypted.resize(Math.min(maxBytes, Math.ceil(end / growth) * growth));
+        }
+        ciphertext.set(bytes, written);
+        written = end;
+    }
+    for (const part of generatedStateText(createCursor)) append(cipher.update(part, 'utf8'));
+    append(cipher.final());
+    ciphertext.set(cipher.getAuthTag(), nonce.length);
+    return Buffer.from(encrypted, 0, written);
 }
 
 function escapedJsonStringBytes(text) {
