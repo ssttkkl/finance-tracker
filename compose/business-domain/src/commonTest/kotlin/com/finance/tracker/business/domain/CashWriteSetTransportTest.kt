@@ -38,6 +38,18 @@ class CashWriteSetTransportTest {
         NewCashWriteReferenceDto("row$index"), "ccb_debit", "file_local", "scope", "file_occurrence", "occ$index",
         "file_local", null, "fixture-v1", coverageValue)
 
+    @Test fun utf8BudgetCountsExactlyLikeThePreviousEncoder() {
+        val edge = listOf("", "a", "\u007f", "\u0080", "\u07ff", "\u0800", "\ud7ff", "\ue000",
+            "\uffff", "\ud800", "\udc00", "\udbff\udfff", "\ud800\ud800\udc00\udc00", "\udc00\ud800", "\r\n")
+        val codeUnits = buildString { for (unit in 0..0xffff) append(unit.toChar()) }
+        for (body in edge + edge.joinToString("") + codeUnits + codeUnits.reversed()) {
+            val size = body.encodeToByteArray().size
+            assertTrue(cashWriteSetFitsUtf8Budget(body, size))
+            assertTrue(cashWriteSetFitsUtf8Budget(body, size + 1))
+            assertFalse(cashWriteSetFitsUtf8Budget(body, size - 1))
+        }
+    }
+
     @Test fun replayOfAnUnchangedEntryExpandsToTheFullLogicalCommand() {
         val request = CashWriteSetRequestDto("5", CASH_RULES_VERSION, CashWriteSetDto(
             transactions = listOf(transactionWrite()), entries = listOf(entryWrite(transactionWrite().target))))

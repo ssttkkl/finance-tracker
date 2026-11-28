@@ -7,8 +7,30 @@ val cashWriteSetJson = Json { encodeDefaults = true; explicitNulls = true }
 
 const val CASH_WRITE_SET_MAX_BYTES = 64 * 1024 * 1024
 
-fun cashWriteSetFitsBudget(body: String): Boolean = body.length <= CASH_WRITE_SET_MAX_BYTES &&
-    body.encodeToByteArray().size <= CASH_WRITE_SET_MAX_BYTES
+fun cashWriteSetFitsBudget(body: String): Boolean = cashWriteSetFitsUtf8Budget(body, CASH_WRITE_SET_MAX_BYTES)
+
+private val malformedUtf8Bytes = "\ud800".encodeToByteArray().size
+
+internal fun cashWriteSetFitsUtf8Budget(body: String, limit: Int): Boolean {
+    if (body.length > limit) return false
+    var remaining = limit - body.length
+    var index = 0
+    while (index < body.length) {
+        val unit = body[index++]
+        if (unit.code < 0x80) continue
+        remaining -= when {
+            unit.code < 0x800 -> 1
+            unit.isHighSurrogate() && index < body.length && body[index].isLowSurrogate() -> {
+                index++
+                2
+            }
+            unit.isSurrogate() -> malformedUtf8Bytes - 1
+            else -> 2
+        }
+        if (remaining < 0) return false
+    }
+    return true
+}
 
 fun isCashWriteSetKey(key: String): Boolean = key.matches(Regex("[A-Za-z0-9_:.~-]{1,255}"))
 
