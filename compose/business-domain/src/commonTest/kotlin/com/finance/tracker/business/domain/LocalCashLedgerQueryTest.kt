@@ -60,6 +60,51 @@ class LocalCashLedgerQueryTest {
         assertEquals(listOf(CashMonthPositionDto("unknown", 0, 1), CashMonthPositionDto("2026-08", 1, 3), CashMonthPositionDto("2026-07", 3, 4)), page.monthPositions)
         assertEquals(listOf("expense", "income"), page.filterOptions.economicTypes.map { it.economicType })
     }
+    @Test fun pageRowsMatchFullRenderingWithGlobalOptionsAndPrecision() {
+        val facts = snapshot()
+        val q = query(facts)
+        val full = buildLocalCashProjectionViews(facts).associateBy { it.transactionId }
+        val expected = listOf("3", "4", "1", "2").map(full::getValue)
+        val page = q.page(input(), startIndex = 0, limit = 2)
+        val later = q.page(input(), startIndex = 2, expectedLedgerSeq = page.projectionVersion, limit = 2)
+        assertEquals(expected, page.items + later.items)
+        assertEquals(buildLocalCashFilterOptions(facts), page.filterOptions)
+        assertEquals(page.filterOptions, later.filterOptions)
+        assertEquals(page.totalCount, later.totalCount)
+        assertEquals(page.pendingItemCount, later.pendingItemCount)
+        assertEquals("-12.340000000000000002", page.monthlySummaries.first().currencies.single().expense)
+    }
+
+    @Test fun badFundingAmountOutsidePageStillRejectsWholeSnapshot() {
+        val base = snapshot()
+        val row = base.facts.cashTransactions.first().copy(recordType = "transfer_out", recordSubtype = "ordinary_transfer")
+        val component = LedgerCashComponentFactDto("91", row.id, "10", row.amount, "CNY", "0", "", "",
+            JsonObject(emptyMap()), row.createdAt)
+        val event = LedgerFundingEventFactDto("20", "USD", null, "invalid")
+        val funding = LedgerInvestmentFundingFactDto("3", component.id, "4", "cash_to_investment",
+            "accepted", "fixture", JsonObject(emptyMap()), "active", "system", row.createdAt, "user", row.createdAt, "", event)
+        val facts = base.facts.copy(
+            cashTransactions = base.facts.cashTransactions.map { if (it.id == row.id) row else it },
+            cashTransactionComponents = listOf(component),
+            cashInvestmentFundingRelations = listOf(funding),
+        )
+        val broken = base.copy(facts = facts)
+        val error = assertFailsWith<IllegalArgumentException> { buildLocalCashProjectionViews(broken) }
+        assertEquals(error.message, assertFailsWith<IllegalArgumentException> {
+            query(broken).page(input(), limit = 1)
+        }.message)
+        val absent = funding.copy(investmentEvent = event.copy(toAmount = null))
+        val compatible = query(base.copy(facts = facts.copy(cashInvestmentFundingRelations = listOf(absent))))
+        val first = compatible.page(input(), limit = 1)
+        assertEquals("3", first.items.single().transactionId)
+        assertEquals(listOf("bank_security_transfer"),
+            first.filterOptions.economicTypes.single { it.economicType == "internal_transfer" }.businessLabels)
+        val fundingPage = compatible.page(input(mapOf("business_label" to "bank_security_transfer",
+            "hide_zero_amount" to "False")), limit = 1)
+        assertEquals("1", fundingPage.items.single().transactionId)
+        assertNull(fundingPage.items.single().transfer)
+    }
+
     @Test fun publicTextDateAndExactAmountsFilterBeforeCountsAndOptionsStayGlobal() {
         val q = query()
         assertEquals(listOf("1"), q.page(input(mapOf("counterparty" to "cafe")), startIndex = 0).items.map { it.transactionId })

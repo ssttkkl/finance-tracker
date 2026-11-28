@@ -76,37 +76,46 @@ internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) 
                 ?: first.sortOrder.toLong().compareTo(second.sortOrder.toLong()).takeIf { it != 0 }
                 ?: pythonStringOrder(first.id, second.id)
         }.mapNotNull { category(it.id) }
-        val base = build().filter { it.visible || it.attentionCount > 0 }
         fun trimmed(value: String?) = value?.trim { it.code in pythonWhitespace }?.takeIf(String::isNotEmpty)
-        val currencies = base.mapNotNull { trimmed(it.currency)?.let(::pythonCashUpper) }.distinct().sortedWith(::pythonStringOrder)
-        val economics = base.mapNotNull { trimmed(it.economicType) }.distinct().sortedWith(::pythonStringOrder).map { kind ->
-            val labels = if (kind == "internal_transfer") base.filter { trimmed(it.economicType) == kind }
-                .mapNotNull { trimmed(it.businessLabel) }.distinct().sortedWith(::pythonStringOrder) else emptyList()
-            CashEconomicTypeFilterOptionDto(kind, labels)
+        val currencies = mutableSetOf<String>()
+        val economics = mutableSetOf<String>()
+        val internalTransferLabels = mutableSetOf<String>()
+        for (row in entries) {
+            val projection = row.projection
+            if (projection.fundingRelationId != null || "transfer_pair" in projection.compositions) transfer(row)
+            if (!projection.visible && projection.attentionCount == 0) continue
+            trimmed(projection.primaryRecord.currency)?.let { currencies.add(pythonCashUpper(it)) }
+            val kind = trimmed(projection.economicType?.value) ?: continue
+            economics.add(kind)
+            if (kind == "internal_transfer") trimmed(projection.businessLabel)?.let(internalTransferLabels::add)
         }
-        return CashFilterOptionsDto(catalog, currencies, economics)
+        return CashFilterOptionsDto(catalog, currencies.sortedWith(::pythonStringOrder),
+            economics.sortedWith(::pythonStringOrder).map { kind ->
+                val labels = if (kind == "internal_transfer") internalTransferLabels.sortedWith(::pythonStringOrder) else emptyList()
+                CashEconomicTypeFilterOptionDto(kind, labels)
+            })
     }
     fun build(): List<CashProjectionDto> = views
 
-    private val views: List<CashProjectionDto> by lazy {
-        val version=snapshot.ledgerSeq.toLong()
-        entries.map {row ->
-            val projection=row.projection;val primary=projection.primaryRecord
-            val kinds=projection.relations.map {it.kind}
-            val codes=projection.memberIds.flatMap {id ->
-                issues[id.toString()].orEmpty().map {it.code}+if(id.toString() in pending)listOf("relation_pending") else emptyList()
-            }.distinct().sortedWith(::pythonStringOrder)
-            CashProjectionDto(row.projectionId,primary.occurredAt?.let(::formatPythonCashTimestamp),
-                account=account(primary.accountId?.toString()),counterparty=row.entry.counterparty,category=category(row.entry.categoryId),note=row.entry.note,
-                amount=money(projection.netAmount),currency=primary.currency,economicType=projection.economicType?.value,businessLabel=projection.businessLabel,
-                composition=kinds.distinct().sortedWith(::pythonStringOrder),memberCount=projection.members.size,
-                acceptedRelationSummary=kinds.groupingBy {it}.eachCount().entries.sortedWith {a,b->pythonStringOrder(a.key,b.key)}
-                    .map {(kind,count)->AcceptedRelationSummaryDto(kind,count)},
-                sourceType=primary.sourceType,sourceTypes=projection.members.mapNotNull {it.first.sourceType?.takeIf(String::isNotEmpty)}.distinct(),
-                recordId=primary.recordId,visible=projection.visible,hiddenReason=projection.hiddenReason,transfer=transfer(row),state=projection.state,
-                statisticsEligible=projection.statisticsEligible,attentionCount=projection.attentionCount.toLong(),confirmationStatus=projection.confirmationStatus,
-                projectionVersion=version,entryId=row.entry.id,transactionId=row.transactionId,recordType=primary.recordType,recordSubtype=primary.recordSubtype,
-                attentionCodes=codes)
-        }
+    private val views by lazy { entries.map(::render) }
+
+    fun render(row: LocalCashLedgerEntry): CashProjectionDto {
+        val version = snapshot.ledgerSeq.toLong()
+        val projection=row.projection;val primary=projection.primaryRecord
+        val kinds=projection.relations.map {it.kind}
+        val codes=projection.memberIds.flatMap {id ->
+            issues[id.toString()].orEmpty().map {it.code}+if(id.toString() in pending)listOf("relation_pending") else emptyList()
+        }.distinct().sortedWith(::pythonStringOrder)
+        return CashProjectionDto(row.projectionId,primary.occurredAt?.let(::formatPythonCashTimestamp),
+            account=account(primary.accountId?.toString()),counterparty=row.entry.counterparty,category=category(row.entry.categoryId),note=row.entry.note,
+            amount=money(projection.netAmount),currency=primary.currency,economicType=projection.economicType?.value,businessLabel=projection.businessLabel,
+            composition=kinds.distinct().sortedWith(::pythonStringOrder),memberCount=projection.members.size,
+            acceptedRelationSummary=kinds.groupingBy {it}.eachCount().entries.sortedWith {a,b->pythonStringOrder(a.key,b.key)}
+                .map {(kind,count)->AcceptedRelationSummaryDto(kind,count)},
+            sourceType=primary.sourceType,sourceTypes=projection.members.mapNotNull {it.first.sourceType?.takeIf(String::isNotEmpty)}.distinct(),
+            recordId=primary.recordId,visible=projection.visible,hiddenReason=projection.hiddenReason,transfer=transfer(row),state=projection.state,
+            statisticsEligible=projection.statisticsEligible,attentionCount=projection.attentionCount.toLong(),confirmationStatus=projection.confirmationStatus,
+            projectionVersion=version,entryId=row.entry.id,transactionId=row.transactionId,recordType=primary.recordType,recordSubtype=primary.recordSubtype,
+            attentionCodes=codes)
     }
 }

@@ -14,7 +14,11 @@ class CashProjectionMonthlyRules<T>(private val normalizeCurrency:(String)->Stri
     private var count=0L
     private var pending=0L
 
-    fun add(occurred:T?,economic:String?,amount:String?,currency:String?,eligible:Boolean=true,attention:Long=0) {
+    fun add(occurred:T?,economic:String?,amount:String?,currency:String?,eligible:Boolean=true,attention:Long=0) =
+        addAmount(occurred, economic, currency, eligible, attention) { LedgerArithmeticValue.fromCanonical(requireNotNull(amount)) }
+
+    internal inline fun addAmount(occurred: T?, economic: String?, currency: String?, eligible: Boolean, attention: Long,
+        amount: () -> LedgerArithmeticValue) {
         val month=occurred?.let(monthAt) ?: "unknown"
         if(positions.lastOrNull()?.first==month) positions[positions.lastIndex]=positions.last().copy(third=count+1)
         else positions+=Triple(month,count,count+1)
@@ -24,7 +28,7 @@ class CashProjectionMonthlyRules<T>(private val normalizeCurrency:(String)->Stri
             if(economic in setOf("income","expense") && !currency.isNullOrEmpty()) {
                 val key=month to normalizeCurrency(currency.trim {it.code in pythonWhitespace})
                 val (income,expense)=totals[key] ?: (LedgerArithmeticValue.ZERO to LedgerArithmeticValue.ZERO)
-                val value=LedgerArithmeticValue.fromCanonical(requireNotNull(amount))
+                val value=amount()
                 totals[key]=if(economic=="income") income.add(value) to expense else income to expense.add(value)
             }
         }

@@ -17,9 +17,6 @@ class LocalCashLedgerQueryInput internal constructor(filters: Map<String, String
 
 /** One committed snapshot; filtering, counts and pagination cannot observe different captures. */
 class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (Instant, String) -> String) {
-    private class Row(val entry: LocalCashLedgerEntry, val view: CashProjectionDto) {
-        val amount = view.amount?.let(LedgerArithmeticValue::fromCanonical)
-    }
     private val workspace = snapshot.workspaceId
     private val version = snapshot.ledgerSeq.toLong()
     private val renderer = LocalCashProjectionViews(snapshot)
@@ -34,14 +31,21 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
     }
     private val options = renderer.options()
     private val categories = snapshot.facts.cashCategories.associateBy { it.id }
-    private val componentAccounts = snapshot.facts.cashTransactionComponents.groupBy { it.cashTransactionId }
-        .mapValues { (_, parts) -> parts.mapNotNull { it.accountId }.toSet() }
-    private val rows = renderer.entries.zip(renderer.build()).map { (entry, view) -> Row(entry, view) }
-        .filter { it.view.visible || it.view.attentionCount > 0 }
-        .sortedWith { first, second ->
-            second.entry.projection.sortAt.compareTo(first.entry.projection.sortAt).takeIf { it != 0 }
-                ?: pythonStringOrder(second.view.projectionId, first.view.projectionId)
+    private val componentAccounts by lazy {
+        buildMap<String, MutableSet<String>> {
+            for (part in snapshot.facts.cashTransactionComponents) {
+                val account = part.accountId ?: continue
+                getOrPut(part.cashTransactionId) { mutableSetOf() }.add(account)
+            }
         }
+    }
+    private val rows by lazy {
+        renderer.entries.filter { it.projection.visible || it.projection.attentionCount > 0 }
+            .sortedWith { first, second ->
+                second.projection.sortAt.compareTo(first.projection.sortAt).takeIf { it != 0 }
+                    ?: pythonStringOrder(second.projectionId, first.projectionId)
+            }
+    }
 
     /** Current stable entry locations, including members which are not the display representative. */
     fun projectionRefs(transactionIds: List<String>): List<CashMutationProjectionRefDto> =
@@ -53,36 +57,39 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
 
     fun record(transactionId: String, canWrite: Boolean): JsonObject = records.read(transactionId, canWrite)
 
-    private fun accepts(row: Row, input: LocalCashLedgerQueryInput): Boolean {
+    private fun accepts(row: LocalCashLedgerEntry, input: LocalCashLedgerQueryInput): Boolean {
         val filters = input.normalizedFilters
-        val view = row.view
-        if (input.transactionIds != null && row.entry.projection.memberIds.none { it.toString() in input.transactionIds }) return false
-        if (filters["state"] != "all" && view.state != filters["state"]) return false
+        val projection = row.projection
+        val root = projection.primaryRecord
+        if (input.transactionIds != null && projection.memberIds.none { it.toString() in input.transactionIds }) return false
+        if (filters["state"] != "all" && projection.state != filters["state"]) return false
         val confirmation = filters["confirmation_status"]
-        if (confirmation != null && (view.attentionCount > 0) != (confirmation == "pending")) return false
-        if (filters["hide_zero_amount"] == "True" && row.amount?.signum == 0) return false
-        val occurred = row.entry.projection.occurredAt
+        if (confirmation != null && (projection.attentionCount > 0) != (confirmation == "pending")) return false
+        val amount = projection.netAmount
+        if (filters["hide_zero_amount"] == "True" && amount?.representation?.coefficient == "0") return false
+        val occurred = projection.occurredAt
         if (input.start != null && (occurred == null || occurred < input.start)) return false
         if (input.end != null && (occurred == null || occurred >= input.end)) return false
         filters["account_id"]?.let { account ->
-            if (row.entry.projection.primaryRecord.accountId?.toString() != account &&
-                row.entry.projection.memberIds.none { account in componentAccounts[it.toString()].orEmpty() }) return false
+            if (root.accountId?.toString() != account &&
+                projection.memberIds.none { account in componentAccounts[it.toString()].orEmpty() }) return false
         }
-        filters["currency"]?.let { if (view.currency != it) return false }
+        filters["currency"]?.let { if (root.currency != it) return false }
         filters["category_id"]?.let { category ->
-            if (view.category?.path.orEmpty().none { it.id == category }) return false
-        } ?: run { if (filters["uncategorized"] == "True" && row.entry.entry.categoryId != null) return false }
-        filters["economic_type"]?.let { if (view.economicType != it) return false }
-        filters["business_label"]?.let { if (view.businessLabel != it) return false }
-        if (!cashLedgerKeywordMatches(view.counterparty, view.note, filters["counterparty"])) return false
-        if (input.minimum != null && (row.amount == null || row.amount < input.minimum)) return false
-        if (input.maximum != null && (row.amount == null || row.amount > input.maximum)) return false
-        val kinds = view.composition.toSet()
+            if (renderer.category(row.entry.categoryId)?.path.orEmpty().none { it.id == category }) return false
+        } ?: run { if (filters["uncategorized"] == "True" && row.entry.categoryId != null) return false }
+        filters["economic_type"]?.let { if (projection.economicType?.value != it) return false }
+        filters["business_label"]?.let { if (projection.businessLabel != it) return false }
+        if (!cashLedgerKeywordMatches(row.entry.counterparty, row.entry.note, filters["counterparty"])) return false
+        if (input.minimum != null || input.maximum != null) {
+            val value = amount?.let(LedgerArithmeticValue::fromCashAmount) ?: return false
+            if (input.minimum != null && value < input.minimum || input.maximum != null && value > input.maximum) return false
+        }
         when (filters["composition"]) {
-            "single" -> if (kinds.any { it in setOf("payment_mirror", "refund_offset", "transfer_pair") }) return false
-            "payment_mirror" -> if ("payment_mirror" !in kinds) return false
-            "refund_offset" -> if ("refund_offset" !in kinds) return false
-            "combined" -> if (kinds.count { it in setOf("payment_mirror", "refund_offset", "transfer_pair") } < 2) return false
+            "single" -> if (projection.compositions.isNotEmpty()) return false
+            "payment_mirror" -> if ("payment_mirror" !in projection.compositions) return false
+            "refund_offset" -> if ("refund_offset" !in projection.compositions) return false
+            "combined" -> if (projection.compositions.size < 2) return false
         }
         return true
     }
@@ -96,22 +103,38 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
         val scope = CashLedgerCursorScope(workspace, version, input.normalizedFilters)
         val position = cursor?.takeIf(String::isNotEmpty)?.let(scope::decode)
         input.normalizedFilters["category_id"]?.let { if (it !in categories) throw CashProjectionDomainFailure("invalid_filter") }
-        val filtered = rows.filter { accepts(it, input) }
-        val selected = if (startIndex != null) filtered.drop(startIndex).take(limit)
-            else filtered.asSequence().filter { position == null || position.isAfter(it.entry.projection.sortAt, it.view.projectionId) }.take(limit + 1).toList()
-        val items = selected.take(limit)
-        val monthly = if (expectedLedgerSeq == null) CashProjectionMonthlyRules<Instant>(monthAt = { monthAt(it, input.normalizedFilters.getValue("timezone")!!) }).apply {
-            for (row in filtered) add(row.entry.projection.occurredAt, row.view.economicType, row.view.amount, row.view.currency,
-                row.view.statisticsEligible, row.view.attentionCount)
-        }.result() else null
-        return CashPageDto(version, items = items.map { it.view },
-            nextCursor = if (startIndex == null && selected.size > limit) items.last().let { scope.encode(it.entry.projection.sortAt, it.view.projectionId) } else null,
+        val summaries = if (expectedLedgerSeq == null)
+            CashProjectionMonthlyRules<Instant>(monthAt = { monthAt(it, input.normalizedFilters.getValue("timezone")!!) })
+        else null
+        val items = ArrayList<LocalCashLedgerEntry>(limit)
+        var filteredCount = 0
+        var pendingWithoutSummaries = 0L
+        var hasNext = false
+        for (row in rows) {
+            if (!accepts(row, input)) continue
+            val projection = row.projection
+            summaries?.addAmount(projection.occurredAt, projection.economicType?.value, projection.primaryRecord.currency,
+                projection.statisticsEligible, projection.attentionCount.toLong()) {
+                LedgerArithmeticValue.fromCashAmount(requireNotNull(projection.netAmount))
+            }
+            if (summaries == null && projection.attentionCount > 0) pendingWithoutSummaries++
+            val index = filteredCount++
+            if (hasNext) continue
+            val inPage = if (startIndex != null) index >= startIndex
+                else position == null || position.isAfter(projection.sortAt, row.projectionId)
+            if (inPage) {
+                if (items.size < limit) items.add(row) else hasNext = true
+            }
+        }
+        val monthly = summaries?.result()
+        return CashPageDto(version, items = items.map(renderer::render),
+            nextCursor = if (startIndex == null && hasNext) items.last().let { scope.encode(it.projection.sortAt, it.projectionId) } else null,
             pageSize = limit, filters = input.filters, filterOptions = options,
             monthlySummaries = monthly?.summaries?.map { Json.decodeFromJsonElement<CashMonthlySummaryDto>(it) }.orEmpty(),
-            pendingItemCount = monthly?.pending ?: filtered.count { it.view.attentionCount > 0 }.toLong(),
+            pendingItemCount = monthly?.pending ?: pendingWithoutSummaries,
             monthPositions = if (startIndex != null) monthly?.positions?.map { Json.decodeFromJsonElement<CashMonthPositionDto>(it) }.orEmpty() else emptyList(),
-            startIndex = startIndex, totalCount = if (startIndex != null) filtered.size else null,
-            itemsBefore = startIndex?.coerceAtMost(filtered.size),
-            itemsAfter = startIndex?.let { (filtered.size - it - items.size).coerceAtLeast(0) })
+            startIndex = startIndex, totalCount = if (startIndex != null) filteredCount else null,
+            itemsBefore = startIndex?.coerceAtMost(filteredCount),
+            itemsAfter = startIndex?.let { (filteredCount - it - items.size).coerceAtLeast(0) })
     }
 }
