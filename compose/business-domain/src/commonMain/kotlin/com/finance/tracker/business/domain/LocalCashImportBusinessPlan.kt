@@ -60,7 +60,7 @@ private fun calculateImportPlan(
     val empty = JsonArray(emptyList())
     val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
     val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
-        (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
+        (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray, trustedFrozenPlan = true)
     return CalculatedImportPlan(plan, frozen, changes)
 }
 

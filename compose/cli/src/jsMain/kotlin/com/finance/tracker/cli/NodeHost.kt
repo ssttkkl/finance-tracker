@@ -383,13 +383,12 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         }
 
     override fun openReviewWorkspace(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportReviewWorkspace? {
-        val medium = process.env.FT_PERF_REVIEW_WORKSPACE as String? ?: return null
         val key = slot(session, workspaceId)
         val batch = "$key.import.$batchId"
         check(reviewRead == null)
         reviewRead = ReviewRead(key, stateStamp(key), batch, stateStamp(batch))
         database.releaseImportRead()
-        val workset = database.openImportWorkset(batch, medium)
+        val workset = database.openImportWorkset(batch)
         reviewWorkspace = workset
         return object : CashImportReviewWorkspace {
             private var next = 0

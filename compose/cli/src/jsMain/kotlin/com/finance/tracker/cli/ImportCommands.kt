@@ -3,7 +3,6 @@ package com.finance.tracker.cli
 import com.finance.tracker.business.contracts.CashImportAccountInput
 import com.finance.tracker.business.contracts.CashImportConfirmation
 import com.finance.tracker.business.contracts.AccountCommandViewDto
-import com.finance.tracker.business.contracts.CashImportArchivePage
 import com.finance.tracker.business.contracts.CashImportPlanDto
 import com.finance.tracker.business.contracts.CashImportPreviewInput
 import com.finance.tracker.business.contracts.CashImportSessionDto
@@ -11,8 +10,6 @@ import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashPlanItemDetailDto
 import com.finance.tracker.business.contracts.CashPlanItemPageDto
 import com.finance.tracker.business.contracts.CashPlanProcessingPageDto
-import com.finance.tracker.business.domain.CashImportResultContent
-import com.finance.tracker.business.domain.page
 import com.finance.tracker.client.CashAccountType
 import com.finance.tracker.client.CashAccountCurrenciesResult
 import com.finance.tracker.client.CashImportPreparedFile
@@ -22,10 +19,6 @@ import com.finance.tracker.client.ClientCashImportResume
 import com.finance.tracker.client.ClientImportConfirmationOutcome
 import com.finance.tracker.client.ImportAccountChangeResult
 import com.finance.tracker.client.PreparedCashImport
-import kotlinx.serialization.EncodeDefault
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -266,58 +259,4 @@ private fun confirmationResult(batch: String, value: CashImportConfirmation, rec
         append("Batch $batch  Operation ${value.operationId}  ${status.toString().trim('"')}")
         if (receipt != null) append("  Receipt ${receipt.receiptId}")
     })
-}
-
-internal fun validateImportResultRange(kind: String, offset: Int, limit: Int) {
-    if (kind != "row" && kind != "relation" || offset < 0 || limit !in 1..200) throw CliFailure("invalid_parameter")
-}
-
-internal fun importResult(result: CashImportResultContent, kind: String = "row", offset: Int = 0, limit: Int = 50): TerminalResult {
-    validateImportResultRange(kind, offset, limit)
-    val page = if (result.hasServerItems) try {
-        result.page(kind, offset, limit)
-    } catch (_: IllegalArgumentException) {
-        throw CliFailure("invalid_parameter", "--offset")
-    } else null
-    val receipt = result.displayReceipt()
-    val output = ImportResultOutput(result.batchId, receipt, result.hasServerItems, page)
-    return TerminalResult(importResultText(result.batchId, receipt, result.hasServerItems), output::encode)
-}
-
-internal fun importResultText(batchId: String, receipt: CashMutationReceiptDto, complete: Boolean): String = buildString {
-    appendLine("Batch $batchId  Receipt ${receipt.receiptId}")
-    for ((key, count) in receipt.summary) appendLine("$key  $count")
-    if (!complete) appendLine("Saved. Use ft import resume $batchId to finish retrieving results.")
-}.trimEnd()
-
-private fun CashMutationReceiptDto.needsExactResultIdentifiers(): Boolean =
-    projectionVersion != null || accountRevision != null || account != null ||
-        summary.keys.any { it in exactReadIdentifierFields } || legacyByAccount.keys.any { it in exactReadIdentifierFields }
-
-private fun CashMutationReceiptDto.receiptWithExactIdentifiers() =
-    exactReadIdentifiers(outputJson.encodeToJsonElement(CashMutationReceiptDto.serializer(), this))
-
-internal fun archivedReceiptJson(receipt: CashMutationReceiptDto): String =
-    if (receipt.needsExactResultIdentifiers()) receipt.receiptWithExactIdentifiers().toString()
-    else outputJson.encodeToString(CashMutationReceiptDto.serializer(), receipt)
-
-@OptIn(ExperimentalSerializationApi::class)
-@Serializable
-private data class ImportResultOutput(
-    @SerialName("batch_id") val batchId: String,
-    val receipt: CashMutationReceiptDto,
-    @SerialName("items_complete") val itemsComplete: Boolean,
-    @EncodeDefault(EncodeDefault.Mode.NEVER) val page: CashImportArchivePage? = null,
-) {
-    fun encode(): String {
-        if (!receipt.needsExactResultIdentifiers())
-            return outputJson.encodeToString(this)
-        // Permitted historical receipt metadata still uses the same exact numeric identifier conversion.
-        return buildJsonObject {
-            put("batch_id", batchId)
-            put("receipt", receipt.receiptWithExactIdentifiers())
-            put("items_complete", itemsComplete)
-            page?.let { put("page", outputJson.encodeToJsonElement(CashImportArchivePage.serializer(), it)) }
-        }.toString()
-    }
 }

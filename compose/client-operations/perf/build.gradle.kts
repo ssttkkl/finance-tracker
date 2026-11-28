@@ -5,7 +5,7 @@ plugins {
 
 val copyCliHost = tasks.register<Sync>("copyCliHost") {
     from(rootProject.file("cli/src/jsMain/kotlin/com/finance/tracker/cli")) {
-        include("NodeHost.kt", "LedgerCacheEncoding.kt")
+        include("NodeHost.kt", "LedgerCacheEncoding.kt", "NodeArchivedImportResult.kt", "CliOutput.kt")
     }
     into(layout.buildDirectory.dir("cli-host"))
 }

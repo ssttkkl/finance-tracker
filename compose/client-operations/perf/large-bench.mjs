@@ -270,8 +270,8 @@ async function main() {
         };
         delete cliEnv.NODE_OPTIONS;
         delete cliEnv.NODE_TLS_REJECT_UNAUTHORIZED;
-        if (diagnosticInstall) {
-            evidence.workspaceMedium = process.env.FT_PERF_REVIEW_WORKSPACE ?? 'memory';
+        if (!legacyComparison || diagnosticInstall) {
+            evidence.workspaceMedium = legacyComparison ? 'memory' : 'file';
             evidence.workspaceDisk = [];
         }
         let sequence = 0;
@@ -283,7 +283,9 @@ async function main() {
                 requestFlow = { id: flow, concurrent, beginRss: beginRequestRss, started: 0, pending: [], errors: [] };
                 await writeFile(clocksPath, '');
             }
-            const disk = diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow) ? trackDisk(state) : null;
+            const observeDisk = (!legacyComparison && flow === 'review') ||
+                (diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow));
+            const disk = observeDisk ? trackDisk(state) : null;
             try {
                 const measured = await measureCommand(ft, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
@@ -504,8 +506,16 @@ async function main() {
         });
         assert.deepEqual(review.value.item_counts, { confirmed: 9729, pending: 0 });
         assert.equal(mutatingRequests(reviewStart).length, 0);
+        const reviewDisk = evidence.workspaceDisk?.at(-1);
+        if (!legacyComparison) {
+            assert.equal(reviewDisk?.flow, 'review', 'Missing cash review disk samples');
+            assert.ok(reviewDisk.samples > 2 && reviewDisk.peak.scratch > 0, 'Missing temporary cash review peak');
+            assert.equal(reviewDisk.after.scratch, 0, 'Cash review left temporary blocks');
+            assert.equal(reviewDisk.after.scratchDirectories, 0, 'Cash review left a temporary directory');
+            assert.ok(Number.isSafeInteger(reviewDisk.reusableBytes), 'Missing reusable SQLite space');
+        }
         await record('large.review', review, {
-            summary: review.value.summary, itemCounts: review.value.item_counts,
+            summary: review.value.summary, itemCounts: review.value.item_counts, reviewDisk,
             gcObserver: review.process.gc?.available ?? false,
         });
 

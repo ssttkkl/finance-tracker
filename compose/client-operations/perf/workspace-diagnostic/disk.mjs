@@ -3,12 +3,13 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 export function usage(root) {
-    const result = { apparent:0, allocated:0, main:0, journal:0, scratch:0, files:0 };
+    const result = { apparent:0, allocated:0, main:0, journal:0, scratch:0, scratchDirectories:0, files:0 };
     function inspect(path, scratch=false) {
         for (const entry of readdirSync(path, { withFileTypes:true, throwIfNoEntry:false }) ?? []) {
             const ownScratch = scratch || entry.name.startsWith('.cash-review-');
             const name = join(path,entry.name);
             if (entry.isDirectory()) {
+                if (ownScratch) result.scratchDirectories++;
                 inspect(name,ownScratch);
             } else if (entry.isFile()) {
                 let measured;

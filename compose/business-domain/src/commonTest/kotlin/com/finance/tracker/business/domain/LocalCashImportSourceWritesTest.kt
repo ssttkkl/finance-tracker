@@ -237,6 +237,25 @@ class LocalCashImportSourceWritesTest {
             rows = document.rows.map { it.copy(documentPosition = "p1:t0:r1") }))
     }
 
+    @Test fun sourceEvidenceDoesNotReadUnrelatedPreviewDetails() {
+        val source = snapshot()
+        val files = listOf(documentFile())
+        val (prepared, plan) = calculate(source, files)
+        val inaccessibleDetails = JsonObject(object : AbstractMap<String, JsonElement>() {
+            override val entries: Set<Map.Entry<String, JsonElement>>
+                get() = error("Source evidence must not read frozen preview details")
+        })
+        val complete = buildLocalCashImportSourceWrites(source, files, prepared.source, plan)
+        val lazyPlan = JsonObject(plan + ("item_details" to inaccessibleDetails))
+        assertFails { buildLocalCashImportSourceWrites(source, files, prepared.source, lazyPlan) }
+        val evidenceOnly = buildLocalCashImportSourceWrites(source, files, prepared.source, lazyPlan, array, trustedFrozenPlan = true)
+        assertEquals(complete, evidenceOnly)
+        assertEquals(2, evidenceOnly.sourceEmptyPages.single().pageNumber)
+        val malformed = JsonObject(plan + ("source_candidate_sets" to JsonNull))
+        assertFails { buildLocalCashImportSourceWrites(source, files, prepared.source, malformed) }
+        assertFails { buildLocalCashImportSourceWrites(source, files, prepared.source, malformed, array, trustedFrozenPlan = true) }
+    }
+
     @Test fun emptyDocumentPageAndPerRowCoverageUseTheOriginalPageSelection() {
         val files = listOf(documentFile()); val result = writes(files = files)
         val page = result.sourceEmptyPages.single()

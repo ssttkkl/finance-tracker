@@ -68,7 +68,7 @@ test('cash review workspaces isolate blocks and cannot survive a checkpoint or i
     }
 });
 
-test('all review media release the main state transaction and recover killed generations', async () => {
+test('the file review workspace releases the main state transaction and recovers killed generations', async () => {
     const { spawnSync } = require('node:child_process');
     const { readdirSync } = require('node:fs');
     const { pathToFileURL } = require('node:url');
@@ -90,35 +90,29 @@ test('all review media release the main state transaction and recover killed gen
         ${code}
     `], { env: { ...process.env, FT_CLI_STATE_DIR: root, FT_CLI_STORAGE_KEY: key }, timeout: 5000 });
     try {
-        for (const medium of ['shared', 'sqlite', 'file']) {
-            let store = open();
-            store.write('durable', 'original');
+        let store = open();
+        store.write('durable', 'original');
+        store.releaseImportRead();
+        const work = store.openImportWorkset('same-batch');
+        work.write(0, 'in-progress');
+        assert.equal(child("store.write('other-batch', 'complete'); store.close(true);").status, 0);
+        assert.equal(work.read(0), 'in-progress');
+        store.resumeImportWrite();
+        assert.equal(store.read('other-batch'), 'complete');
+        store.close(true);
+        const killed = child(`
             store.releaseImportRead();
-            const work = store.openImportWorkset('same-batch', medium);
-            work.write(0, 'in-progress');
-            assert.equal(child("store.write('other-batch', 'complete'); store.close(true);").status, 0);
-            assert.equal(work.read(0), 'in-progress');
-            store.resumeImportWrite();
-            assert.equal(store.read('other-batch'), 'complete');
-            store.close(true);
-            const killed = child(`
-                store.releaseImportRead();
-                store.openImportWorkset('same-batch', ${JSON.stringify(medium)}).write(0, 'abandoned');
-                process.kill(process.pid, 'SIGKILL');
-            `);
-            assert.equal(killed.signal, 'SIGKILL');
-            store = open();
-            assert.equal(store.read('durable'), 'original');
-            const recovered = store.openImportWorkset('same-batch', medium);
-            assert.throws(() => recovered.read(0), /missing/);
-            recovered.close();
-            store.close(true);
-            assert.equal(readdirSync(root).filter(name => name.startsWith('.cash-review-')).length, 0);
-        }
-        const inspect = new DatabaseSync(join(root, 'client.sqlite'), { readOnly: true });
-        try {
-            assert.equal(inspect.prepare('SELECT count(*) AS count FROM cash_review_work').get().count, 0);
-        } finally { inspect.close(); }
+            store.openImportWorkset('same-batch').write(0, 'abandoned');
+            process.kill(process.pid, 'SIGKILL');
+        `);
+        assert.equal(killed.signal, 'SIGKILL');
+        store = open();
+        assert.equal(store.read('durable'), 'original');
+        const recovered = store.openImportWorkset('same-batch');
+        assert.throws(() => recovered.read(0), /missing/);
+        recovered.close();
+        store.close(true);
+        assert.equal(readdirSync(root).filter(name => name.startsWith('.cash-review-')).length, 0);
     } finally {
         if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
         else process.env.FT_CLI_STATE_DIR = previousRoot;

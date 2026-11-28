@@ -6,10 +6,15 @@ import kotlinx.serialization.json.*
 /** Compose file-source deltas from one completed local preview; relations and final entries are composed separately. */
 fun buildLocalCashImportSourceWrites(source: LedgerSnapshotDto, files: List<ParsedImportFile>, sources: PreparedCashSourcePlan,
     plan: JsonObject, rowChoices: JsonArray = JsonArray(emptyList())): CashWriteSetDto =
-    LocalSourceWrites(source, files, sources, plan, rowChoices).build()
+    buildLocalCashImportSourceWrites(source, files, sources, plan, rowChoices, trustedFrozenPlan = false)
+
+internal fun buildLocalCashImportSourceWrites(source: LedgerSnapshotDto, files: List<ParsedImportFile>, sources: PreparedCashSourcePlan,
+    plan: JsonObject, rowChoices: JsonArray, trustedFrozenPlan: Boolean): CashWriteSetDto =
+    LocalSourceWrites(source, files, sources, plan, rowChoices, trustedFrozenPlan).build()
 
 private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: List<ParsedImportFile>,
-    private val sources: PreparedCashSourcePlan, private val plan: JsonObject, rowChoices: JsonArray) {
+    private val sources: PreparedCashSourcePlan, private val plan: JsonObject, rowChoices: JsonArray,
+    private val trustedFrozenPlan: Boolean) {
     private val facts = source.facts
     private val transactions = buildLocalCashImportTransactionWrites(source, plan, rowChoices)
     private val operations = plan.getValue("operations").jsonArray.map { it.jsonObject }
@@ -110,9 +115,25 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
                 NewCashWriteReferenceDto("mapping:" + localCashImportDigest(key)), null), key[0], key[1], key[2], selected.getValue(key)) }
     }
 
+    private fun sourceEvidence(): Map<String, Any?> {
+        if (!trustedFrozenPlan) {
+            @Suppress("UNCHECKED_CAST")
+            return decodeLocalCashValue(plan) as Map<String, Any?>
+        }
+        fun evidenceFields(rows: Iterable<JsonElement>, vararg keys: String) = rows.map { row ->
+            keys.associateWith { key -> decodeLocalCashValue(row.jsonObject[key]) }
+        }
+        val evidence = linkedMapOf(
+            "row_decisions" to evidenceFields(plan.getValue("row_decisions").jsonArray, "row_ref", "planned_action"),
+            "operations" to evidenceFields(operations, "transaction_id", "candidate_ids"),
+        )
+        return if ("source_candidate_sets" in plan)
+            evidence + ("source_candidate_sets" to decodeLocalCashValue(plan.getValue("source_candidate_sets")))
+        else evidence
+    }
+
     private fun emptyPages(): List<LedgerSourceEmptyPageFactDto> {
-        @Suppress("UNCHECKED_CAST") val decoded = decodeLocalCashValue(plan) as Map<String, Any?>
-        val groups = cashImportSourceEvidenceGroups(files, sources, decoded)
+        val groups = cashImportSourceEvidenceGroups(files, sources, sourceEvidence())
         val namespaces = CashSourceRows.fileDocumentEvidence(groups.flatten()).map { it.namespace }.toSet()
         val scopes = namespaces.associateBy { namespace -> listOf(namespace.sourceType, namespace.parserVersion,
             localCashSourceDigest(listOf("source-document-v1", namespace.sourceType, namespace.parserVersion, namespace.documentKey))) }

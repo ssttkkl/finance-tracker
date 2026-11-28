@@ -6,8 +6,12 @@ import kotlinx.serialization.json.*
 /** Assemble a completed local file preview into the existing command DTO, without IO or discovery. */
 fun buildLocalCashImportWriteSet(source: LedgerSnapshotDto, files: List<ParsedImportFile>, prepared: PreparedCashSourcePlan,
     plan: JsonObject, rowChoices: JsonArray = JsonArray(emptyList()), relationChoices: JsonArray = JsonArray(emptyList())): CashWriteSetDto =
+    buildLocalCashImportWriteSet(source, files, prepared, plan, rowChoices, relationChoices, trustedFrozenPlan = false)
+
+internal fun buildLocalCashImportWriteSet(source: LedgerSnapshotDto, files: List<ParsedImportFile>, prepared: PreparedCashSourcePlan,
+    plan: JsonObject, rowChoices: JsonArray, relationChoices: JsonArray, trustedFrozenPlan: Boolean): CashWriteSetDto =
     buildLocalCashImportEntryWrites(source, plan, buildLocalCashImportRelationWrites(source, plan,
-        buildLocalCashImportSourceWrites(source, files, prepared, plan, rowChoices), relationChoices))
+        buildLocalCashImportSourceWrites(source, files, prepared, plan, rowChoices, trustedFrozenPlan), relationChoices))
 
 /** Complete the same write set with affected entry results, using private copies of the original ledger state. */
 fun buildLocalCashImportEntryWrites(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): CashWriteSetDto =

@@ -335,62 +335,12 @@ function open(key, aad, encrypted) {
     return tail.length === 0 ? plaintext : Buffer.concat([plaintext, tail]);
 }
 
-function sqliteReviewBlocks(connection, ownsConnection) {
-    connection.exec(`CREATE TABLE IF NOT EXISTS cash_review_work (
-        generation TEXT NOT NULL,
-        block INTEGER NOT NULL,
-        part INTEGER NOT NULL,
-        total INTEGER NOT NULL,
-        payload BLOB NOT NULL,
-        PRIMARY KEY (generation, block, part)
-    ) STRICT, WITHOUT ROWID`);
-    const insert = connection.prepare('INSERT INTO cash_review_work VALUES (?, ?, ?, ?, ?)');
-    const select = connection.prepare('SELECT part, total, payload FROM cash_review_work WHERE generation = ? AND block = ? ORDER BY part');
-    const remove = connection.prepare(`DELETE FROM cash_review_work WHERE generation = ? AND (block, part) IN (
-        SELECT block, part FROM cash_review_work WHERE generation = ? ORDER BY block, part LIMIT 16
-    )`);
-    const generations = connection.prepare('SELECT DISTINCT generation FROM cash_review_work');
-    function removeGeneration(generation) {
-        while (remove.run(generation, generation).changes !== 0) {
-            // Each iteration is an independent bounded transaction when the host has released the main writer.
-        }
-    }
-    return {
-        removeAbandoned() {
-            for (const row of generations.all()) {
-                const owner = /^(\d+)-[0-9a-f]{32}$/.exec(row.generation);
-                if (owner && !processAlive(Number(owner[1]))) removeGeneration(row.generation);
-            }
-        },
-        write(generation, block, parts, encode) {
-            for (let first = 0; first < parts.length; first += 16) {
-                const start = !connection.isTransaction;
-                if (start) connection.exec('BEGIN IMMEDIATE');
-                try {
-                    const end = Math.min(first + 16, parts.length);
-                    for (let part = first; part < end; part++)
-                        insert.run(generation, block, part, parts.length, encode(parts[part], part, parts.length));
-                    if (start) connection.exec('COMMIT');
-                } catch (error) {
-                    if (start && connection.isTransaction) connection.exec('ROLLBACK');
-                    throw error;
-                }
-            }
-        },
-        read: (generation, block) => select.all(generation, block),
-        close(generation) {
-            if (ownsConnection) connection.close();
-            else removeGeneration(generation);
-        },
-    };
-}
-
 function fileReviewBlocks(filename) {
     const descriptor = openSync(filename, 'wx+', 0o600);
     const index = new Map();
     let offset = 0;
     return {
-        write(_, block, parts, encode) {
+        write(block, parts, encode) {
             if (index.has(block)) throw new Error('Cash review block must be UNIQUE');
             const positions = [];
             for (const [part, piece] of parts.entries()) {
@@ -407,7 +357,7 @@ function fileReviewBlocks(filename) {
             fsyncSync(descriptor);
             index.set(block, positions);
         },
-        read(_, block) {
+        read(block) {
             const positions = index.get(block) ?? [];
             return positions.map(([offset, size], part) => {
                 const payload = Buffer.alloc(size);
@@ -434,13 +384,11 @@ function processAlive(pid) {
     }
 }
 
-function importWorksets(database, server, root) {
+function importWorksets(server, root) {
     const active = new Set();
-    let shared;
     let checkedOrphans = false;
     return {
-        open(batch, medium) {
-            if (!['shared', 'sqlite', 'file'].includes(medium)) throw new Error('Invalid cash review workspace medium');
+        open(batch) {
             if (!checkedOrphans) {
                 for (const entry of readdirSync(root, { withFileTypes: true })) {
                     const owner = /^\.cash-review-(\d+)-[a-zA-Z0-9]{6}$/.exec(entry.name);
@@ -450,23 +398,12 @@ function importWorksets(database, server, root) {
                 checkedOrphans = true;
             }
             const generation = process.pid + '-' + randomBytes(16).toString('hex');
-            const directory = medium === 'shared' ? null : mkdtempSync(join(root, '.cash-review-' + process.pid + '-'));
+            const directory = mkdtempSync(join(root, '.cash-review-' + process.pid + '-'));
             let blocks;
             try {
-                if (medium === 'shared') {
-                    if (!shared) {
-                        shared = sqliteReviewBlocks(database, false);
-                        shared.removeAbandoned();
-                    }
-                    blocks = shared;
-                }
-                else if (medium === 'sqlite') {
-                    const connection = new DatabaseSync(join(directory, 'work.sqlite'));
-                    try { blocks = sqliteReviewBlocks(connection, true); }
-                    catch (error) { connection.close(); throw error; }
-                } else blocks = fileReviewBlocks(join(directory, 'blocks'));
+                blocks = fileReviewBlocks(join(directory, 'blocks'));
             } catch (error) {
-                if (directory != null) rmSync(directory, { recursive: true, force: true });
+                rmSync(directory, { recursive: true, force: true });
                 throw error;
             }
             const key = randomBytes(32);
@@ -482,7 +419,7 @@ function importWorksets(database, server, root) {
                     if (typeof text !== 'string') throw new Error('Invalid cash review block text');
                     const parts = [...stateTextChunks(text)];
                     if (parts.length === 0) parts.push('');
-                    blocks.write(generation, block, parts, (piece, part, total) => {
+                    blocks.write(block, parts, (piece, part, total) => {
                         const bytes = Buffer.from(piece);
                         try { return seal(key, associated(block, part, total), bytes); }
                         finally { bytes.fill(0); }
@@ -490,7 +427,7 @@ function importWorksets(database, server, root) {
                 },
                 read(block) {
                     requireBlock(block);
-                    const parts = blocks.read(generation, block);
+                    const parts = blocks.read(block);
                     if (parts.length === 0 || parts.some((row, part) => row.part !== part || row.total !== parts.length))
                         throw new Error('Cash review block is missing or incomplete');
                     return parts.map(({ part, payload }) => {
@@ -502,8 +439,8 @@ function importWorksets(database, server, root) {
                 close() {
                     if (!active.delete(workset)) return;
                     key.fill(0);
-                    try { blocks.close(generation); }
-                    finally { if (directory != null) rmSync(directory, { recursive: true, force: true }); }
+                    try { blocks.close(); }
+                    finally { rmSync(directory, { recursive: true, force: true }); }
                 },
             };
             active.add(workset);
@@ -524,7 +461,7 @@ export function openStore(origin, createKey) {
     let key;
     try {
         database.exec('PRAGMA busy_timeout = 10000; PRAGMA secure_delete = ON; BEGIN IMMEDIATE');
-        const worksets = importWorksets(database, origin, root);
+        const worksets = importWorksets(origin, root);
         const version = database.prepare('PRAGMA user_version').get().user_version;
         if (version > 1) {
             database.close();
@@ -562,8 +499,8 @@ export function openStore(origin, createKey) {
             }
         };
         return {
-            openImportWorkset(batch, medium = 'shared') {
-                return worksets.open(batch, medium);
+            openImportWorkset(batch) {
+                return worksets.open(batch);
             },
             releaseImportRead() { database.exec('COMMIT'); },
             resumeImportWrite() { database.exec('BEGIN IMMEDIATE'); },
