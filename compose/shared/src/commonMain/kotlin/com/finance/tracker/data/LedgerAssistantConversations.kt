@@ -29,6 +29,9 @@ internal data class LedgerAssistantConversation(
     override fun toString(): String = "LedgerAssistantConversation(id=$id, revision=$revision)"
 }
 
+internal fun sentAssistantConversationFiles(messages: List<LedgerAssistantMessage>): List<LedgerAssistantFile> =
+    messages.asReversed().mapNotNull { it.attachment?.takeIf(LedgerAssistantFile::attached) }
+
 @Serializable
 internal data class LedgerAssistantMessage(
     val delivery: LedgerAssistantDelivery? = null,
@@ -36,6 +39,8 @@ internal data class LedgerAssistantMessage(
     val result: LedgerAssistantToolResult? = null,
     val toolTrace: LedgerAssistantToolTrace? = null,
     val attachment: LedgerAssistantFile? = null,
+    val replyStartedAt: String? = null,
+    val replyInterruptedAt: String? = null,
 ) {
     override fun toString(): String = "LedgerAssistantMessage"
 }

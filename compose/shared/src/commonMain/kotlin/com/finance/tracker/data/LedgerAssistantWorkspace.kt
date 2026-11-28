@@ -318,6 +318,17 @@ internal class LedgerAssistantWorkspace(
         onUpdate: (LedgerAssistantConversation) -> Unit,
     ): LedgerAssistantConversation {
         var saved = initial
+        val inputIndex = initial.messages.indexOfLast { it.delivery != null }
+        var replyStartedAt = initial.messages.getOrNull(inputIndex)?.replyStartedAt
+        fun markReplyVisible(visible: Boolean) {
+            if (visible && replyStartedAt == null) replyStartedAt = Clock.System.now().toString()
+        }
+        fun LedgerAssistantConversation.withReplyTime(interruptedAt: String? = null) = copy(
+            messages = messages.mapIndexed { index, message ->
+                if (index == inputIndex) message.copy(replyStartedAt = replyStartedAt, replyInterruptedAt = interruptedAt)
+                else message
+            },
+        )
         val attachments = initial.messages.mapNotNull { it.attachment }.associateBy { it.id }.toMutableMap()
         fun withAttachmentDeadlines(messages: List<LedgerAssistantMessage>) = messages.map { message ->
             val committed = message.attachment?.let { attachments[it.id] }
@@ -325,6 +336,7 @@ internal class LedgerAssistantWorkspace(
         }
         suspend fun finishInterrupted(): LedgerAssistantConversation = update(saved) {
             val interrupted = copy(messages = messages.interruptActiveReads())
+                .withReplyTime(interruptedAt = replyStartedAt?.let { Clock.System.now().toString() })
             if (delivery == null) interrupted else interrupted.replaceDelivery(delivery.interrupted())
         }
 
@@ -337,16 +349,21 @@ internal class LedgerAssistantWorkspace(
                 val executor = LedgerAssistantPromptExecutor(
                     api, checkNotNull(api.boundCredentials), api.requireCurrentRequest, skillsAvailable = skills != null,
                 ) { partial ->
-                    saved = update(saved) { copy(incompleteReply = partial) }.also(onUpdate)
+                    markReplyVisible(partial.isNotBlank())
+                    saved = update(saved) { copy(incompleteReply = partial).withReplyTime() }.also(onUpdate)
                 }
                 runLedgerAssistantAgent(
                     executor, initial.id, initial.checkpoint, continuation,
                     onReadMessages = { observed ->
-                        saved = update(saved) { copy(messages = initial.messages + withAttachmentDeadlines(observed), incompleteReply = null) }.also(onUpdate)
+                        markReplyVisible(observed.any { !it.reply.isNullOrBlank() })
+                        saved = update(saved) {
+                            copy(messages = initial.messages + withAttachmentDeadlines(observed), incompleteReply = null).withReplyTime()
+                        }.also(onUpdate)
                     },
                     executeSkill = skills?.let { it::execute },
                     persistSkill = { work, observed ->
                         work.checkBeforeCommit()
+                        markReplyVisible(observed.any { !it.reply.isNullOrBlank() })
                         val committedAt = Clock.System.now()
                         val sent = work.files.map { it.metadata }.filter { it.attached }.associate { file ->
                             file.id to file.copy(expiresAtMs = committedAt.toEpochMilliseconds() + LEDGER_ASSISTANT_ATTACHMENT_TTL_MS)
@@ -359,7 +376,7 @@ internal class LedgerAssistantWorkspace(
                                 if (file == null) message else message.copy(attachment = file)
                             },
                             incompleteReply = null,
-                        )
+                        ).withReplyTime()
                         val committed = try {
                             store.commitSkillRun(saved, next, work.removed, work.files, work.receipt,
                                 committedAt.toEpochMilliseconds(), work.requiredSource, work.expectedLedgerVersion)
@@ -377,8 +394,10 @@ internal class LedgerAssistantWorkspace(
                     readTool = ::readAssistantTool,
                 )
             }
+            markReplyVisible(round.messages.any { !it.reply.isNullOrBlank() })
             update(saved) {
-                val completed = copy(messages = initial.messages + withAttachmentDeadlines(round.messages), checkpoint = round.checkpoint, draft = round.draft, incompleteReply = null)
+                val completed = copy(messages = initial.messages + withAttachmentDeadlines(round.messages),
+                    checkpoint = round.checkpoint, draft = round.draft, incompleteReply = null).withReplyTime()
                 if (delivery == null) completed else completed.replaceDelivery(checkNotNull(delivery.delivered(delivery.attempt)))
             }
         } catch (_: ApiFailure) {

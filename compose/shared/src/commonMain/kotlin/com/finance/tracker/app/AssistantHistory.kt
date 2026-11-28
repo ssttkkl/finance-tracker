@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +81,9 @@ import com.finance.tracker.core.PlatformModalEscapeHandler
 import com.finance.tracker.core.isWebPlatform
 import com.finance.tracker.core.observeBrowserContextMenu
 import com.finance.tracker.data.LedgerAssistantConversation
+import com.finance.tracker.data.sentAssistantConversationFiles
+import com.finance.tracker.presentation.AssistantAttachmentCard
+import com.finance.tracker.presentation.AssistantBottomSheet
 import com.finance.tracker.presentation.FinanceAlertDialog
 import com.finance.tracker.presentation.AssistantHistoryDialog
 import com.finance.tracker.presentation.LedgerAssistantUi
@@ -87,10 +91,12 @@ import com.finance.tracker.presentation.AssistantHistoryMenuTarget
 import com.finance.tracker.presentation.localizedText
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_delete
+import com.finance.tracker.resources.ic_description
 import com.finance.tracker.resources.ic_edit
 import com.finance.tracker.resources.ic_keep_off
 import com.finance.tracker.resources.ic_more_vert
 import com.finance.tracker.resources.ic_push_pin
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -272,7 +278,7 @@ internal fun AssistantWebHistoryMenu(assistant: LedgerAssistantUi?) {
         val x = with(density) { target.anchor.left.toDp() }.coerceIn(0.dp, maxWidth - width)
         val bottom = with(density) { target.anchor.bottom.toDp() }
         val top = with(density) { target.anchor.top.toDp() }
-        val height = if (assistant.canDeleteHistory(conversation)) 164.dp else 208.dp
+        val height = if (assistant.canDeleteHistory(conversation)) 212.dp else 256.dp
         val y = if (bottom + height <= maxHeight) bottom else (top - height).coerceAtLeast(0.dp)
         Surface(
             Modifier.offset(x, y).width(width).testTag("assistant.history.menu"),
@@ -317,6 +323,16 @@ private fun AssistantHistoryMenuItems(
         onClick = { assistant.requestHistoryDialog(AssistantHistoryDialog.Rename(conversation.id)); close() },
         modifier = Modifier.testTag("assistant.history.rename"),
     )
+    DropdownMenuItem(
+        text = { Text(localizedText("assistant_history_files")) },
+        leadingIcon = { Icon(painterResource(Res.drawable.ic_description), contentDescription = null) },
+        enabled = !pending,
+        onClick = {
+            assistant.requestHistoryDialog(AssistantHistoryDialog.Files(conversation.id, assistant.historyMenu?.restoreFocus))
+            close()
+        },
+        modifier = Modifier.testTag("assistant.history.files"),
+    )
     HorizontalDivider()
     DropdownMenuItem(
         text = {
@@ -338,9 +354,37 @@ private fun AssistantHistoryMenuItems(
 
 @Composable
 internal fun AssistantHistoryDialogs(assistant: LedgerAssistantUi?) {
+    val scope = rememberCoroutineScope()
     val dialog = assistant?.historyDialog ?: return
     val conversation = assistant.conversations.firstOrNull { it.id == dialog.id } ?: return
     val close = { assistant.requestHistoryDialog(null) }
+    if (dialog is AssistantHistoryDialog.Files) {
+        val files = remember(conversation.messages) { sentAssistantConversationFiles(conversation.messages) }
+        AssistantBottomSheet(
+            localizedText("assistant_history_files"), "assistant.files.sheet", "assistant.files.close",
+            localizedText("assistant_history_files_close"),
+            onDismiss = {
+                scope.launch {
+                    close()
+                    androidx.compose.runtime.withFrameNanos { }
+                    dialog.restoreFocus?.invoke()
+                }
+            },
+        ) {
+            Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (files.isEmpty()) Text(localizedText("assistant_history_files_empty"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                files.forEach { file ->
+                    androidx.compose.runtime.key(file.id) {
+                        AssistantAttachmentCard(file) { assistant.readAttachment(conversation.id, file) }
+                    }
+                }
+            }
+        }
+        return
+    }
     val renaming = dialog is AssistantHistoryDialog.Rename
     var title by remember(dialog) { mutableStateOf(conversation.historyTitle.orEmpty()) }
     val blocked = !assistant.canDeleteHistory(conversation) || assistant.historyDeleteBlocked

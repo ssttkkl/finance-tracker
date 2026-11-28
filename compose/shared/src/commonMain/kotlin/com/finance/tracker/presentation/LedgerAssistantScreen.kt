@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -59,6 +59,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +106,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.paneTitle
 import com.finance.tracker.data.LedgerAssistantConversation
@@ -383,7 +385,8 @@ internal fun LedgerAssistantScreen(
     val rows = remember(current?.messages) { assistantMessageRows(current?.messages.orEmpty()) }
     val currentMessages = current?.messages.orEmpty()
     val lastInput = currentMessages.indexOfLast { it.delivery != null }
-    val lastDelivery = currentMessages.getOrNull(lastInput)?.delivery
+    val lastInputMessage = currentMessages.getOrNull(lastInput)
+    val lastDelivery = lastInputMessage?.delivery
     val preview = current?.incompleteReply
     val hasPreview = !preview.isNullOrBlank()
     val visibleReply = hasPreview || currentMessages.drop(lastInput + 1).any { !it.reply.isNullOrBlank() || it.attachment != null }
@@ -408,6 +411,16 @@ internal fun LedgerAssistantScreen(
     var followNextUpdate by remember(current?.id) { mutableStateOf(true) }
     var previousMessageCount by remember(current?.id) { mutableStateOf(0) }
     val hasDraft = current?.draft?.cancelled == false
+    val today = rememberAssistantToday()
+    val replyCopies = remember(rows, hasDraft, hasPreview, replyInterrupted) {
+        assistantReplyCopies(rows, latestPending = hasDraft || hasPreview || replyInterrupted)
+    }
+    val interruptedCopy = if (replyInterrupted) remember(currentMessages, lastInputMessage, preview) {
+        (currentMessages.drop(lastInput + 1).mapNotNull { it.reply } + listOfNotNull(preview))
+            .filter(String::isNotBlank).takeIf { it.isNotEmpty() }?.let {
+                AssistantReplyCopy(it.joinToString("\n\n"), lastInputMessage?.replyInterruptedAt ?: lastInputMessage?.replyStartedAt)
+            }
+    } else null
     LaunchedEffect(current?.messages, hasDraft, hasPreview, replyInterrupted, current?.draft?.command?.receipt) {
         val messageCount = rows.size
         val itemCount = messageCount + (if (hasDraft) 1 else 0) + (if (hasPreview || replyInterrupted) 1 else 0)
@@ -463,7 +476,7 @@ internal fun LedgerAssistantScreen(
                     contentPadding = PaddingValues(top = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 32.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    items(rows) { row ->
+                    itemsIndexed(rows) { rowIndex, row ->
                         val message = row.first()
                         message.delivery?.let { delivery ->
                             BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
@@ -524,20 +537,23 @@ internal fun LedgerAssistantScreen(
                                     item.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
                                     item.attachment?.let { file -> AssistantAttachmentCard(file) { ui.readAttachment(current.id, file) } }
                                 }
+                                replyCopies[rowIndex]?.let { AssistantReplyActions(it, today) }
                             }
                         }
                     }
                     if (hasPreview || replyInterrupted) item {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             preview?.let { AssistantReply(it, markdownImages) }
-                            if (replyInterrupted) AssistantRetryStatus(
-                                "assistant_reply_interrupted", Modifier.testTag("assistant.reply-interrupted"),
-                                enabled = !ui.busy && connection.canSubmit,
-                            ) {
-                                followNextUpdate = true
-                                if (lastDelivery?.status == LedgerAssistantDeliveryStatus.NOT_DELIVERED) {
-                                    ui.retry(current.id, lastDelivery.messageId)
-                                } else ui.recoverWrite(current.id)
+                            if (replyInterrupted) AssistantReplyActions(interruptedCopy, today) {
+                                AssistantRetryStatus(
+                                    "assistant_reply_interrupted", Modifier.testTag("assistant.reply-interrupted"),
+                                    enabled = !ui.busy && connection.canSubmit, inline = true,
+                                ) {
+                                    followNextUpdate = true
+                                    if (lastDelivery?.status == LedgerAssistantDeliveryStatus.NOT_DELIVERED) {
+                                        ui.retry(current.id, lastDelivery.messageId)
+                                    } else ui.recoverWrite(current.id)
+                                }
                             }
                         }
                     }
@@ -628,23 +644,35 @@ private fun AssistantComposer(
 }
 
 @Composable
-private fun AssistantRetryStatus(label: String, modifier: Modifier, enabled: Boolean, onRetry: () -> Unit) {
+private fun AssistantRetryStatus(label: String, modifier: Modifier, enabled: Boolean, inline: Boolean = false, onRetry: () -> Unit) {
     val color = MaterialTheme.colorScheme.error
     val style = MaterialTheme.typography.labelSmall
     val retryLabel = localizedText("assistant_retry")
-    Row(modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(if (inline) modifier else modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             localizedText(label),
             Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             color = color, style = style, fontWeight = FontWeight.Normal,
         )
-        Text(
-            retryLabel,
-            Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onRetry)
-                .semantics { contentDescription = retryLabel }
-                .padding(start = 8.dp, top = 3.dp, bottom = 3.dp).testTag("assistant.retry"),
-            color = color, style = style, fontWeight = FontWeight.Bold,
-        )
+        if (inline) {
+            TextButton(
+                onClick = onRetry,
+                enabled = enabled,
+                modifier = Modifier.testTag("assistant.retry"),
+                colors = ButtonDefaults.textButtonColors(contentColor = color),
+                contentPadding = PaddingValues(horizontal = 6.dp),
+            ) {
+                Text(retryLabel, style = style, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Text(
+                retryLabel,
+                Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onRetry)
+                    .semantics { contentDescription = retryLabel }
+                    .padding(start = 8.dp, top = 3.dp, bottom = 3.dp).testTag("assistant.retry"),
+                color = color, style = style, fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -722,14 +750,42 @@ private fun AssistantToolSummary(trace: LedgerAssistantToolTrace, onOpen: (Focus
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AssistantToolSheet(trace: LedgerAssistantToolTrace, onDismiss: () -> Unit) {
     val label = assistantToolLabel(trace.tool)
     val status = assistantToolStatus(trace.status)
+    AssistantBottomSheet(label, "assistant.tool.sheet", "assistant.tool.close", localizedText("assistant_close_tool"), onDismiss) {
+        AssistantToolSheetContent(trace, status)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun AssistantBottomSheet(
+    title: String,
+    tag: String,
+    closeTag: String,
+    closeLabel: String,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
     val closeFocus = remember { FocusRequester() }
     val bodyHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } * 0.68f
-    val sheetModifier = Modifier.testTag("assistant.tool.sheet").semantics { paneTitle = label }
+    val sheetModifier = Modifier.testTag(tag).semantics { paneTitle = title }
+    val body: @Composable () -> Unit = {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onDismiss, modifier = Modifier.focusRequester(closeFocus).testTag(closeTag)) {
+                Icon(painterResource(Res.drawable.ic_close), closeLabel)
+            }
+        }
+        Column(Modifier.fillMaxWidth().heightIn(max = bodyHeight).verticalScroll(rememberScrollState())) {
+            content()
+        }
+    }
     if (isWebPlatform) {
         // Keep the Web sheet in the app canvas so pointer and focus coordinates share the root.
         PlatformModalEscapeHandler(enabled = true, onEscape = onDismiss)
@@ -738,6 +794,7 @@ private fun AssistantToolSheet(trace: LedgerAssistantToolTrace, onDismiss: () ->
                 Box(
                     Modifier.matchParentSize()
                         .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                        .focusProperties { canFocus = false }.clearAndSetSemantics { }
                         .clickable(interactionSource = null, indication = null, onClick = onDismiss),
                 )
                 Surface(
@@ -745,11 +802,9 @@ private fun AssistantToolSheet(trace: LedgerAssistantToolTrace, onDismiss: () ->
                     shape = BottomSheetDefaults.ExpandedShape,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                 ) {
-                    Column(
-                        Modifier.fillMaxWidth().focusProperties { onExit = { cancelFocusChange() } }.focusGroup(),
-                    ) {
+                    Column(Modifier.fillMaxWidth().focusProperties { onExit = { cancelFocusChange() } }.focusGroup()) {
                         BottomSheetDefaults.DragHandle(Modifier.align(Alignment.CenterHorizontally))
-                        AssistantToolSheetContent(trace, label, status, bodyHeight, closeFocus, onDismiss)
+                        body()
                     }
                 }
             }
@@ -767,7 +822,7 @@ private fun AssistantToolSheet(trace: LedgerAssistantToolTrace, onDismiss: () ->
             modifier = sheetModifier,
             properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true),
         ) {
-            AssistantToolSheetContent(trace, label, status, bodyHeight, closeFocus, onDismiss)
+            body()
             LaunchedEffect(sheetState.currentValue) {
                 if (sheetState.currentValue == SheetValue.Expanded) closeFocus.requestFocus()
             }
@@ -776,26 +831,10 @@ private fun AssistantToolSheet(trace: LedgerAssistantToolTrace, onDismiss: () ->
 }
 
 @Composable
-private fun AssistantToolSheetContent(
-    trace: LedgerAssistantToolTrace,
-    label: String,
-    status: String,
-    bodyHeight: androidx.compose.ui.unit.Dp,
-    closeFocus: FocusRequester,
-    onDismiss: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-        IconButton(onClick = onDismiss, modifier = Modifier.focusRequester(closeFocus).testTag("assistant.tool.close")) {
-            Icon(painterResource(Res.drawable.ic_close), localizedText("assistant_close_tool"))
-        }
-    }
+private fun AssistantToolSheetContent(trace: LedgerAssistantToolTrace, status: String) {
     Column(
-        Modifier.fillMaxWidth().heightIn(max = bodyHeight).verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp).testTag("assistant.tool.detail"),
+        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp)
+            .testTag("assistant.tool.detail"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AssistantToolDetailSection(localizedText("assistant_tool_status"), status)
