@@ -11,7 +11,11 @@ private fun invalidWriteEntry(path: String): Nothing = throw CashPolicyError("en
 
 /** Affected business groups and old-entry dependencies only; stored identities, values and authorization remain caller-owned. */
 internal fun validateCashWriteSetEntryTopology(changes: CashWriteSetDto, facts: LedgerFactsDto, aliases: CashWriteSetSourceAliases = CashWriteSetSourceAliases()): List<LedgerCashEntryFactDto> {
-    val topology = prepareCashWriteSetEntryTopology(changes, facts, aliases)
+    return validateCashWriteSetEntryGroups(changes, aliases, prepareCashWriteSetEntryTopology(changes, facts, aliases))
+}
+
+internal fun validateCashWriteSetEntryGroups(changes: CashWriteSetDto, aliases: CashWriteSetSourceAliases,
+    topology: CashWriteEntryTopology): List<LedgerCashEntryFactDto> {
     val requested = changes.entries.mapIndexed { index, row ->
         val group = row.members.mapTo(linkedSetOf()) { aliases.transaction(it.transaction.reference) }
         val path = "entries[$index]"

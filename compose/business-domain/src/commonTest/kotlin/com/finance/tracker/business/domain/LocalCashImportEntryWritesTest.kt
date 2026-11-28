@@ -21,6 +21,25 @@ class LocalCashImportEntryWritesTest {
         assertTrue(changes.entries.isEmpty()); assertTrue(changes.entryDependencies.isEmpty())
     }
 
+    @Test fun generatedGroupsDoNotExpandTheAlreadySelectedTopology() {
+        for (action in listOf(null, "accept")) {
+            val (source, plan, input) = calculated(action, multipleRows = true)
+            val aliases = CashWriteSetSourceAliases()
+            val observed = input.copy(entryDependencies = source.facts.cashEntries.map {
+                CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(it.id), it.revision)
+            })
+            val prepared = prepareCashImportWriteSetEntryEdits(observed, source.facts)
+            val topology = prepareCashWriteSetEntryTopology(prepared, source.facts)
+            val result = buildLocalCashImportEntryWrites(source, plan, input)
+            assertEquals(topology, prepareCashWriteSetEntryTopology(result, source.facts))
+            val missing = result.copy(entries = emptyList())
+            val rebuilt = assertFailsWith<CashPolicyError> { validateCashImportWriteSetEntryTopology(missing, source.facts, aliases) }
+            val reused = assertFailsWith<CashPolicyError> { validateCashImportWriteSetEntryTopology(missing, source.facts, aliases, topology) }
+            assertEquals(rebuilt.code, reused.code)
+            assertEquals(rebuilt.fields, reused.fields)
+        }
+    }
+
     @Test fun sourcePreEditCommonChoiceAndFinalEditKeepSeparateBusinessResults() {
         val (source, original, input) = calculated("accept")
         val sourceBefore = source.copy(); val inputBefore = input.copy()

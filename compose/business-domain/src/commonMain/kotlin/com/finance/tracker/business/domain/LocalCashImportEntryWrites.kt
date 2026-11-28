@@ -104,7 +104,9 @@ private class LocalEntryWrites(private val facts: LedgerFactsDto, private val pl
                 } }, edited[index].orEmpty().sortedWith(::pythonStringOrder))
         }
         return prepared.copy(entries = results, entryDependencies = topology.affected.map { version(it.id, it.revision) }).also {
-            validateCashImportWriteSetEntryTopology(it, facts)
+            // Every published group contains only members already reached from the source and relation writes.
+            // Final explicit edits add their own seed parents and retain the full validation path.
+            validateCashImportWriteSetEntryTopology(it, facts, CashWriteSetSourceAliases(), topology.takeIf { finalEdits.isEmpty() })
         }
     }
 
