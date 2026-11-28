@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /** Temporary, operation-scoped storage for exact JSON blocks. */
 interface CashImportReviewWorkspace {
@@ -65,6 +66,22 @@ private class StoredReviewList(
 private class StoredReviewIterator(private val values: Iterator<JsonElement>) : Iterator<JsonElement> by values
 
 internal fun JsonArray.isStoredReviewList(): Boolean = iterator() is StoredReviewIterator
+
+internal class StoredReviewPlanList(private val items: JsonArray, private val decode: (JsonElement) -> Any?) : AbstractList<Any?>() {
+    override val size get() = items.size
+    override fun get(index: Int): Any? = decode(items[index])
+    fun operationReference(index: Int): String? = ((items[index] as? JsonObject)?.get("operation_ref") as? JsonPrimitive)
+        ?.takeIf { it.isString }?.content
+}
+
+internal fun JsonArray.reviewObjects(): List<JsonObject> {
+    if (!isStoredReviewList()) return map { it.jsonObject }
+    return object : AbstractList<JsonObject>() {
+        override val size get() = this@reviewObjects.size
+        override fun get(index: Int): JsonObject = this@reviewObjects[index].jsonObject
+    }
+}
+
 
 private interface StoredReviewEntries
 

@@ -189,6 +189,17 @@ open class CashImportPlanViewRules<I : Comparable<I>>(
     fun operationIndex(plan: Map<String, Any?>): Map<String, Map<String, Any?>> {
         val operations = plan["operations"] ?: emptyList<Any?>()
         if (operations !is List<*> || plan.valueOrDefault("detail_values", emptyMap<String, Any?>()) !is Map<*, *>) throw CashImportPlanError("plan_build_failed")
+        if (operations is StoredReviewPlanList) {
+            val keys = LinkedHashSet<String>(operations.size)
+            for (index in operations.indices) {
+                val ref = operations.operationReference(index)
+                if (ref == null || !reference(ref, 128) || !keys.add(ref)) throw CashImportPlanError("plan_build_failed")
+            }
+            return lazyReviewMap(keys.toList()) { index ->
+                @Suppress("UNCHECKED_CAST")
+                operations[index] as Map<String, Any?>
+            }
+        }
         val result = linkedMapOf<String, Map<String, Any?>>()
         for (raw in operations) {
             val operation = raw as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")

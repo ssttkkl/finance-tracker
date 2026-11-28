@@ -60,5 +60,5 @@ internal fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>, workspac
     return encode(value, emptyList()).jsonObject
 }
 
-internal val storedReviewArrays = setOf("items", "monthly_source", "processing_details", "row_decisions")
+internal val storedReviewArrays = setOf("items", "monthly_source", "operations", "processing_details", "row_decisions")
 internal val storedReviewObjects = setOf("item_details", "detail_values")

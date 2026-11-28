@@ -18,7 +18,7 @@ internal fun localCashImportChoiceKeys(source: LedgerSnapshotDto, plan: JsonObje
 
 private class PlanConclusion(private val facts: LedgerFactsDto, private val plan: JsonObject, private val values: CashImportConclusionValues) {
     private val participants = linkedSetOf<String>()
-    private val operations = plan.objects("operations")
+    private val operations = plan.getValue("operations").jsonArray.reviewObjects()
     private val operationParents = operations.associate { it.text("operation_ref")!! to it.text("preview_transaction_id")!! }
     private val rowParents = operations.flatMap { operation -> operation.getValue("row_refs").jsonArray.map {
         it.jsonPrimitive.content to operation.text("preview_transaction_id")!!

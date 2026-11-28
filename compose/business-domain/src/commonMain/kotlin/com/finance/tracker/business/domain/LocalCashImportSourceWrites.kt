@@ -17,7 +17,7 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
     private val trustedFrozenPlan: Boolean) {
     private val facts = source.facts
     private val transactions = buildLocalCashImportTransactionWrites(source, plan, rowChoices)
-    private val operations = plan.getValue("operations").jsonArray.map { it.jsonObject }
+    private val operations = plan.getValue("operations").jsonArray.reviewObjects()
     private val parents = facts.cashTransactions.associateBy { it.id }
     private val records = sources.records.associateBy { it.transactionId }
     private val oldBindings = facts.cashSourceBindings.associateBy {
@@ -30,7 +30,8 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
     private val empty = JsonObject(emptyMap())
 
     fun build(): CashWriteSetDto {
-        for ((operation, row) in operations.zip(transactions)) {
+        for ((index, operation) in operations.withIndex()) {
+            val row = transactions[index]
             @Suppress("UNCHECKED_CAST") val decoded = decodeLocalCashValue(operation) as Map<String, Any?>
             val unchanged = cashImportIssuesUnchanged(decoded, ::sourceTruthy)
             val record = operation.text("transaction_id")?.let(records::getValue)

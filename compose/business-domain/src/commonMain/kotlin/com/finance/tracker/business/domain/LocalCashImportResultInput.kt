@@ -9,7 +9,7 @@ class LocalCashImportResultInput private constructor(private val body: String) {
 
     companion object {
         fun freeze(plan: JsonObject): LocalCashImportResultInput {
-            val operations = plan.getValue("operations").jsonArray.map { it.jsonObject }
+            val operations = plan.getValue("operations").jsonArray.reviewObjects()
             val positions = operations.withIndex().associate { it.value.text("operation_ref") to it.index }
             check(positions.size == operations.size) { "cash_import_result_input_invalid" }
             val parents = operations.withIndex().associate { it.value["preview_transaction_id"]?.jsonPrimitive?.content to it.index }

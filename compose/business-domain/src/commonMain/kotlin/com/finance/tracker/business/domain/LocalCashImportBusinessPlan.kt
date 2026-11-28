@@ -61,7 +61,9 @@ private fun calculateImportPlan(
     val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
     val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray, trustedFrozenPlan = true)
-    return CalculatedImportPlan(plan, frozen, changes)
+    val retained = if (workspace == null) plan else localCashImportChoiceContextFromPlan(plan) +
+        mapOf("can_commit" to plan["can_commit"], "entry_targets" to plan["entry_targets"])
+    return CalculatedImportPlan(retained, frozen, changes)
 }
 
 private data class LocalPreparedImportPlan(val plan: MutableMap<String, Any?>, val sources: PreparedCashSourcePlan)

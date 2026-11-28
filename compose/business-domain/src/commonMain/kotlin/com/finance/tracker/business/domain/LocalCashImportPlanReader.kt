@@ -14,11 +14,7 @@ class LocalCashImportPlanReader(plan: JsonObject, stored: Boolean, private val m
                 lazyReviewMap(keys) { decode(values.getValue(keys[it])) }
             }
             value is JsonArray && value.isStoredReviewList() -> {
-                val values = value
-                object : AbstractList<Any?>() {
-                    override val size get() = values.size
-                    override fun get(index: Int): Any? = decode(values[index])
-                }
+                StoredReviewPlanList(value, ::decode)
             }
             else -> decode(value)
         }
