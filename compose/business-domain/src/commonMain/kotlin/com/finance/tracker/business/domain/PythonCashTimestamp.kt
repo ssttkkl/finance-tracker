@@ -82,13 +82,21 @@ private fun timestampEpochDay(text: String): Long {
     return timestampCalendarDay(year, compact.substring(4, 6).toInt(), compact.substring(6, 8).toInt())
 }
 
+private const val daysBeforeEpoch = 719162L
+private val monthStarts = intArrayOf(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365)
+
+private fun timestampYearStart(year: Int): Long {
+    val previous = year - 1L
+    return previous * 365 + previous.floorDiv(4) - previous.floorDiv(100) + previous.floorDiv(400) - daysBeforeEpoch
+}
+
 internal fun timestampCalendarDay(year: Int, month: Int, day: Int): Long {
-    val months = intArrayOf(31, if (timestampLeapYear(year)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-    require(month in 1..12 && day in 1..months[month - 1])
-    val previousYear = year - 1L
-    var ordinal = previousYear * 365 + previousYear.floorDiv(4) - previousYear.floorDiv(100) + previousYear.floorDiv(400)
-    for (index in 0 until month - 1) ordinal += months[index]
-    return ordinal + day - 1 - 719162
+    require(month in 1..12)
+    val leap = if (timestampLeapYear(year)) 1 else 0
+    val start = monthStarts[month - 1] + if (month > 2) leap else 0
+    val end = monthStarts[month] + if (month >= 2) leap else 0
+    require(day in 1..(end - start))
+    return timestampYearStart(year) + start + day - 1
 }
 
 private fun timestampLeapYear(year: Int): Boolean = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
@@ -127,20 +135,31 @@ internal fun formatBankCoverageDay(day: Long): String = timestampDateText(day, -
 // Raw workbook serials retain the original Java numeric narrowing, even outside business timestamp years.
 internal fun formatCashWorkbookDay(day: Long): String = timestampDateText(day, -10_000_000, 10_000_000)
 
-private fun timestampDateText(day:Long,firstYear:Int,afterLastYear:Int):String {
-    require(day>=timestampCalendarDay(firstYear,1,1) && day<timestampCalendarDay(afterLastYear,1,1))
-    var low=firstYear;var high=afterLastYear
-    while(high-low>1) {
-        val middle=(low+high)/2
-        if(timestampCalendarDay(middle,1,1)<=day) low=middle else high=middle
+private fun timestampDateText(day: Long, firstYear: Int, afterLastYear: Int): String {
+    require(day >= timestampYearStart(firstYear) && day < timestampYearStart(afterLastYear))
+    val ordinal = day + daysBeforeEpoch
+    val cycles = ordinal.floorDiv(146097L).toInt()
+    var remaining = ordinal.mod(146097L).toInt()
+    // The last year in the 400-year cycle is a leap year.
+    val centuries = minOf(remaining / 36524, 3)
+    remaining -= centuries * 36524
+    val fourYears = remaining / 1461
+    remaining -= fourYears * 1461
+    val years = minOf(remaining / 365, 3)
+    val year = 1 + cycles * 400 + centuries * 100 + fourYears * 4 + years
+    val yearDay = remaining - years * 365
+    val leap = if (timestampLeapYear(year)) 1 else 0
+    var month = 1
+    while (month < 12 && yearDay >= monthStarts[month] + (if (month >= 2) leap else 0)) month++
+    val date = yearDay - monthStarts[month - 1] - (if (month > 2) leap else 0) + 1
+    val yearText = when {
+        year < 0 -> "-" + (-year).toString().padStart(4, '0')
+        year >= 10000 -> "+$year"
+        else -> year.toString().padStart(4, '0')
     }
-    val year=low
-    var month=1
-    while(month<12 && timestampCalendarDay(year,month+1,1)<=day) month++
-    val date=day-timestampCalendarDay(year,month,1)+1
-    return (if(year<0) "-"+(-year).toString().padStart(4,'0') else if(year>=10000) "+$year" else year.toString().padStart(4,'0'))+"-"+
-        month.toString().padStart(2,'0')+"-"+date.toString().padStart(2,'0')
+    return "$yearText-${month.toString().padStart(2, '0')}-${date.toString().padStart(2, '0')}"
 }
+
 internal fun shiftCashCandidateDay(day:String,offset:Int):String {
     val parts=day.removePrefix("+").split('-')
     require(parts.size==3)
