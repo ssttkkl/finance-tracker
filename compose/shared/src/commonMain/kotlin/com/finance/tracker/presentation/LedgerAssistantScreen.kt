@@ -545,6 +545,15 @@ internal fun LedgerAssistantScreen(
                     }
                 }
 
+                if (currentMessages.isNotEmpty()) {
+                    Text(
+                        localizedText("assistant_accuracy_notice"),
+                        Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
                 AssistantComposer(input, { input = it }, canSend && input.isNotBlank(), false, sizeClass, ::send)
             }
             if (ui?.busy == true && !awaitingReply && !hasPreview) CircularProgressIndicator(Modifier.padding(8.dp).testTag("assistant.loading"))
@@ -573,13 +582,6 @@ private fun AssistantComposer(
     sizeClass: WindowSizeClass,
     onSend: () -> Unit,
 ) {
-    Text(
-        localizedText("assistant_accuracy_notice"),
-        Modifier.fillMaxWidth().padding(bottom = 6.dp),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.labelSmall,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-    )
     val hint = localizedText("assistant_prompt")
     Box(Modifier.fillMaxWidth().testTag("assistant.composer")) {
     OutlinedTextField(

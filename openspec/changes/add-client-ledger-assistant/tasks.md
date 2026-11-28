@@ -14,6 +14,8 @@
 
 - [x] 修复已复现的对话定位与暗色新对话前景色。旧版首次发送停留在 `/assistant`，刷新丢失选择。390×844 的暗色空白页标题继承了深色背景上的黑色前景。证据见 `/tmp/ledger-route-audit/before.log` 和 `dark-before.png`。
 
+- 核对提示的显示范围属于 C 类局部修复。验收覆盖空白与仅输入时无提示和占位，首条保存后至回复到达前显示，以及重开已有对话后仍显示。
+
 ## 4. 构建
 
 - [x] 接入鉴权代理、设备历史、共享工具与恢复，并连接 Compose 对话页、A2UI 和现有详情。
@@ -43,6 +45,8 @@
 - 工具行视觉调整按 B 类执行。独立审查核对 FinanceTheme 前景色、键盘焦点、原工具操作与结果顺序。相邻有可见结果卡时保留原边界，空目录和详情入口与原渲染共用解析，历史详情仍取原有首个对象。鼠标和触屏共用紧凑行高及点击区域，键盘保留同一行的可见焦点。视觉自检核对默认、悬停、焦点与工具详情。
 
 - 对话地址和暗色空白页按 C 类修复。独立复核确认地址先于本机数据准备保持，跨工作区历史沿既有会话切换，切换期间用会话加载状态。首次保存回调验证原导航入口仍活跃，删除与缺失替换地址。暗色标题使用 `onBackground`，输入、提示和示例沿原组件及配对前景。
+
+- 核对提示独立审查通过。已有消息布局复用原提示样式和输入组件，空白页完全移除提示节点和间距。Material 3 Applying type 的 Label 角色继续用于已有对话的次级提示。仅影响共享呈现，持久化与推理调用按原路径。
 
 ## 6. 测试与 QA
 
@@ -80,6 +84,8 @@
 - 2026-11-28，以 `a9ce210a` 为地址与暗色修复基线。Chrome 开发构建在 1440×900、390×844 用两条真实本机历史验证首次保存、页头新建、切换历史、刷新、直达、浏览器前进后退、重新登录、未知 ID 和删除回退。每个视口只发送两次推理，恢复各路径零额外推理。跨工作区前进后退恢复有权限的工作区，借用另一工作区 ID 回退。证据见 `/tmp/ledger-route-audit/route-final-dev.log` 与 `route-cross-current.log`。同视口深浅色及修正前对照见 http://127.0.0.1:18805/assistant-route/ 。Android 导航定向测试 10 项通过，iOS 模拟器目标编译通过，没有运行原生设备交互。
 
 - 最终 `:webApp:wasmJsBrowserDistribution`、Android 导航定向测试及 iOS 模拟器编译通过。Chrome 从正式产物复跑相同路由流程，延迟工作区切换期间显示「正在恢复会话」，未出现空白页或错误提示。也复跑统一 32 px 工具行、像素悬停差分、两行触屏逐条打开、可见卡顺序和空结果。18804 服务的 JS 与 Wasm SHA-256 均与正式产物相同，三个新增图标均返回 200。证据见 `/tmp/ledger-assistant-final-distribution.log`、`/tmp/ledger-route-audit/route-release.log`、`18804-assets.log`、`/tmp/ledger-tool-spacing-release.log`、`ledger-tool-empty-release.log`、`ledger-tool-card-release.log` 和 `ledger-tool-hover-pixels.log`。
+
+- 核对提示以 `91adac86` 为基线。正式 Web 构建在 Chrome 1440×900、390×844 验证空白及仅输入时无提示节点，标题到输入框的间距均由 45 px 减至 22 px。拦住首轮模型回复时，已保存的消息与输入框上方的提示同时可见。重载已有对话仍保留提示，再次新建立即隐藏。每个视口只有一次主动发送产生推理。Android 和 iOS 模拟器目标编译通过，Web 与两原生端共享此呈现条件。18804 的 JS 和 Wasm 与正式产物一致。证据见 `/tmp/ledger-assistant-notice-before.log`、`ledger-assistant-notice-after.log`、`ledger-assistant-notice-build.log`、`ledger-assistant-notice-preview.log`，截图见 http://127.0.0.1:18805/assistant-notice/ 。
 
 ## 7. 发布
 
