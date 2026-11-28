@@ -70,9 +70,10 @@ jobs:
           git -C "$control" diff --binary > "$out/control.patch"
           git rev-parse HEAD > "$out/candidate-source.txt"
           (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
-            :business-domain:jvmTest --tests '**.LocalCashImportRecalculationTest' \
+            :business-domain:jvmTest --tests '**.LocalCashImportRecalculationTest' --tests '**.LocalCashImportBusinessPlanTest' \
             :client-operations:jvmTest --tests '**.CashImportRecoveryEntryParityTest' \
             :cashImportWorker:compileKotlinWasmJs :backend:installDist :cli:stageNpm)
+          cp compose/business-domain/build/test-results/jvmTest/TEST-*LocalCashImportBusinessPlanTest.xml "$out/"
           (cd "$control/compose" && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm)
           (cd compose && ./gradlew --stop)
           npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
@@ -112,6 +113,7 @@ jobs:
           path: |
             ${{ runner.temp }}/terminal-context/candidate-source.txt
             ${{ runner.temp }}/terminal-context/control.patch
+            ${{ runner.temp }}/terminal-context/TEST-*LocalCashImportBusinessPlanTest.xml
             ${{ runner.temp }}/terminal-context/**/pack.json
             ${{ runner.temp }}/terminal-context/**/large-details.json
             ${{ runner.temp }}/terminal-context/**/measurements.jsonl

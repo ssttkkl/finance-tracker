@@ -61,6 +61,57 @@ class LocalCashImportBusinessPlanTest {
         assertEquals(frozen, freezeLocalCashImportPreviewPlan(build(files)))
     }
 
+    @Test fun choosingTheFinalAccountDirectlyOrAfterAnotherAccountHasTheSameBusinessResult() {
+        val initial = source()
+        val source = initial.copy(facts = initial.facts.copy(accounts = initial.facts.accounts +
+            initial.facts.accounts.single().copy(id = "20", name = "Second cash account")))
+        val original = files().single()
+        val document = checkNotNull(original.document)
+        val files = listOf(original, original.copy(fileRef = "repeat", digest = "a".repeat(64),
+            document = document.copy(rows = document.rows.take(1), observedCount = 1, declaredCount = 1)))
+        fun account(id: String): JsonObject {
+            val choices = input(files)
+            val mappings = choices.getValue("account_selections").jsonArray.map { choice ->
+                JsonObject(choice.jsonObject + ("account_id" to JsonPrimitive(id)))
+            }
+            return JsonObject(choices + ("account_selections" to JsonArray(mappings)))
+        }
+        val clock = Instant.parse("2026-10-01T00:00:00Z")
+        val final = account("20")
+        fun prepare(choices: JsonObject, previous: LocalCashImportReview? = null) = prepareLocalCashImportReview(
+            files, source, choices, previous?.previousPlan(), previous?.recordIds().orEmpty(),
+            includePreviewContext = false, requireActive = {}, progress = {}, now = { clock })
+        val throughA = prepare(account("10")).previousReviewFor(final)
+        val direct = prepare(final)
+        val changed = prepare(final, throughA)
+
+        for (review in listOf(direct, changed)) {
+            assertTrue(review.canCommit)
+            assertEquals(JsonPrimitive(2), review.plan.getValue("summary").jsonObject.getValue("create_posted"))
+            assertEquals(JsonPrimitive(1), review.plan.getValue("summary").jsonObject.getValue("duplicate"))
+            assertEquals(setOf(CashAmount.parse("-10.00"), CashAmount.parse("3.00")),
+                review.changes.transactions.map { CashAmount.parse(checkNotNull(it.values.amount)) }.toSet())
+            assertTrue(review.changes.transactions.all { it.values.accountId == "20" && it.values.currency == "CNY" &&
+                it.components.all { component -> component.accountId == "20" && component.currency == "CNY" } })
+            val relation = review.changes.relations.single()
+            val amounts = review.changes.transactions.associate { it.target to CashAmount.parse(checkNotNull(it.values.amount)) }
+            assertEquals("refund_offset", relation.kind)
+            assertEquals(CashAmount.parse("3.00"), CashAmount.parse(relation.appliedAmount))
+            assertEquals(setOf(CashAmount.parse("-10.00"), CashAmount.parse("3.00")),
+                setOf(amounts.getValue(relation.primaryTransaction), amounts.getValue(checkNotNull(relation.secondaryTransaction))))
+        }
+        fun rowDecisions(review: PreparedCashImportReview) = review.plan.getValue("row_decisions").jsonArray
+            .associate { item -> item.jsonObject.let { it.getValue("row_ref") to it.getValue("planned_action") } }
+        assertEquals(rowDecisions(direct), rowDecisions(changed))
+        assertEquals(direct.plan.getValue("summary"), changed.plan.getValue("summary"))
+        val freshReferences = direct.confirmedReview().recordIds()
+        val retainedReferences = changed.confirmedReview().recordIds()
+        assertEquals(throughA.recordIds(), retainedReferences)
+        println("account-only: referencesEqual=${freshReferences == retainedReferences}, " +
+            "writeSetEqual=${direct.changes == changed.changes}, previewEqual=${direct.plan == changed.plan}, " +
+            "referencedRows=${retainedReferences.size}")
+    }
+
     @Test fun completedPlanOwnsSourceMetadataAfterItsInputIsChanged() {
         val file = files(refund = false).single()
         val document = checkNotNull(file.document)
