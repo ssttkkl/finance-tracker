@@ -8,8 +8,8 @@ import com.finance.tracker.resources.ic_edit_square
 import com.finance.tracker.resources.ic_add
 import com.finance.tracker.resources.ic_account_balance_wallet
 import com.finance.tracker.resources.ic_check
-import com.finance.tracker.resources.ic_chevron_left
-import com.finance.tracker.resources.ic_chevron_right
+import com.finance.tracker.resources.ic_left_panel_close
+import com.finance.tracker.resources.ic_left_panel_open
 import com.finance.tracker.resources.ic_event
 import com.finance.tracker.resources.ic_file_upload
 import com.finance.tracker.resources.ic_keyboard_arrow_down
@@ -346,7 +346,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                 ) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = if (expanded) Alignment.CenterStart else Alignment.Center) {
                         RailGlyph(
-                            if (expanded) NavigationGlyphKind.CHEVRON_LEFT else NavigationGlyphKind.CHEVRON_RIGHT,
+                            if (expanded) NavigationGlyphKind.LEFT_PANEL_CLOSE else NavigationGlyphKind.LEFT_PANEL_OPEN,
                             colors.mutedForShell(),
                             Modifier.padding(start = if (expanded) 12.dp else 0.dp).size(20.dp),
                         )
@@ -942,8 +942,8 @@ private fun AccountAction(
 private enum class NavigationGlyphKind {
     ADD,
     MENU,
-    CHEVRON_LEFT,
-    CHEVRON_RIGHT,
+    LEFT_PANEL_CLOSE,
+    LEFT_PANEL_OPEN,
     CHEVRON_DOWN,
     WALLET,
     IMPORT,
@@ -970,8 +970,8 @@ private fun RailGlyph(kind: NavigationGlyphKind, color: Color, modifier: Modifie
     val painter = when (kind) {
         NavigationGlyphKind.ADD -> painterResource(Res.drawable.ic_add)
         NavigationGlyphKind.MENU -> painterResource(Res.drawable.ic_menu)
-        NavigationGlyphKind.CHEVRON_LEFT -> painterResource(Res.drawable.ic_chevron_left)
-        NavigationGlyphKind.CHEVRON_RIGHT -> painterResource(Res.drawable.ic_chevron_right)
+        NavigationGlyphKind.LEFT_PANEL_CLOSE -> painterResource(Res.drawable.ic_left_panel_close)
+        NavigationGlyphKind.LEFT_PANEL_OPEN -> painterResource(Res.drawable.ic_left_panel_open)
         NavigationGlyphKind.CHEVRON_DOWN -> painterResource(Res.drawable.ic_keyboard_arrow_down)
         NavigationGlyphKind.WALLET -> painterResource(Res.drawable.ic_account_balance_wallet)
         NavigationGlyphKind.IMPORT -> painterResource(Res.drawable.ic_file_upload)

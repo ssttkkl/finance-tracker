@@ -36,6 +36,8 @@
 - 浏览器验证曾发现确认动作使用初始编辑值。A2UI 回调改为读取最新值与提交资格，核对编辑金额、非法金额不发送写入、确认只写一次。
 - 契约复核修复已落地。收据落地后刷新期间仍由同一命令承接后续输入，恢复校验使用共享收据规则。汇总明细只随客户端展示保存，推理上下文仅携带筛选和汇总结果。
 
+- 侧栏图标是 B 类局部呈现调整。独立审查比对 Google Material Symbols Outlined 原路径，确认开关复用既有图标容器、主题前景色及无障碍名称。Material 3 Navigation rail 的 Overview 与 Specs 用于核对展开与收起的图标位置和状态。只涉及宽屏导航开关。
+
 ## 6. 测试与 QA
 
 - [ ] Web 实际操作、Android 和 iOS 编译及单测、适用后端回归；记录当前证据。
@@ -64,6 +66,8 @@
 - Chrome 1440×900 实测甲对话打开时右键乙，置顶和重命名不切换，重载及追加消息保留手动名称，删除非当前不动甲，页头删除当前返回新对话。Shift+F10、Tab、Enter 和 Escape 可从原历史行完成。390×844 以触屏长按进入同一菜单，实际点按历史项，验证等价的置顶、改名、重载、追加消息、删除非当前和页头删除当前。冻结已提交响应期间，页头删除不可执行，模拟丢失响应后重载核实原收据并显式续跑，写入请求总数为 1。证据见 `/tmp/ledger-md-acceptance/history-menu-hoisted.log`、`history-keyboard-hoisted.log`、`history-menu-mobile-final.log`、`history-protected-final.log`。
 - 菜单最终适配通过 `:webApp:wasmJsBrowserDevelopmentWebpack`、`:shared:compileAndroidMain`、`:shared:compileKotlinIosArm64`、`:shared:compileKotlinIosSimulatorArm64`，见 `/tmp/ledger-assistant-history-hoisted.log`、`/tmp/ledger-assistant-history-hoisted-native.log`。
 - 最终 `:webApp:wasmJsBrowserDistribution` 生成正式 Wasm 资源，Chrome 在 1440×900 和 390×844 从发布物复跑流式、断流、重试、待确认 A2UI 卡及 Markdown 图片、链接、局部表格滚动。两视口各 6 次故障夹具推理、零账本写入，A2UI 采用 0.3.0 正常发布资源解析，无资源 HTTP 错误和页面异常。证据见 `/tmp/ledger-assistant-history-hoisted-production.log`、`/tmp/ledger-md-acceptance/stream-production.log`（桌面）、`stream-production-mobile.log` 与 `gfm-production.log`。原生未做设备交互。
+
+- 2026-11-28，侧栏开关基于 `94ef0219`。Chrome 1440×900 使用正式 Web 构建核对两图标资源均为 200、悬浮展开、点击收起、固定展开和 Tab 聚焦展开，开关名称分别为「展开导航」「收起导航」。`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain`、`:shared:compileKotlinIosSimulatorArm64` 通过。Web 与原生宽屏共享资源和样式，窄屏抽屉合同不变。证据见 `/tmp/ledger-panel-symbols-browser-pass.log`、`/tmp/ledger-panel-symbols-build.log` 和 http://127.0.0.1:18805/panel-symbols/ 。
 
 ## 7. 发布
 
