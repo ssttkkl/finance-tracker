@@ -21,7 +21,8 @@
 - [x] 接入原生 QuickJS 适配及正式 Web 分发所用的隔离 Worker。
 - [x] 构建本机账本只读 SDK 宿主和 CSV 解析／生成。
 - [x] 客户端协商、脚本宿主、文件事务、附件、预览与导出。
-- [ ] 复核真实模型与专项负载，完成三端峰值内存和发行验证。
+- [x] 三币种确认退款对照、三端 QuickJS 堆采样、原生系统保存字节和 SQLite 空间不足验收。
+- [ ] 真实模型、原生正式应用从对话到系统保存、应用进程内存和发行验收。
 
 ## 4. 构建
 
@@ -116,7 +117,12 @@
 
 - 技能接线基线 `6e06a90d`，2026-11-28（UTC+8）。`:shared:testAndroidHostTest --tests '*LedgerAssistant*'` 共 10 项通过，无跳过。SQLite 试验覆盖临时文件和附件隔离、到期、同事务写入后失败回滚、过期源和账本版本拒绝。Android APK、iOS 模拟器和 iOS 真机目标编译、正式 Web Wasm 分发均通过。正式 Worker 增加 52,839 字节 JS 和 503,134 字节 Wasm，按需加载。Android arm64 包含 983,704 字节 QuickJS 原生文件；iOS arm64 发布物内原生库为 945,544 字节。这些是组件制品实测，不作为整包净增量或峰值内存。
 - Web 真实 Chromium 在 1440×900 和 390×844 经真实工作区认证、正式推理代理及局部模型替身完成 CSV 和二次 Markdown，费用精度和 CSV 51 字节逐字节核对，重载零推理，完整流程零账本写入。专门注入附件提交后的断流，重载后使用换 ID 的工具调用手动重试，仍一条用户消息及一张附件。宽表长前列不改变后续列对齐，390×844 局部横滚可见末列，Escape 后 Enter 从原按钮重开。
-- 证据见 `/tmp/ledger-skill-release-final.log`、`/tmp/ledger-skill-ios-arm64.log`、`/tmp/ledger-skill-release-http-qa.log`、`/tmp/ledger-skill-release-recovery-qa.log`。互动演示端口 18815，截图端口 18816。18804 继续提供正式构建，原推理进程缺模型配置，演示另用本机模型替身。两端浏览器入口、Worker JS 和 Wasm 已按字节对照正式分发目录。三端实机共用运行时合同，Native 运行时用模拟器脚本验收。未实测原生系统保存交互、应用峰值、三币种／退款组合样例、实机低磁盘空间或 App Store 审查。
+- 证据见 `/tmp/ledger-skill-release-final.log`、`/tmp/ledger-skill-ios-arm64.log`、`/tmp/ledger-skill-release-http-qa.log`、`/tmp/ledger-skill-release-recovery-qa.log`。互动演示端口 18815，截图端口 18816。18804 继续提供正式构建，原推理进程缺模型配置，演示另用本机模型替身。两端浏览器入口、Worker JS 和 Wasm 已按字节对照正式分发目录。三端共用运行时合同，Native 运行时用模拟器脚本验收。
+
+
+- 专项验收基线 `1b2cf0f2`（2026-11-28，UTC+8）。Android 主机使用真正的本机账本投影读取器与脚本宿主比较月份完整摘要和逐笔投影金额。合成交易时刻为 UTC 3 月 31 日 16:15，上海时区进入 4 月。CNY 支出 88.25 经确认退款 8.25 后净支出 80，USD 为 12.34，JPY 为 900。三行投影与账本一致，退款未另算收入。SQLDelight SQLite 用 `max_page_count` 在附件插入位置触发 `SQLITE_FULL`（13），失败后对话保持原修订、附件及收据均不存在。放宽限制后原提交可重试，并读回对话、收据和相同附件。SQLite 自动回滚时外围驱动可能返回「no transaction is active」，测试在原插入处观察错误码。独立只读评审无阻断。Gradle 定向测试日志为 `/tmp/ledger-skill-specialist-qa.log`。
+- Android API 36 模拟器、iOS 18.3 模拟器、Chrome Worker 用相同 QuickJS 负载测量引擎报告的 `memory_used_size`。32 MiB 堆上限，空上下文先建立空数组，再逐批分配及填充 4 个 1 MiB Uint8Array，保留到总计 20 MiB。每批完成后采样并另采释放后样本。基线／最高采样／释放后字节，Android 72,052／21,049,220／72,244，iOS 62,316／21,038,652／62,476，Web 52,731／21,027,963／52,923。这是隔离引擎的采样峰值，不覆盖采样间瞬时分配、进程 RSS、Wasm 线性内存预留及产品 UI／账本缓存。日志为 `/tmp/ledger-skill-heap-{android,ios,web}.log`。
+- 原生系统保存使用独立夹具，Android API 36 从真实 SAF 保存面板选定 Downloads，iOS 18.3 从真实 UIDocumentPicker 选定本机文件夹，分别沿目标 URI／作用域 URL 写入和读回。实际目标各 51 字节，`cmp` 一致，SHA-256 为 `6caf31520b72570f85830288a649ba542ba45fb7681bc4521a31f9bc32067bd7`，文件见 `/tmp/ledger-native-save-qa/{android,ios}/exported.csv`。覆盖系统面板和文件写入链路，正式应用的 Compose 附件卡到 FileKit 调用仍需真机或模拟器端到端复核。未在设备上占满磁盘，第三方文件提供商及 App Store 外部审核未验证。
 
 ## 7. 发布
 

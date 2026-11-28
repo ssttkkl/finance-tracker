@@ -1,5 +1,8 @@
 package com.finance.tracker.data
 
+import app.cash.sqldelight.db.QueryResult
+import app.cash.sqldelight.db.SqlDriver
+import app.cash.sqldelight.db.SqlPreparedStatement
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -81,6 +84,50 @@ class LedgerAssistantFilesTest {
             assertEquals(listOf(saved), store.list())
             assertNull(store.readSkillFile(initial.id, "sent", 11L))
             assertNull(store.skillReceipt(initial.id, "send"))
+        }
+    }
+
+    @Test
+    fun sqliteFullLeavesNoPartialAttachmentOrReceiptAndCanRetry() = runTest {
+        JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).use { driver ->
+            var insertError: Int? = null
+            val observedDriver = object : SqlDriver by driver {
+                override fun execute(
+                    identifier: Int?, sql: String, parameters: Int,
+                    binders: (SqlPreparedStatement.() -> Unit)?,
+                ): QueryResult<Long> = try {
+                    driver.execute(identifier, sql, parameters, binders)
+                } catch (failure: java.sql.SQLException) {
+                    if (sql.trimStart().startsWith("INSERT INTO local_ledger_assistant_files")) {
+                        insertError = failure.errorCode
+                    }
+                    throw failure
+                }
+            }
+            val store = SqlLedgerAssistantConversations.open(observedDriver)
+            val initial = LedgerAssistantConversation("report", "2026-11-28T00:00:00Z")
+            assertTrue(store.swap(null, initial))
+            val pages = driver.executeQuery(null, "PRAGMA page_count", { rows ->
+                check(rows.next().value)
+                QueryResult.Value(checkNotNull(rows.getLong(0)))
+            }, 0).value
+            driver.execute(null, "PRAGMA max_page_count = ${pages + 4}", 0)
+            val file = newLedgerAssistantTemporaryFile("report.txt", "账".repeat(100_000))
+            val attachment = LedgerAssistantFileContent(file.metadata.copy(attached = true), file.text)
+            val next = initial.copy(revision = 1, messages = listOf(LedgerAssistantMessage(attachment = attachment.metadata)))
+            val receipt = LedgerAssistantFileReceipt("send", "fixture", JsonObject(emptyMap()))
+            assertFailsWith<java.sql.SQLException> {
+                store.commitSkillRun(initial, next, emptySet(), listOf(attachment), receipt, 100L)
+            }
+            assertEquals(13, insertError, "SQLite must report SQLITE_FULL at the attachment insert")
+            assertEquals(listOf(initial), store.list())
+            assertNull(store.readSkillFile(initial.id, attachment.metadata.id, 100L))
+            assertNull(store.skillReceipt(initial.id, receipt.callId))
+            driver.execute(null, "PRAGMA max_page_count = ${pages + 1024}", 0)
+            assertTrue(store.commitSkillRun(initial, next, emptySet(), listOf(attachment), receipt, 100L))
+            assertEquals(attachment.text, store.readSkillFile(initial.id, attachment.metadata.id, 100L)?.text)
+            assertEquals(listOf(next), store.list())
+            assertEquals(receipt, store.skillReceipt(initial.id, receipt.callId))
         }
     }
 
