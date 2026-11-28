@@ -48,3 +48,5 @@ Koog 1.3.0 在独立 JVM 进程中可以从已完成的模型节点恢复原工�
 用户已确认 `c260f656` 的[运行时设计](skill-runtime-design-draft.md)，其中的产品范围、授权与中断恢复适用于本变更。按 A 类验证跨端运行时、只读账本边界、版本协商和附件事务。先用发布制品在 Web、Android 和 iOS 验证异步账本读取、相同 CSV 字节、受限执行及中断后的恢复。制品差异和参数以实测定案，再接入产品。
 
 推理请求继续接受旧消息数组。具备本机运行时的客户端才发送包含 `messages` 与 `capabilities: ["assistant-skills-v1"]` 的对象。服务端拒绝未知能力和自定义工具定义，两种响应模式按同一协商目录校验。新工具字段为 `read_skill(skill_id, resource?)`、`run_script(code, input?)` 和 `send_file(file_ref)`，其中 `input` 为可选 JSON 对象。
+
+应用适配固定原生 `quickjs-kt 1.0.19` 和 Web `quickjs-emscripten-core` 标准同步 Wasm `0.32.0`。每次调用创建独立上下文，Web Worker 仅在运行时加载。共享桥按调用次序派发，最多 1024 次，返回时仍有未等待的宿主调用则整次失败。跨桥前检查字节大小，宿主入口再次检查；Web 保留一个在途请求。两端运行与等待共用 10 秒截止，JS 堆上限 32 MiB。

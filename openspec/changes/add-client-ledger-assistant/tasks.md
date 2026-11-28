@@ -18,7 +18,8 @@
 
 - [x] QuickJS 核心运行门槛先行。固定候选依赖，三端以同一脚本执行真实异步账本读取，核对 UTF-8 CSV 字节、同步死循环、等待宿主、迟到响应和下次运行。
 - [x] 服务端能力协商、OpenAPI 和完整工具调用参数检查。
-- [ ] 实施客户端协商、SDK、文件事务、附件和 UI，补正式安装包、懒加载与峰值内存验收。
+- [x] 接入原生 QuickJS 适配及正式 Web 分发所用的隔离 Worker。
+- [ ] 实施客户端协商、SDK、文件事务、附件和 UI，补应用峰值内存验收。
 
 ## 4. 构建
 
@@ -53,6 +54,8 @@
 - 核对提示独立审查通过。已有消息布局复用原提示样式和输入组件，空白页完全移除提示节点和间距。Material 3 Applying type 的 Label 角色继续用于已有对话的次级提示。仅影响共享呈现，持久化与推理调用按原路径。
 
 - 技能协商独立复核覆盖鉴权范围、旧目录、禁止注入和 OpenAPI。已统一协商版缓冲响应与 SSE 的非空调用 ID 检查，并保留旧数组的缓冲响应参数行为。
+
+- 运行时适配独立复核修复两项阻断。共享派发顺序和调用数，拒绝仍有未等待宿主调用时发布结果；Web 在传输前限制字节与在途请求。依赖锁定实际进口模块版本，原生截止涵盖引擎启动与等待。
 
 ## 6. 测试与 QA
 
@@ -98,6 +101,8 @@
 - Android 探针包约 8.2 MiB，iOS 模拟器测试可执行文件约 9.7 MiB，独立 Web 探针首次运行下载 Worker 85,802 字节和 Wasm 503,134 字节。QuickJS 导出结束时采样内存为 Android 76,801、iOS 66,457、Web 53,968 字节，运行上限为 32 MiB。采样值不作为峰值，正式产品体积和峰值仍待验证。18804 已重启原页面和会话数据库，当前运行进程无模型配置。
 
 - 技能协商基线 `e129fe97`，2026-11-28（UTC+8）。新增目录协商用例先失败。后端定向测试 `:backend:test --tests '*LedgerAssistantInferenceTest' --tests '*OpenApiContractTest'` 共 24 项通过，无跳过。分片用例覆盖完整对象参数、未协商时拒绝及数组参数拒绝。OpenSpec 严格校验通过。客户端继续发送旧数组，当前交付不影响 Web、Android 或 iOS 的用户流程。
+
+- 运行时适配基线 `c2afd9b4`。Android 主机桥接用例先编译失败，补实现后通过。Android API 36 和 iOS 18.3 模拟器以应用适配源码验证中文异步返回、宿主错误、同批次串行和未等待调用拒绝。正式 Web Wasm 构建包含 Worker 和引擎，Chrome 从该分发目录加载，验证异步返回、同步中断和再运行。入口分离的引擎与 Worker 合计 555 KB 左右；18804 的 Wasm MIME 为 `application/wasm`。见 `/tmp/ledger-skill-native-android-device.log`、探针 `TEST-iosSimulatorArm64Test.ProductScriptAdapterProbe.xml`、`/tmp/ledger-skill-adapter-final.log` 和 `/tmp/ledger-skill-worker-production-smoke.log`。运行时尚未在对话启用。
 
 ## 7. 发布
 

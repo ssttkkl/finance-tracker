@@ -98,7 +98,11 @@ kotlin {
     applyDefaultHierarchyTemplate()
 
     sourceSets {
+        val nativeScriptSources = layout.projectDirectory.dir("src/mobileMain/kotlin")
+        androidMain { kotlin.srcDir(nativeScriptSources) }
+        iosMain { kotlin.srcDir(nativeScriptSources) }
         androidMain.dependencies {
+            implementation("io.github.dokar3:quickjs-kt:1.0.19")
             implementation(libs.sqldelight.android.driver)
             implementation(libs.sqlcipher.android)
             implementation(libs.androidx.sqlite)
@@ -159,6 +163,7 @@ kotlin {
             }
         }
         iosMain.dependencies {
+            implementation("io.github.dokar3:quickjs-kt:1.0.19")
             implementation(libs.kotlinx.datetime)
             implementation(libs.sqldelight.native.driver)
         }

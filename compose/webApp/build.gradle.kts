@@ -55,6 +55,24 @@ val stageCashImportWorker by tasks.registering(StageCashImportWorker::class) {
     output.set(layout.buildDirectory.dir("generated/cashImportWorker"))
 }
 
+val assistantScriptWorkerSource = layout.projectDirectory.dir("src/assistantScriptWorker")
+val assistantScriptWorkerBuild = layout.buildDirectory.dir("assistantScriptWorker")
+val stageAssistantScriptWorker by tasks.registering(Exec::class) {
+    val output = layout.buildDirectory.dir("generated/assistantScriptWorker")
+    val sourceFiles = files("package.json", "package-lock.json", "build.mjs", "worker.mjs")
+        .map { assistantScriptWorkerSource.file(it.name).asFile }
+    inputs.files(sourceFiles).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(output)
+    val work = assistantScriptWorkerBuild.get().asFile
+    val assets = output.get().dir("assistant-script-worker").asFile
+    workingDir(work)
+    doFirst {
+        work.mkdirs()
+        sourceFiles.forEach { source -> source.copyTo(work.resolve(source.name), overwrite = true) }
+    }
+    commandLine("sh", "-c", "npm ci --ignore-scripts --no-audit --no-fund && npm run build -- \"\$1\"", "worker", assets.absolutePath)
+}
+
 kotlin {
     js {
         browser()
@@ -68,7 +86,11 @@ kotlin {
     }
 
     sourceSets {
-        wasmJsMain { resources.srcDir(stageCashImportWorker) }
+        wasmJsMain {
+            resources.srcDir(stageCashImportWorker)
+            resources.srcDir(stageAssistantScriptWorker)
+        }
+        jsMain { resources.srcDir(stageAssistantScriptWorker) }
         commonMain.dependencies {
             implementation(project(":shared"))
             implementation(libs.compose.ui)
