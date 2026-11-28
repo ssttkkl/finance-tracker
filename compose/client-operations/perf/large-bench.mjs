@@ -636,7 +636,17 @@ async function main() {
             await closeServer(proxy);
             for (const name of ['indexed', 'single_cursor']) await cacheRead(name, 'oldReader', '3',
                 { offline: true, client: cacheVariants.base });
-            checks.ledgerCacheComparison = { seedImports: 1, sameWorkspaceVersion: true, exactMemberPairs: serverFacts.exactPairs,
+            const pageShapes = (label) => requestReports.find(report => report.label === label).requests
+                .filter(request => request.route === 'snapshotPage')
+                .map(({ pageChunks, responseDecodedBytes }) => ({ pageChunks, responseDecodedBytes }));
+            for (const operation of ['first', 'changedVersion']) {
+                const reference = pageShapes(variants.base[operation].label);
+                assert.ok(reference.length > 0);
+                for (const name of ['indexed', 'single_cursor'])
+                    assert.deepEqual(pageShapes(variants[name][operation].label), reference);
+            }
+            checks.ledgerCacheComparison = { seedImports: 1, sameWorkspaceVersion: true, sameVersionPageSizes: true,
+                exactMemberPairs: serverFacts.exactPairs,
                 uniqueReceipt: true, variants, probes };
             checks.completed = false;
             return;
