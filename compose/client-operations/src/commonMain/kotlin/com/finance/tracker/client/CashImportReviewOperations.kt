@@ -53,6 +53,20 @@ fun calculateCashImportReview(
     requireActive: () -> Unit,
 ): CashImportCalculation = calculateCashImportReview(files, snapshot, input, previous, includePreviewContext, progress, requireActive, null)
 
+class CashImportWorkerCalculation internal constructor(
+    val plan: JsonObject,
+    val review: LocalCashImportReview,
+    val request: CashWriteSetRequestDto,
+    val previewContext: JsonElement,
+)
+
+fun calculateCashImportWorkerReview(
+    files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
+): CashImportWorkerCalculation {
+    val result = calculateCashImportReview(files, snapshot, input, previous, true, {}, {}, null, terminal = true)
+    return CashImportWorkerCalculation(result.plan, result.review, result.request, checkNotNull(result.previewContext))
+}
+
 private fun calculateCashImportReview(
     files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
     includePreviewContext: Boolean, progress: (CashImportPlanningStage) -> Unit, requireActive: () -> Unit,

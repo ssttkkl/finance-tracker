@@ -51,17 +51,10 @@ fun prepareLocalCashImportReview(
     workspace: CashImportReviewWorkspace?, includeInteractiveReview: Boolean, sample: (String) -> Unit,
 ): PreparedCashImportReview {
     val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace, sample)
-    val context = if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null
-    val previousReview: (JsonObject) -> LocalCashImportReview = when {
-        !includeInteractiveReview -> { _ -> error("Terminal review has no interactive preview context") }
-        context != null -> {
-            val restore by lazy { LocalCashImportReview.restorePreviewReview(context) }
-            val previousFromContext: (JsonObject) -> LocalCashImportReview = { choices -> restore(choices) }
-            previousFromContext
-        }
-        else -> LocalCashImportReview.forPreview(plan)
-    }
+    val previousReview = if (includeInteractiveReview) LocalCashImportReview.forPreview(plan)
+        else { _: JsonObject -> error("No interactive preview context was requested") }
     sample("interactive_context")
+    val context = if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null
     val retained = LocalCashImportReview.freeze(input, plan)
     sample("retained_context")
     return PreparedCashImportReview(frozen, changes, plan["can_commit"] == true, previousReview, context,

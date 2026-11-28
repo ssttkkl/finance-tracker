@@ -263,6 +263,13 @@ class LocalCashImportRecalculationTest {
         assertEquals(cashWriteSetJson.encodeToString(changes), cashWriteSetJson.encodeToString(terminal.changes))
         assertEquals(expected.encode(), terminal.confirmedReview().encode())
         assertFailsWith<IllegalStateException> { terminal.previousReviewFor(fixture.input) }
+
+        val worker = prepareLocalCashImportReview(fixture.files, fixture.source, fixture.input, null, emptyMap(),
+            includePreviewContext = true, requireActive = {}, progress = {}, now = { evaluatedAt }, workspace = null,
+            includeInteractiveReview = false, sample = {})
+        assertEquals(current.previewContext, worker.previewContext)
+        assertEquals(previousReview(fixture.input).encode(),
+            LocalCashImportReview.restorePreviewReview(checkNotNull(worker.previewContext))(fixture.input).encode())
     }
 
     @Test fun changedBusinessFactsRequireAnotherReviewEvenWhenBothBindingsStillMatch() {

@@ -1894,6 +1894,15 @@
       "reason": "Evidence or result construction, verified by the owning operation"
     },
     {
+      "signature": "CashImportReviewDiagnostics.sampleReviewPhase|sampleReviewPhase(kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Opt-in host observation of existing cash import review phases"
+    },
+    {
+      "signature": "calculateCashImportWorkerReview|calculateCashImportWorkerReview(kotlin.collections.List<com.finance.tracker.business.domain.ParsedImportFile>;com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlinx.serialization.json.JsonObject;com.finance.tracker.business.domain.LocalCashImportReview?){}",
+      "scenarios": ["import.review", "large.review"]
+    },
+    {
       "signature": "calculateCashImportReview|calculateCashImportReview(kotlin.collections.List<com.finance.tracker.business.domain.ParsedImportFile>;com.finance.tracker.business.contracts.LedgerSnapshotDto;kotlinx.serialization.json.JsonObject;com.finance.tracker.business.domain.LocalCashImportReview?;kotlin.Boolean;kotlin.Function1<com.finance.tracker.business.domain.CashImportPlanningStage,kotlin.Unit>;kotlin.Function0<kotlin.Unit>){}",
       "scenarios": [
         "import.review",
@@ -2366,6 +2375,10 @@
         "CashImportCalculation.request.<get-request>|<get-request>(){}",
         "CashImportCalculation.requestBody.<get-requestBody>|<get-requestBody>(){}",
         "CashImportCalculation.review.<get-review>|<get-review>(){}",
+        "CashImportWorkerCalculation.plan.<get-plan>|<get-plan>(){}",
+        "CashImportWorkerCalculation.previewContext.<get-previewContext>|<get-previewContext>(){}",
+        "CashImportWorkerCalculation.request.<get-request>|<get-request>(){}",
+        "CashImportWorkerCalculation.review.<get-review>|<get-review>(){}",
         "CashImportFileCapture.Prepared.component1|component1(){}",
         "CashImportFileCapture.Prepared.copy|copy(com.finance.tracker.business.contracts.StoredCashImportFile){}",
         "CashImportFileCapture.Prepared.equals|equals(kotlin.Any?){}",

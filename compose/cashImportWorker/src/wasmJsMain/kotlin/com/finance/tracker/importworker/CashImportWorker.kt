@@ -8,7 +8,7 @@ import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.LocalCashImportReview
 import com.finance.tracker.business.domain.ParsedImportFile
 import com.finance.tracker.business.domain.localNormalizedCashDocument
-import com.finance.tracker.client.calculateCashImportReview
+import com.finance.tracker.client.calculateCashImportWorkerReview
 import kotlinx.serialization.json.*
 import kotlin.js.ExperimentalJsExport
 import kotlin.js.JsExport
@@ -36,8 +36,8 @@ internal fun computePreview(request: JsonObject,
 ): WorkerCashImportPreview {
     val input = request.getValue("choices").jsonObject
     val previous = request["previous"]?.jsonPrimitive?.content?.let(LocalCashImportReview::decode)
-    val calculation = calculateCashImportReview(files, snapshot, input, previous, includePreviewContext = true) {}
-    return WorkerCashImportPreview(calculation.plan, calculation.review.encode(), checkNotNull(calculation.previewContext),
+    val calculation = calculateCashImportWorkerReview(files, snapshot, input, previous)
+    return WorkerCashImportPreview(calculation.plan, calculation.review.encode(), calculation.previewContext,
         Json.encodeToJsonElement(calculation.request))
 }
 
