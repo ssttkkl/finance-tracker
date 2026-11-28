@@ -622,5 +622,7 @@ D 两轮核对均比 B 和 C 快。B 的 RSS 比 D 分别少 1,273,856 B 和 14,
 
 JVM 共享操作 12 项、SQLite 和真实 PostgreSQL 合同各 13 项、OpenAPI 17 项、Wasm 编译、846 项公开 ABI 检查、npm 实装和 24 项 Node 回归通过。独立评审核验授权、版本固定、跨段完整性和预算，补足未协商、超窗口及回放尺寸不匹配的失败回归。原始报告 `local/ft-client-review-full-bundle_base.ocTR4K`、`local/ft-client-review-full-bundle_real.ZvmmpG`、`local/ft-client-review-full-bundle_base_replay.lLsLA8`、`local/ft-client-review-full-bundle_replay.FV9yPF`，首次失败 `local/ft-client-review-full-bundle_replay.6OwSCc`。实际 #126 仍为 `82bb0b03`，固定检查失败。
 
+逐行保留精确编码的后端试验通过 2 项字节与分片回归、SQLite 和真实 PostgreSQL 收据合同各 13 项以及 OpenAPI 17 项。隔离回放中断后确认无本轮测试进程或容器存活，排队的实装测试未启动。保留 6 条阶段样本，缺完整请求窗口及最终业务断言，资源收益尚无法判定。检查时宿主已用约 6,290 MiB swap，Docker VM 只剩 80 KiB swap。本机整批暂缓，试验未晋级。原始 `local/ft-client-review-full-encode_replay.bhty16`。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。
