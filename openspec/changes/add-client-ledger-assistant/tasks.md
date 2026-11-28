@@ -22,7 +22,8 @@
 - [x] 构建本机账本只读 SDK 宿主和 CSV 解析／生成。
 - [x] 客户端协商、脚本宿主、文件事务、附件、预览与导出。
 - [x] 三币种确认退款对照、三端 QuickJS 堆采样、原生系统保存字节和 SQLite 空间不足验收。
-- [ ] 真实模型、原生正式应用从对话到系统保存、应用进程内存和发行验收。
+- [x] 真实模型宽屏实测及失败证据，核对内嵌技能示例的日期、时区和签名。
+- [ ] 原生正式应用从对话到系统保存、应用进程内存和发行验收。
 
 ## 4. 构建
 
@@ -107,7 +108,7 @@
 
 - 运行时探针以 `c260f656` 为范围基线，2026-11-28。独立工程在 `/Volumes/NO NAME/offload/hl/ledger-quickjs-probe`，同一 `report.js` 经实际安装的 `ft cash summary` 异步读取隔离 SQLite 账本，三端输出相同的 51 字节中文 CSV，十进制字符串 `-88` 原样保留。Native 使用 Maven `quickjs-kt 1.0.19`，引擎报告 2026-06-04。Android API 36 arm64 运行 instrumentation APK，iOS 18.3 arm64 模拟器运行 `:iosSimulatorArm64Test`，Web 使用 Chrome 独立 Worker 和 npm `quickjs-emscripten 0.32.0` 标准同步 Wasm。
 - Android、iOS、Web 同步死循环分别在 202、203、218 ms 中断，计时窗口内主循环分别回调 18、20、21 次。Android／iOS 宿主等待约 302／309 ms 取消，Web 使用 300 ms 截止。Native 验证 host 协程取消及迟到完成被拒，Web 丢弃旧请求回调，三端中断后都继续得到 42 并导出真实 CSV。Native Promise 的兑现值经受限宿主回调接收，Web 显式驱动 QuickJS 待执行任务。详见探针目录的 `android-isolation-metrics.log`、`build/test-results/iosSimulatorArm64Test/`、`web-metrics.log`。
-- Android 探针包约 8.2 MiB，iOS 模拟器测试可执行文件约 9.7 MiB，独立 Web 探针首次运行下载 Worker 85,802 字节和 Wasm 503,134 字节。QuickJS 导出结束时采样内存为 Android 76,801、iOS 66,457、Web 53,968 字节，运行上限为 32 MiB。采样值不作为峰值，正式产品体积和峰值仍待验证。18804 已重启原页面和会话数据库，当前运行进程无模型配置。
+- Android 探针包约 8.2 MiB，iOS 模拟器测试可执行文件约 9.7 MiB，独立 Web 探针首次运行下载 Worker 85,802 字节和 Wasm 503,134 字节。QuickJS 导出结束时采样内存为 Android 76,801、iOS 66,457、Web 53,968 字节，运行上限为 32 MiB。采样值不作为峰值，正式产品体积和峰值仍待验证。
 
 - 技能协商基线 `e129fe97`，2026-11-28（UTC+8）。新增目录协商用例先失败。后端定向测试 `:backend:test --tests '*LedgerAssistantInferenceTest' --tests '*OpenApiContractTest'` 共 24 项通过，无跳过。分片用例覆盖完整对象参数、未协商时拒绝及数组参数拒绝。OpenSpec 严格校验通过。客户端继续发送旧数组，当前交付不影响 Web、Android 或 iOS 的用户流程。
 
@@ -117,12 +118,15 @@
 
 - 技能接线基线 `6e06a90d`，2026-11-28（UTC+8）。`:shared:testAndroidHostTest --tests '*LedgerAssistant*'` 共 10 项通过，无跳过。SQLite 试验覆盖临时文件和附件隔离、到期、同事务写入后失败回滚、过期源和账本版本拒绝。Android APK、iOS 模拟器和 iOS 真机目标编译、正式 Web Wasm 分发均通过。正式 Worker 增加 52,839 字节 JS 和 503,134 字节 Wasm，按需加载。Android arm64 包含 983,704 字节 QuickJS 原生文件；iOS arm64 发布物内原生库为 945,544 字节。这些是组件制品实测，不作为整包净增量或峰值内存。
 - Web 真实 Chromium 在 1440×900 和 390×844 经真实工作区认证、正式推理代理及局部模型替身完成 CSV 和二次 Markdown，费用精度和 CSV 51 字节逐字节核对，重载零推理，完整流程零账本写入。专门注入附件提交后的断流，重载后使用换 ID 的工具调用手动重试，仍一条用户消息及一张附件。宽表长前列不改变后续列对齐，390×844 局部横滚可见末列，Escape 后 Enter 从原按钮重开。
-- 证据见 `/tmp/ledger-skill-release-final.log`、`/tmp/ledger-skill-ios-arm64.log`、`/tmp/ledger-skill-release-http-qa.log`、`/tmp/ledger-skill-release-recovery-qa.log`。互动演示端口 18815，截图端口 18816。18804 继续提供正式构建，原推理进程缺模型配置，演示另用本机模型替身。两端浏览器入口、Worker JS 和 Wasm 已按字节对照正式分发目录。三端共用运行时合同，Native 运行时用模拟器脚本验收。
+- 证据见 `/tmp/ledger-skill-release-final.log`、`/tmp/ledger-skill-ios-arm64.log`、`/tmp/ledger-skill-release-http-qa.log`、`/tmp/ledger-skill-release-recovery-qa.log`。互动演示端口 18815，截图端口 18816。18804 继续提供正式构建并直连已恢复的真实模型，18815 演示使用本机模型替身。两端浏览器入口、Worker JS 和 Wasm 已按字节对照正式分发目录。三端共用运行时合同，Native 运行时用模拟器脚本验收。
 
 
 - 专项验收基线 `1b2cf0f2`（2026-11-28，UTC+8）。Android 主机使用真正的本机账本投影读取器与脚本宿主比较月份完整摘要和逐笔投影金额。合成交易时刻为 UTC 3 月 31 日 16:15，上海时区进入 4 月。CNY 支出 88.25 经确认退款 8.25 后净支出 80，USD 为 12.34，JPY 为 900。三行投影与账本一致，退款未另算收入。SQLDelight SQLite 用 `max_page_count` 在附件插入位置触发 `SQLITE_FULL`（13），失败后对话保持原修订、附件及收据均不存在。放宽限制后原提交可重试，并读回对话、收据和相同附件。SQLite 自动回滚时外围驱动可能返回「no transaction is active」，测试在原插入处观察错误码。独立只读评审无阻断。Gradle 定向测试日志为 `/tmp/ledger-skill-specialist-qa.log`。
 - Android API 36 模拟器、iOS 18.3 模拟器、Chrome Worker 用相同 QuickJS 负载测量引擎报告的 `memory_used_size`。32 MiB 堆上限，空上下文先建立空数组，再逐批分配及填充 4 个 1 MiB Uint8Array，保留到总计 20 MiB。每批完成后采样并另采释放后样本。基线／最高采样／释放后字节，Android 72,052／21,049,220／72,244，iOS 62,316／21,038,652／62,476，Web 52,731／21,027,963／52,923。这是隔离引擎的采样峰值，不覆盖采样间瞬时分配、进程 RSS、Wasm 线性内存预留及产品 UI／账本缓存。日志为 `/tmp/ledger-skill-heap-{android,ios,web}.log`。
 - 原生系统保存使用独立夹具，Android API 36 从真实 SAF 保存面板选定 Downloads，iOS 18.3 从真实 UIDocumentPicker 选定本机文件夹，分别沿目标 URI／作用域 URL 写入和读回。实际目标各 51 字节，`cmp` 一致，SHA-256 为 `6caf31520b72570f85830288a649ba542ba45fb7681bc4521a31f9bc32067bd7`，文件见 `/tmp/ledger-native-save-qa/{android,ios}/exported.csv`。覆盖系统面板和文件写入链路，正式应用的 Compose 附件卡到 FileKit 调用仍需真机或模拟器端到端复核。未在设备上占满磁盘，第三方文件提供商及 App Store 外部审核未验证。
+
+
+- 真实模型补证以 `1b2cf0f2` 的正式构建及现有 18804 为准。Chrome 1440×900 使用直连后端与 Mistral／DeepSeek `deepseek-v4-1-flash-1017`，实际经历 `read_skill`、`run_script`、`send_file`，7 次推理 HTTP 200，下载 28 字节 UTF-8 CSV，刷新后可打开原文件。该月 QA 账本无明细，金额对照使用独立三币种夹具。自由措辞另一次出现多次工具调用，140 秒内未产出卡，12 次推理均为 200。另一次运行遇到 `invalid_arguments` 后继续查询、运行并成功发送，自动化随后等待超时。日志为 `/tmp/ledger-skill-real-provider/18804-wide.log`、`18804-browser.log`、`18804-browser-trace.log`。内嵌用法补齐函数体与入参签名、YYYY-MM-DD 本地日期、IANA 时区及可执行的月报入参示例。提取仓库内两段 JavaScript 例程，用 Node.js 及宿主合同替身执行，对照文档入参、文件名和结果。见 `/tmp/ledger-skill-examples-js.log`。说明修订后 Android 主机助手定向测试 12 项通过，无失败或跳过，见 `/tmp/ledger-skill-examples-qa.log`。模型证据早于说明修订，未复验修订后的真实模型稳定性。
 
 ## 7. 发布
 

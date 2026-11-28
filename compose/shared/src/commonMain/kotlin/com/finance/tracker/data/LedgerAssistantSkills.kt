@@ -217,24 +217,33 @@ private val exportSkillResources = mapOf(
         name: ledger-analysis-export
         description: Produce CSV, Markdown and plain text reports from the current ledger.
         ---
-        Confirm the date range, time zone and category before filtering. Resolve account and category identifiers
-        from ft. Use summarize for monthly totals and async iteration for rows. Keep currency totals separate
+        Use the requested date range and the ledger time zone. If a relative period cannot be resolved, ask
+        for the missing date or time zone. Resolve account or category identifiers from ft when filtering by name. Use summarize for monthly totals and async iteration for rows. Keep currency totals separate
         and use exact decimal strings. Keep full rows and private notes on the device. Return only small
         counts and summaries, then call send_file using the file_ref returned by run_script.
         Resources: reference.md, monthly.csv.js, summary.md.js.
     """.trimIndent(),
     "reference.md" to """
-        run_script receives a JavaScript async function body. input is an optional JSON object.
-        ft.accounts.list() and ft.categories.list() return directory rows.
-        ft.transactions.summarize(filter) returns ledger_seq and months[].currencies[] with exact decimals.
-        ft.transactions.list(filter) is an async iterator and ft.transactions.get(projection_id) reads detail.
-        Filters include date_from, date_to, time_zone_id, category_id, account_id, currency, economic_type,
-        counterparty, amount_min and amount_max. Use string identifiers.
+        Call run_script with {"code":"<async function body>","input":{...}}. The runtime supplies input, ft, fs,
+        and csv. Pass only the function body, with no enclosing function declaration, imports, or Markdown fences.
+        await ft.accounts.list() and await ft.categories.list() return directory rows.
+        await ft.transactions.summarize(filter) returns ledger_seq and months[].currencies[] with exact decimals.
+        for await (const row of ft.transactions.list(filter)) iterates transactions without a manual cursor.
+        await ft.transactions.get(projection_id) takes a string projection ID.
+        Pass a flat filter object with string values. Use date_from and date_to as ISO calendar dates (YYYY-MM-DD)
+        and time_zone_id as an IANA zone name, such as Asia/Shanghai. Supply the first and last local dates
+        of the requested month. Optional filter keys are category_id, account_id, currency, economic_type,
+        counterparty, amount_min and amount_max. Omit unused keys. Use actual string identifiers.
+        Example input for monthly.csv.js, for November 2026 in Shanghai:
+        {"filter":{"date_from":"2026-11-01","date_to":"2026-11-30","time_zone_id":"Asia/Shanghai"}}
+        Replace the example dates and zone with the confirmed values for the requested report.
         fs.list() lists this conversation's temporary files and previous attachments.
         fs.readText(refOrPath) reads a temporary path, file_ref or attachment_id.
         await fs.writeText(path, text) stages a .csv, .md or .txt file. fs.remove(path) removes a temporary file.
         await csv.stringify(rows) makes CSV and await csv.parse(text) returns rows as strings.
         Await all host calls. Files commit only when the script and version checks succeed.
+        Once run_script succeeds, call send_file with {"file_ref":"<files[0].file_ref from run_script>"}.
+        To make summary.md.js from a sent CSV, supply {"file":"<attachment_id returned by send_file>"} as input.
     """.trimIndent(),
     "monthly.csv.js" to """
         const { months } = await ft.transactions.summarize(input.filter);
