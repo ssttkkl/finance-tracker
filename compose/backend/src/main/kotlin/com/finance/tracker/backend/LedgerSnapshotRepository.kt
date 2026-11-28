@@ -55,7 +55,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
     ): SnapshotFacts<T> {
         if (window == null) return SnapshotFacts(fetch { map(it) }, null)
         val page = window.position
-        val total = this@LedgerSnapshotRepository.sql.fetchCount(this)
+        val total = SnapshotReadTrace.stage("database_count") { this@LedgerSnapshotRepository.sql.fetchCount(this) }
         if (page.offset > total || page.offset == total && total != 0) throw ReadPageFailure()
         val sections = LedgerSnapshotSection.entries.map { it.wireName }
         val chunk = if (total == 0) {
@@ -67,9 +67,13 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
                 "transaction_relations", "cash_transaction_issues", "cash_entry_members" -> 1
                 else -> 8
             }
-            limit(page.offset, fetchRows).fetchSize(fetchSize).fetchLazy().use { cursor ->
-                val candidates = cursor.iterator().asSequence().map {
-                    compatibleReadPageJson.encodeToJsonElement(map(it))
+            SnapshotReadTrace.stage("jdbc_cursor_open") { limit(page.offset, fetchRows).fetchSize(fetchSize).fetchLazy() }.use { cursor ->
+                val candidates = sequence {
+                    val iterator = cursor.iterator()
+                    while (SnapshotReadTrace.stage("jdbc_cursor_next") { iterator.hasNext() }) {
+                        val record = SnapshotReadTrace.stage("jdbc_cursor_next") { iterator.next() }
+                        yield(SnapshotReadTrace.stage("dto_json_tree") { compatibleReadPageJson.encodeToJsonElement(map(record)) })
+                    }
                 }
                 boundedReadPageChunk(page, sections, total, candidates, window.targetBytes, window.rows)
             }

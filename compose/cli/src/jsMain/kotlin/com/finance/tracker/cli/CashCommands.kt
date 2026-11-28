@@ -109,17 +109,19 @@ internal suspend fun cash(action: String?, args: List<String>): TerminalResult {
     val limit = options.integer("--limit") ?: 20
     return withClient(options["--server"]) { client ->
         val read = client.ledger(options["--workspace"])
-        val cash = CashLedgerOperations(read.ledger.snapshot, nodeCalendar)
+        traceCashPhase("ledger_graph_start")
+        val cash = CashLedgerOperations(read.ledger.snapshot, nodeCalendar, ::traceCashPhase)
         val filter = filters(options)
         val zone = options["--timezone"]
         when (action) {
             "list" -> {
                 val page = cash.page(filter, zone, options["--cursor"], startIndex, expectedSeq, limit)
+                traceCashPhase("terminal_output_start")
                 val lines = page.items.map { item ->
                     listOfNotNull(item.projectionId, item.occurredAt, item.amount, item.currency, item.counterparty).joinToString("  ")
                 }
                 val payload = buildJsonObject { put("page", exactReadIdentifiers(outputJson.encodeToJsonElement(com.finance.tracker.business.contracts.CashPageDto.serializer(), page))) }
-                read.result(payload, lines.joinToString("\n").ifEmpty { "No cash records." })
+                read.result(payload, lines.joinToString("\n").ifEmpty { "No cash records." }).also { traceCashPhase("terminal_output_ready") }
             }
             "record" -> {
                 val record = cash.record(checkNotNull(id), read.canWrite)

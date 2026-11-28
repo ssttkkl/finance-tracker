@@ -120,7 +120,9 @@ internal inline fun <reified T> encodedReadPageBytes(header: T, chunks: List<Enc
     val encoded = chunks.map { compatibleReadPageJson.encodeToJsonElement(EncodedReadPageChunk.serializer(), it) }
     fields["chunk"] = encoded.first()
     if (encoded.size > 1) fields["more_chunks"] = JsonArray(encoded.drop(1))
-    return compatibleReadPageJson.encodeToString(JsonObject(fields)).encodeToByteArray()
+    return SnapshotReadTrace.stage("page_envelope_utf8") {
+        compatibleReadPageJson.encodeToString(JsonObject(fields)).encodeToByteArray()
+    }
 }
 
 internal class ReadPageEncoding(private val gzipQuality: Double, private val identityQuality: Double) {
@@ -128,7 +130,7 @@ internal class ReadPageEncoding(private val gzipQuality: Double, private val ide
         check(body.size in 1..limit)
         if (gzipQuality > 0 && gzipQuality >= identityQuality &&
             (gzipQuality > identityQuality || body.size >= 1024)) {
-            val compressed = gzipReadPage(body)
+            val compressed = SnapshotReadTrace.stage("page_gzip") { gzipReadPage(body) }
             if (compressed.size <= limit && (gzipQuality > identityQuality || compressed.size < body.size))
                 return EncodedReadPage(compressed, gzip = true, chunkPositions)
         }
@@ -182,8 +184,10 @@ internal fun boundedReadPageChunk(
     var itemBytes = 0
     var remaining = targetBytes - pageEnvelopeReserveBytes
     for (row in candidates) {
-        val encoded = compatibleReadPageJson.encodeToString(ExactJsonElementSerializer, row)
-        val size = encoded.encodeToByteArray().size
+        val (encoded, size) = SnapshotReadTrace.stage("row_json_and_size") {
+            val text = compatibleReadPageJson.encodeToString(ExactJsonElementSerializer, row)
+            text to text.encodeToByteArray().size
+        }
         if (items.isEmpty() && (position.fragmentOffset > 0 || size + 1 > remaining)) {
             // A continuation can refer to bytes emitted by the previous server version.
             val bytes = row.toString().encodeToByteArray()

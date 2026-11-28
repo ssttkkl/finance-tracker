@@ -1,0 +1,76 @@
+name: Cash read phase diagnostic
+
+on:
+  push:
+    branches: [perf/trace-cash-page-cost]
+
+permissions:
+  contents: read
+
+jobs:
+  cash-read-phases:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: ft_performance
+          POSTGRES_PASSWORD: disposable_ci_password
+          POSTGRES_DB: cash_read_phase_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ft_performance -d cash_read_phase_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Measure one synthetic PostgreSQL page and build the CLI
+        env:
+          FT_TEST_POSTGRES_URL: postgresql://ft_performance:disposable_ci_password@127.0.0.1:5432/cash_read_phase_test
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/cash-page-phases"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/source.txt"
+          node --version > "$out/node.txt"
+          result=0
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 :backend:test \
+            --tests '**.SnapshotSourceBindingTimingTest' :cli:stageNpm) || result=$?
+          xml=compose/backend/build/test-results/test/TEST-com.finance.tracker.backend.SnapshotSourceBindingTimingTest.xml
+          if [ -f "$xml" ]; then
+            sed -En 's/^[^]]*(cash-source-(page|stage|socket) [a-z_0-9 ]+)$/\1/p' "$xml" |
+              grep -E '^cash-source-(page( [0-9]+){5}|stage [a-z_]+ [0-9]+ [0-9]+|socket [0-9]+ [0-9]+)$' > "$out/postgres-timing.txt" || true
+          fi
+          (cd compose && ./gradlew --stop)
+          test "$result" -eq 0
+          test "$(grep -c '^cash-source-page ' "$out/postgres-timing.txt")" -eq 6
+      - name: Compare the installed offline CLI with and without phase sampling
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/cash-page-phases"
+          install="$RUNNER_TEMP/cash-list-install"
+          mkdir -p "$install"
+          package=$(npm pack --pack-destination "$install" ./compose/cli/build/npm --silent)
+          sha256sum "$install/$package" | cut -d' ' -f1 > "$out/npm-sha256.txt"
+          npm --prefix "$install" install --no-audit --no-fund --ignore-scripts "$install/$package"
+          node compose/client-operations/perf/diagnosis/profile-offline-cash-list.mjs "$install" "$out/cli.json"
+      - name: Upload aggregate timings and process memory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cash-page-phases
+          path: ${{ runner.temp }}/cash-page-phases
+          if-no-files-found: error

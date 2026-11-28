@@ -24,10 +24,15 @@ data class CashLedgerSummary(
 class CashLedgerOperations(
     private val snapshot: LedgerSnapshotDto,
     monthAt: (Instant, String) -> String,
-    private val dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)? = null,
+    private val dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)?,
+    sample: (String) -> Unit,
 ) {
+    constructor(snapshot: LedgerSnapshotDto, monthAt: (Instant, String) -> String,
+        dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)? = null) : this(snapshot, monthAt, dateBounds, {})
     constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar) : this(snapshot, calendar::monthAt, calendar::bounds)
-    private val query = LocalCashLedgerQuery(snapshot, monthAt)
+    constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar, sample: (String) -> Unit) :
+        this(snapshot, calendar::monthAt, calendar::bounds, sample)
+    private val query = LocalCashLedgerQuery(snapshot, monthAt, sample)
 
     fun page(
         filters: CashFiltersDto = CashFiltersDto(),

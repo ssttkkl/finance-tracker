@@ -16,10 +16,12 @@ class LocalCashLedgerQueryInput internal constructor(filters: Map<String, String
 }
 
 /** One committed snapshot; filtering, counts and pagination cannot observe different captures. */
-class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (Instant, String) -> String) {
+class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (Instant, String) -> String,
+    private val sample: (String) -> Unit) {
+    constructor(snapshot: LedgerSnapshotDto, monthAt: (Instant, String) -> String) : this(snapshot, monthAt, {})
     private val workspace = snapshot.workspaceId
     private val version = snapshot.ledgerSeq.toLong()
-    private val renderer = LocalCashProjectionViews(snapshot)
+    private val renderer = LocalCashProjectionViews(snapshot).also { sample("ledger_graph_ready") }
     private val details by lazy { LocalCashEntryRead(snapshot, renderer) }
     private val records by lazy { LocalCashRecordRead(snapshot, renderer) }
     private val projectionByTransactionId by lazy {
@@ -29,7 +31,7 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
             }
         }
     }
-    private val options = renderer.options()
+    private val options = renderer.options().also { sample("ledger_options_ready") }
     private val categories = snapshot.facts.cashCategories.associateBy { it.id }
     private val componentAccounts by lazy {
         buildMap<String, MutableSet<String>> {
@@ -40,11 +42,12 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
         }
     }
     private val rows by lazy {
+        sample("ledger_sort_start")
         renderer.entries.filter { it.projection.visible || it.projection.attentionCount > 0 }
             .sortedWith { first, second ->
                 second.projection.sortAt.compareTo(first.projection.sortAt).takeIf { it != 0 }
                     ?: pythonStringOrder(second.projectionId, first.projectionId)
-            }
+            }.also { sample("ledger_sort_ready") }
     }
 
     /** Current stable entry locations, including members which are not the display representative. */
@@ -110,7 +113,9 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
         var filteredCount = 0
         var pendingWithoutSummaries = 0L
         var hasNext = false
-        for (row in rows) {
+        val sortedRows = rows
+        sample("ledger_scan_start")
+        for (row in sortedRows) {
             if (!accepts(row, input)) continue
             val projection = row.projection
             summaries?.addAmount(projection.occurredAt, projection.economicType?.value, projection.primaryRecord.currency,
@@ -127,7 +132,10 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
             }
         }
         val monthly = summaries?.result()
-        return CashPageDto(version, items = items.map(renderer::render),
+        sample("ledger_scan_ready")
+        val rendered = items.map(renderer::render)
+        sample("ledger_items_ready")
+        return CashPageDto(version, items = rendered,
             nextCursor = if (startIndex == null && hasNext) items.last().let { scope.encode(it.projection.sortAt, it.projectionId) } else null,
             pageSize = limit, filters = input.filters, filterOptions = options,
             monthlySummaries = monthly?.summaries?.map { Json.decodeFromJsonElement<CashMonthlySummaryDto>(it) }.orEmpty(),

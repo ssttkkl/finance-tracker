@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, lstatSync, fstatSync, closeSync, openSync, readSync, writeSync, fsyncSync, readdirSync, rmSync, constants } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, lstatSync, fstatSync, closeSync, openSync, readSync, writeSync, fsyncSync, readdirSync, rmSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -223,6 +223,14 @@ function seal(key, aad, payload) {
 }
 
 const storageTextBlockUnits = 64 * 1024;
+
+export function traceCashPhase(phase) {
+    const destination = process.env.FT_DIAGNOSTIC_CASH_PHASES;
+    if (!destination) return;
+    const timeMs = performance.now();
+    const { rss, heapUsed, external, arrayBuffers } = process.memoryUsage();
+    appendFileSync(destination, JSON.stringify({ phase, timeMs, rss, heapUsed, external, arrayBuffers }) + '\n');
+}
 
 function* stateTextChunks(payload) {
     let start = 0;
@@ -520,11 +528,18 @@ export function openStore(origin, createKey) {
                 return item ? createHash('sha256').update(item.payload).digest('hex') : null;
             },
             read(slot) {
+                const ledger = process.env.FT_DIAGNOSTIC_CASH_PHASES && /^[0-9a-f]{64}$/.test(slot);
+                if (ledger) traceCashPhase('cache_blob_start');
                 const item = database.prepare('SELECT wrapped_key, payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 if (!item) return null;
+                if (ledger) traceCashPhase('cache_blob_loaded');
                 const dataKey = open(key, aad(slot), item.wrapped_key);
                 try {
-                    return open(dataKey, aad(slot), item.payload).toString('utf8');
+                    const plaintext = open(dataKey, aad(slot), item.payload);
+                    if (ledger) traceCashPhase('cache_authenticated');
+                    const text = plaintext.toString('utf8');
+                    if (ledger) traceCashPhase('cache_utf8');
+                    return text;
                 } finally {
                     dataKey.fill(0);
                 }

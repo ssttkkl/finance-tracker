@@ -46,6 +46,7 @@ import kotlin.time.Instant
 
 @JsModule("./host.mjs")
 private external object NodeHost {
+    fun traceCashPhase(phase: String)
     fun serverOrigin(value: String): String?
     fun request(origin: String, method: String, path: String, token: String?, body: dynamic, headers: dynamic,
         maxResponseBytes: Int): Promise<dynamic>
@@ -219,6 +220,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
             if (cached != null) return cached
         }
         val state = read<ClientLedgerState>(key) ?: ClientLedgerState()
+        traceCashPhase("ledger_cache_decoded")
         if (state.ledger?.snapshot?.workspaceId?.let { it != workspaceId } == true)
             throw ClientOperationFailure("local_state_unreadable")
         observedLedger = stamp?.let { ObservedLedger(key, it, weakReference(state)) }
@@ -499,6 +501,8 @@ private data class StoredReviewedCommand(val planId: String, val revision: Long,
     val command: ClientCashImportReviewedCommand)
 
 private fun weakReference(value: Any): dynamic = js("new WeakRef(value)")
+
+internal fun traceCashPhase(phase: String) = NodeHost.traceCashPhase(phase)
 
 private fun encodeUrlComponent(value: String): String = js("encodeURIComponent(value)")
 
