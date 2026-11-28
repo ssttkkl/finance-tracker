@@ -520,6 +520,15 @@ private fun FinanceTrackerAppContent(
                         }
                     }
                     LaunchedEffect(assistant) { assistant?.load() }
+
+                    val assistantReady = assistant?.ready == true
+                    LaunchedEffect(assistant, assistantReady, foreground) {
+                        if (assistant == null || !assistantReady || !foreground) return@LaunchedEffect
+                        while (true) {
+                            assistant.purgeExpiredSkillFiles()
+                            delay(60 * 60 * 1000L)
+                        }
+                    }
                     LaunchedEffect(assistant, currentRoute.assistantConversationId) { assistant?.clearNavigationError() }
                     val targetMissing = assistant?.ready == true && selectedConversationId() != null && assistant.current == null
                     LaunchedEffect(assistant, currentRoute, targetMissing) {

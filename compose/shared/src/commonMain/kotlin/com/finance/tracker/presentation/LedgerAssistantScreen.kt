@@ -108,6 +108,7 @@ import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.paneTitle
 import com.finance.tracker.data.LedgerAssistantConversation
 import com.finance.tracker.data.LedgerAssistantDraft
+import com.finance.tracker.data.LedgerAssistantFile
 import com.finance.tracker.data.LedgerAssistantMessage
 import com.finance.tracker.data.LedgerAssistantToolResult
 import com.finance.tracker.data.LedgerAssistantToolStatus
@@ -171,6 +172,18 @@ internal class LedgerAssistantUi(
         private set
     var historyDeleteBlocked by mutableStateOf(false)
         private set
+
+    suspend fun readAttachment(id: String, file: LedgerAssistantFile) = workspace?.readAttachment(id, file.id)
+
+    suspend fun purgeExpiredSkillFiles() {
+        try {
+            workspace?.purgeExpiredSkillFiles()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            report(failure)
+        }
+    }
 
     fun canDeleteHistory(conversation: LedgerAssistantConversation): Boolean =
         conversation.id != historyWriteId && !conversation.hasUnresolvedWrite
@@ -346,8 +359,8 @@ private fun assistantMessageRows(messages: List<LedgerAssistantMessage>): List<L
         val previous = lastOrNull()
         val preceding = previous?.lastOrNull()
         val continuesTools = preceding?.toolTrace != null && message.toolTrace != null &&
-            preceding.result?.hasVisibleCard() != true
-        val followsTools = message.reply != null && previous?.firstOrNull()?.toolTrace != null
+            preceding.result?.hasVisibleCard() != true && preceding.attachment == null
+        val followsTools = message.reply != null && previous?.firstOrNull()?.toolTrace != null && preceding?.attachment == null
         if (previous != null && (continuesTools || followsTools)) {
             this[lastIndex] = previous + message
         } else {
@@ -372,11 +385,12 @@ internal fun LedgerAssistantScreen(
     val lastDelivery = currentMessages.getOrNull(lastInput)?.delivery
     val preview = current?.incompleteReply
     val hasPreview = !preview.isNullOrBlank()
-    val visibleReply = hasPreview || currentMessages.drop(lastInput + 1).any { !it.reply.isNullOrBlank() }
+    val visibleReply = hasPreview || currentMessages.drop(lastInput + 1).any { !it.reply.isNullOrBlank() || it.attachment != null }
     val awaitingReply = lastDelivery?.status == LedgerAssistantDeliveryStatus.SENDING
     val replyInterrupted = visibleReply && (lastDelivery?.status == LedgerAssistantDeliveryStatus.NOT_DELIVERED ||
         (hasPreview && current?.draft?.command?.receipt != null && ui?.busy == false))
 
+    var attachment by remember(current?.id) { mutableStateOf<Pair<LedgerAssistantFile, FocusRequester>?>(null) }
     var input by remember(current?.id) { mutableStateOf("") }
     var detail by remember(current?.id) { mutableStateOf<String?>(null) }
     var toolSheet by remember(current?.id) { mutableStateOf<AssistantToolSelection?>(null) }
@@ -487,7 +501,7 @@ internal fun LedgerAssistantScreen(
                                 }
                             }
                         }
-                        if (message.toolTrace != null || message.reply != null || message.result != null) {
+                        if (message.toolTrace != null || message.reply != null || message.result != null || message.attachment != null) {
                             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (message.toolTrace != null) {
                                     Column(Modifier.fillMaxWidth()) {
@@ -503,6 +517,7 @@ internal fun LedgerAssistantScreen(
                                 row.forEach { item -> item.reply?.let { AssistantReply(it, markdownImages) } }
                                 row.forEach { item ->
                                     item.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
+                                    item.attachment?.let { file -> AssistantAttachmentCard(file) { focus -> attachment = file to focus } }
                                 }
                             }
                         }
@@ -560,6 +575,14 @@ internal fun LedgerAssistantScreen(
             if (ui == null || ui.failed) StateMessage(localizedText("assistant_unavailable"), isError = true) {
                 if (ui != null && !ui.ready) TextButton(onClick = ui::load) { Text(localizedText("assistant_retry")) }
             }
+        }
+    }
+    val openFile = attachment
+    if (openFile != null && current != null && ui != null) {
+        val (file, focus) = openFile
+        AssistantAttachmentDialog(file, read = { ui.readAttachment(current.id, file) }) {
+            attachment = null
+            toolReturnFocus = focus
         }
     }
     toolSheet?.let { selection ->
@@ -648,6 +671,9 @@ private fun assistantToolLabel(tool: String) = localizedText(when (tool) {
     "summarize_transactions" -> "assistant_tool_summary"
     "get_transaction" -> "assistant_tool_detail"
     "create_transaction" -> "assistant_tool_create"
+    "read_skill" -> "assistant_tool_skill"
+    "run_script" -> "assistant_tool_script"
+    "send_file" -> "assistant_tool_send_file"
     else -> "assistant_tool_unknown"
 })
 

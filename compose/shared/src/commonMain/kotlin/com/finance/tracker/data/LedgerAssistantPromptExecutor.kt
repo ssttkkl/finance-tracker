@@ -35,10 +35,15 @@ internal class LedgerAssistantPromptExecutor(
     private val api: FinanceApiClient,
     private val credentials: ApiCredentialSnapshot,
     private val checkScope: suspend () -> Unit,
+    private val skillsAvailable: Boolean = false,
     private val onPreview: suspend (String) -> Unit,
 ) : PromptExecutor() {
     override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant {
-        val body = assistantInferenceHistory(prompt.messages)
+        val history = assistantInferenceHistory(prompt.messages)
+        val body = if (!skillsAvailable) history else buildJsonObject {
+            put("messages", history)
+            put("capabilities", JsonArray(listOf(JsonPrimitive("assistant-skills-v1"))))
+        }
         val endpoint = normalizeApiOrigin(credentials.apiOrigin, api.allowInsecureHttp) + "/api/v1/ledger-assistant/inference"
         val statement = api.httpClient.preparePost(endpoint) {
             credentials.token?.let { header(HttpHeaders.Authorization, "Bearer $it") }

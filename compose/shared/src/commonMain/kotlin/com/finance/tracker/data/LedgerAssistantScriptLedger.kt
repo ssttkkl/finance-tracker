@@ -19,7 +19,8 @@ internal class LedgerAssistantScriptLedger(
     private val workspaceId: String,
     private val checkScope: suspend () -> Unit,
 ) {
-    private var version: Long? = null
+    var version: Long? = null
+        private set
 
     suspend fun checkVersion() {
         checkScope()

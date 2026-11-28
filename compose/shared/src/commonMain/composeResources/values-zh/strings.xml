@@ -1039,4 +1039,17 @@
     <string name="assistant_history_delete_prompt">这会从此设备删除对话。已记入账本的流水会保留。</string>
     <string name="assistant_history_delete_blocked">正在核实记账结果，核实后才能删除对话。</string>
     <string name="assistant_reply_interrupted">回复中断</string>
+    <string name="assistant_tool_skill">读取技能</string>
+    <string name="assistant_tool_script">运行脚本</string>
+    <string name="assistant_tool_send_file">发送文件</string>
+    <string name="assistant_attachment_metadata">%1$s · %2$s 字节</string>
+    <string name="assistant_attachment_preview">预览</string>
+    <string name="assistant_attachment_export">导出</string>
+    <string name="assistant_attachment_unavailable">无法读取此文件</string>
+    <string name="assistant_attachment_export_failed">无法导出此文件</string>
+    <string name="assistant_attachment_table_limit">预览最多显示前 30 行、20 列</string>
+    <string name="assistant_attachment_text_limit">预览仅显示文件开头</string>
+    <string name="assistant_attachment_text">纯文本</string>
+    <string name="assistant_close">关闭</string>
+    <string name="assistant_attachment_preview_named">预览 %1$s</string>
 </resources>

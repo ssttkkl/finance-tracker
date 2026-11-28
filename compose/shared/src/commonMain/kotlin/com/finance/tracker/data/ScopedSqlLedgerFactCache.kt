@@ -108,12 +108,30 @@ internal class ScopedSqlLedgerFactCache private constructor(
         override suspend fun delete(previous: LedgerAssistantConversation) = withAssistantStore { it.delete(previous) }
         override suspend fun swap(previous: LedgerAssistantConversation?, next: LedgerAssistantConversation) =
             withAssistantStore { it.swap(previous, next) }
+        override suspend fun purgeExpiredSkillFiles(now: Long) =
+            withAssistantStore { it.purgeExpiredSkillFiles(now) }
+
+        override suspend fun skillFiles(conversationId: String, now: Long) =
+            withAssistantStore { it.skillFiles(conversationId, now) }
+
+        override suspend fun readSkillFile(conversationId: String, fileId: String, now: Long) =
+            withAssistantStore { it.readSkillFile(conversationId, fileId, now) }
+
+        override suspend fun skillReceipt(conversationId: String, callId: String) =
+            withAssistantStore { it.skillReceipt(conversationId, callId) }
+
+        override suspend fun commitSkillRun(
+            previous: LedgerAssistantConversation, next: LedgerAssistantConversation, removed: Set<String>,
+            files: List<LedgerAssistantFileContent>, receipt: LedgerAssistantFileReceipt, now: Long, requiredSource: String?,
+            expectedLedgerVersion: Long?,
+        ) = withAssistantStore { it.commitSkillRun(previous, next, removed, files, receipt, now, requiredSource, expectedLedgerVersion) }
     }
 
     private suspend fun <T> withAssistantStore(action: suspend (SqlLedgerAssistantConversations) -> T): T = mutex.withLock {
         currentCoroutineContext().ensureActive()
         requireActive()
-        val conversations = assistantStore ?: SqlLedgerAssistantConversations.open(driver).also { assistantStore = it }
+        val conversations = assistantStore ?: SqlLedgerAssistantConversations.open(driver, ::readSnapshotVersionLocked)
+            .also { assistantStore = it }
         requireActive()
         action(conversations).also {
             currentCoroutineContext().ensureActive()
@@ -175,14 +193,16 @@ internal class ScopedSqlLedgerFactCache private constructor(
         requireScope(scope)
         return mutex.withLock {
             requireActive()
-            val version = if (retainSnapshotText) {
-                currentSnapshotText()
-                retainedSnapshot?.ledgerVersion
-            } else store.read(scope)?.ledgerSeq?.toLong()
+            val version = readSnapshotVersionLocked()
             requireActive()
             version
         }
     }
+
+    private suspend fun readSnapshotVersionLocked(): Long? = if (retainSnapshotText) {
+        currentSnapshotText()
+        retainedSnapshot?.ledgerVersion
+    } else store.read(scope)?.ledgerSeq?.toLong()
 
     override suspend fun readPreparedSnapshot(scope: LedgerCacheScope): PreparedLedgerSnapshot? {
         requireScope(scope)

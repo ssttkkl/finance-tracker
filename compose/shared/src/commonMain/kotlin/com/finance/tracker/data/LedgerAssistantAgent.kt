@@ -58,6 +58,8 @@ internal suspend fun runLedgerAssistantAgent(
     savedCheckpoint: String?,
     continuation: LedgerAssistantContinuation,
     onReadMessages: suspend (List<LedgerAssistantMessage>) -> Unit = {},
+    executeSkill: (suspend (String, String, JsonObject) -> LedgerAssistantSkillOutcome)? = null,
+    persistSkill: (suspend (LedgerAssistantSkillCommit, List<LedgerAssistantMessage>) -> Unit)? = null,
     readTool: suspend (String, JsonObject) -> JsonObject,
 ): LedgerAssistantRound {
     var appendInitialInput = savedCheckpoint == null
@@ -125,24 +127,43 @@ internal suspend fun runLedgerAssistantAgent(
             val readTrace = LedgerAssistantToolTrace(call.tool, parameters, LedgerAssistantToolStatus.RUNNING)
             messages += LedgerAssistantMessage(toolTrace = readTrace)
             onReadMessages(messages.toList())
-            val output = try {
-                if (fields == null || call.tool !in ledgerAssistantReadTools) {
-                    buildJsonObject { put("error", "invalid_tool_input") }
-                } else {
-                    readTool(call.tool, fields)
+            var skill: LedgerAssistantSkillOutcome? = null
+            var output = try {
+                when {
+                    fields == null -> buildJsonObject { put("error", "invalid_tool_input") }
+                    call.tool in ledgerAssistantSkillToolNames && executeSkill != null ->
+                        executeSkill(id, call.tool, fields).also { skill = it }.output
+                    call.tool in ledgerAssistantReadTools -> readTool(call.tool, fields)
+                    else -> buildJsonObject { put("error", "invalid_tool_input") }
                 }
             } catch (_: DomainFailure) {
                 buildJsonObject { put("error", "ledger_read_unavailable") }
             }
-            val failed = "error" in output
-            messages[messages.lastIndex] = LedgerAssistantMessage(
-                result = if (failed) null else LedgerAssistantToolResult(call.tool, output),
-                toolTrace = readTrace.copy(
-                    status = if (failed) LedgerAssistantToolStatus.FAILED else LedgerAssistantToolStatus.COMPLETED,
-                    result = ledgerAssistantTraceResult(call.tool, output),
-                ),
-            )
-            onReadMessages(messages.toList())
+            fun observeTool() {
+                val failed = "error" in output
+                val result = ledgerAssistantTraceResult(call.tool, output)
+                val trace = skill?.trace
+                messages[messages.lastIndex] = LedgerAssistantMessage(
+                    result = if (failed || skill != null) null else LedgerAssistantToolResult(call.tool, output),
+                    toolTrace = readTrace.copy(
+                        status = if (failed) LedgerAssistantToolStatus.FAILED else LedgerAssistantToolStatus.COMPLETED,
+                        result = if (trace == null) result else JsonObject(result.orEmpty() + trace),
+                    ),
+                    attachment = skill?.attachment,
+                )
+            }
+            observeTool()
+            val commit = skill?.commit
+            if (commit == null) onReadMessages(messages.toList()) else {
+                try {
+                    checkNotNull(persistSkill)(commit, messages.toList())
+                } catch (failure: LedgerAssistantScriptFailure) {
+                    skill = LedgerAssistantSkillOutcome(buildJsonObject { put("error", failure.reason) })
+                    output = checkNotNull(skill).output
+                    observeTool()
+                    onReadMessages(messages.toList())
+                }
+            }
             llm.writeSession {
                 val response = if (call.tool == "summarize_transactions") {
                     JsonObject(output - "display_items" - "display_category")
@@ -162,7 +183,8 @@ internal suspend fun runLedgerAssistantAgent(
         llmModel = assistantAgentModel,
         strategy = agentStrategy,
         toolRegistry = ToolRegistry {
-            (ledgerAssistantReadTools + CREATE_ASSISTANT_TRANSACTION).forEach { tool(LedgerAssistantHostTool(it)) }
+            val enabledSkills = if (executeSkill == null) emptySet() else ledgerAssistantSkillToolNames
+            (ledgerAssistantReadTools + CREATE_ASSISTANT_TRANSACTION + enabledSkills).forEach { tool(LedgerAssistantHostTool(it)) }
         },
         maxIterations = 24,
     ) {

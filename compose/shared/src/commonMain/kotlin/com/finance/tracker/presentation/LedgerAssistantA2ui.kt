@@ -24,6 +24,7 @@ internal enum class LedgerAssistantCardKind(val componentName: String) {
     QUERY("LedgerQuery"),
     DRAFT("LedgerDraft"),
     RESULT("LedgerResult"),
+    ATTACHMENT("LedgerAttachment"),
 }
 
 private const val ledgerAssistantCatalogId = "https://finance-tracker.local/a2ui/ledger-assistant/1"

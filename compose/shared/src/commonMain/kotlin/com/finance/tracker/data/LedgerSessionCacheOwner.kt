@@ -581,6 +581,25 @@ internal class LedgerSessionCacheOwner(
 
         override suspend fun swap(previous: LedgerAssistantConversation?, next: LedgerAssistantConversation) =
             withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).swap(previous, next) }
+        override suspend fun purgeExpiredSkillFiles(now: Long) =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).purgeExpiredSkillFiles(now) }
+
+        override suspend fun skillFiles(conversationId: String, now: Long) =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).skillFiles(conversationId, now) }
+
+        override suspend fun readSkillFile(conversationId: String, fileId: String, now: Long) =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).readSkillFile(conversationId, fileId, now) }
+
+        override suspend fun skillReceipt(conversationId: String, callId: String) =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).skillReceipt(conversationId, callId) }
+
+        override suspend fun commitSkillRun(
+            previous: LedgerAssistantConversation, next: LedgerAssistantConversation, removed: Set<String>,
+            files: List<LedgerAssistantFileContent>, receipt: LedgerAssistantFileReceipt, now: Long, requiredSource: String?,
+            expectedLedgerVersion: Long?,
+        ) = withLedgerStorage { storage ->
+            checkNotNull(storage.assistantConversations()).commitSkillRun(previous, next, removed, files, receipt, now, requiredSource, expectedLedgerVersion)
+        }
     }
 
     private suspend fun <T> withImportFiles(action: suspend (LedgerImportBatches) -> T): T =

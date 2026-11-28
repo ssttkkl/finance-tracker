@@ -36,12 +36,28 @@ internal fun ledgerAssistantTraceParameters(tool: String, fields: JsonObject?): 
         "list_transactions" -> ledgerQueryParameters + "limit"
         "summarize_transactions" -> ledgerQueryParameters
         "get_transaction" -> setOf("projection_id")
+        "read_skill" -> setOf("skill_id", "resource")
+        "run_script" -> setOf("code")
         else -> emptySet()
     }
     return JsonObject(fields.orEmpty().filter { (key, value) -> key in allowed && value is JsonPrimitive })
 }
 
 internal fun ledgerAssistantTraceResult(tool: String, output: JsonObject): JsonObject? {
+    if (tool in ledgerAssistantSkillToolNames) {
+        val allowed = when (tool) {
+            "read_skill" -> setOf("error", "skill_id", "version", "resource")
+            "run_script" -> setOf("error")
+            else -> setOf("error", "name", "content_type", "bytes")
+        }
+        return buildJsonObject {
+            output.filterKeys { it in allowed }.forEach { (name, value) -> put(name, value) }
+            val files = output["files"] as? JsonArray
+            if (files != null) put("files", JsonArray(files.filterIsInstance<JsonObject>().map {
+                JsonObject(it.filterKeys { key -> key in setOf("name", "content_type", "bytes") })
+            }))
+        }
+    }
     if ("error" in output) return null
     val key = when (tool) {
         "list_accounts" -> "accounts"

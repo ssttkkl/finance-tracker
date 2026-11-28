@@ -66,6 +66,11 @@ internal class LedgerAssistantWorkspace(
         }
     }
 
+    suspend fun purgeExpiredSkillFiles() = store.purgeExpiredSkillFiles(Clock.System.now().toEpochMilliseconds())
+
+    suspend fun readAttachment(conversationId: String, id: String): LedgerAssistantFileContent? =
+        store.readSkillFile(conversationId, id, Clock.System.now().toEpochMilliseconds())?.takeIf { it.metadata.attached }
+
     suspend fun draftAccounts() = checkNotNull(reader.accounts()).filter { it.active }
 
     suspend fun draftCategories() = checkNotNull(reader.categories())
@@ -320,12 +325,44 @@ internal class LedgerAssistantWorkspace(
 
         return try {
             val round = useApi(write = false) { api, _ ->
-                val executor = LedgerAssistantPromptExecutor(api, checkNotNull(api.boundCredentials), api.requireCurrentRequest) { partial ->
+                val messageId = delivery?.messageId ?: initial.messages.lastOrNull { it.delivery != null }?.delivery?.messageId
+                val skills = messageId?.let {
+                    LedgerAssistantSkills(reader, store, workspaceId, initial.id, it, api.requireCurrentRequest)
+                }
+                val executor = LedgerAssistantPromptExecutor(
+                    api, checkNotNull(api.boundCredentials), api.requireCurrentRequest, skillsAvailable = skills != null,
+                ) { partial ->
                     saved = update(saved) { copy(incompleteReply = partial) }.also(onUpdate)
                 }
-                runLedgerAssistantAgent(executor, initial.id, initial.checkpoint, continuation, { observed ->
-                    saved = update(saved) { copy(messages = initial.messages + observed, incompleteReply = null) }.also(onUpdate)
-                }, ::readAssistantTool)
+                runLedgerAssistantAgent(
+                    executor, initial.id, initial.checkpoint, continuation,
+                    onReadMessages = { observed ->
+                        saved = update(saved) { copy(messages = initial.messages + observed, incompleteReply = null) }.also(onUpdate)
+                    },
+                    executeSkill = skills?.let { it::execute },
+                    persistSkill = { work, observed ->
+                        work.checkBeforeCommit()
+                        val next = saved.copy(
+                            revision = saved.revision + 1,
+                            updatedAt = Clock.System.now().toString(),
+                            messages = initial.messages + observed,
+                            incompleteReply = null,
+                        )
+                        val committed = try {
+                            store.commitSkillRun(saved, next, work.removed, work.files, work.receipt,
+                                Clock.System.now().toEpochMilliseconds(), work.requiredSource, work.expectedLedgerVersion)
+                        } catch (failure: LedgerAssistantScriptFailure) {
+                            throw failure
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            throw LedgerAssistantScriptFailure("file_storage_unavailable")
+                        }
+                        if (!committed) throw CancellationException("ledger_assistant_conversation_changed")
+                        saved = next.also(onUpdate)
+                    },
+                    readTool = ::readAssistantTool,
+                )
             }
             update(saved) {
                 val completed = copy(messages = initial.messages + round.messages, checkpoint = round.checkpoint, draft = round.draft, incompleteReply = null)
