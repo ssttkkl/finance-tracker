@@ -46,7 +46,7 @@ jobs:
           git rev-parse HEAD > "$out/source.txt"
           node --version > "$out/node.txt"
           result=0
-          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 :backend:test \
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 --continue :backend:test \
             --tests '**.SnapshotSourceBindingTimingTest' :cli:stageNpm) || result=$?
           xml=compose/backend/build/test-results/test/TEST-com.finance.tracker.backend.SnapshotSourceBindingTimingTest.xml
           if [ -f "$xml" ]; then
@@ -57,11 +57,13 @@ jobs:
           test "$result" -eq 0
           test "$(grep -c '^cash-source-page ' "$out/postgres-timing.txt")" -eq 6
       - name: Compare the installed offline CLI with and without phase sampling
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/cash-page-phases"
           install="$RUNNER_TEMP/cash-list-install"
+          test -f compose/cli/build/npm/package.json
           mkdir -p "$install"
           package=$(npm pack --pack-destination "$install" ./compose/cli/build/npm --silent)
           sha256sum "$install/$package" | cut -d' ' -f1 > "$out/npm-sha256.txt"

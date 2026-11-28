@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 import java.util.zip.GZIPInputStream
 import jdk.jfr.Recording
 import jdk.jfr.consumer.RecordingFile
@@ -20,7 +21,7 @@ import kotlinx.serialization.json.put
 
 class SnapshotSourceBindingTimingTest {
     @Test fun splitOneSourceBindingReadWithoutChangingItsCursorWindow() = withCashWriteSetTestWorkspace("postgres") { db, workspace, account ->
-        val user = "source-timing-$workspace"
+        val user = UUID.randomUUID().toString()
         val email = "$user@example.invalid"
         val token = "fixture-only-$workspace"
         val inserted = 256
@@ -31,7 +32,7 @@ class SnapshotSourceBindingTimingTest {
             sql.insertInto(WORKSPACE_MEMBERSHIPS).set(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID, workspace)
                 .set(WORKSPACE_MEMBERSHIPS.USER_ID, user).set(WORKSPACE_MEMBERSHIPS.ROLE, "editor")
                 .set(WORKSPACE_MEMBERSHIPS.CREATED_AT, deletionTime).execute()
-            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, java.util.UUID.randomUUID().toString())
+            sql.insertInto(USER_SESSIONS).set(USER_SESSIONS.ID, UUID.randomUUID().toString())
                 .set(USER_SESSIONS.USER_ID, user).set(USER_SESSIONS.TOKEN_DIGEST, tokenDigest(token))
                 .set(USER_SESSIONS.ACTIVE_WORKSPACE_ID, workspace).set(USER_SESSIONS.CREATED_AT, deletionTime)
                 .set(USER_SESSIONS.EXPIRES_AT, Instant.parse("2099-01-01T00:00:00Z")).execute()
