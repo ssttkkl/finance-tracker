@@ -56,11 +56,12 @@ private fun calculateImportPlan(
     progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
     workspace: CashImportReviewWorkspace? = null,
 ): CalculatedImportPlan {
-    val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    val workingFiles = if (workspace != null && files is CashImportReviewSources) files.claim() else files
+    val (plan, sources) = localCashImportBusinessPlan(workingFiles, source, input, previous, recordIds, requireActive, progress, now)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
     val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
-    val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
+    val changes = buildLocalCashImportWriteSet(source, workingFiles, sources, frozen,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray, trustedFrozenPlan = true)
     return CalculatedImportPlan(plan, frozen, changes)
 }
@@ -87,6 +88,11 @@ private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: L
     retainedIds.putAll(recordIds)
     val operations = prepareOwnedLocalCashImportOperations(files, source, input["account_selections"] ?: empty,
         input["row_choices"] ?: empty, retainedIds)
+    if (files is ClaimedCashImportReviewSources) {
+        files.releaseParsedFields()
+        // At this point only identity and coverage are used from this private source plan.
+        for (occurrence in operations.source.rows.rows.values) (occurrence.fields as MutableMap<*, *>).clear()
+    }
     @Suppress("UNCHECKED_CAST") val entries = choices["entry_choices"] as List<Map<String, Any?>>
     val prepared = LocalCashImportPreviewPreparation(source, requireActive).prepareOwned(
         operations.operations, operations.source.rows.rows, entries, previous)

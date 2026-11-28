@@ -27,6 +27,7 @@ import com.finance.tracker.business.domain.StatementDocumentFailure
 import com.finance.tracker.business.domain.decodeStoredCashImportFile
 import com.finance.tracker.business.domain.toParsedImportFile
 import com.finance.tracker.business.domain.prepareLocalCashImportView
+import com.finance.tracker.business.domain.CashImportReviewSources
 import com.finance.tracker.business.domain.ParsedImportFile
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -400,7 +401,7 @@ class ClientCashImportOperations(
         val previous = batch.review?.let(LocalCashImportReview::decode)
         val choices = (updatedChoices ?: retained).copy(expectedSessionRevision = revision, timezoneName = timezone)
         progress("read_files")
-        val files = parsedFiles(ledger, batch)
+        val files = if (useWorkspace) CashImportReviewSources(parsedFiles(ledger, batch)) else parsedFiles(ledger, batch)
         val workspace = if (useWorkspace) store.openReviewWorkspace(ledger.binding, snapshot.workspaceId, batch.id) else null
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
             snapshot, batch.id, planId, revision, files,

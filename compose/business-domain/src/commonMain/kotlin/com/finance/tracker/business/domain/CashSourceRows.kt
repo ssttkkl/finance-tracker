@@ -1,6 +1,8 @@
 package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.CashSourceCoverage
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /** 已解析文件的最小批次视图；不查询账本、不重新解析。 */
 data class ParsedImportFile(
@@ -17,6 +19,37 @@ data class ParsedImportFile(
     val errorCode: String? = null,
     val diagnostic: Map<String, Any?>? = null,
 )
+
+/** Transfer a snapshot of the input list to a single workspace-backed review. */
+@OptIn(ExperimentalAtomicApi::class)
+class CashImportReviewSources(files: List<ParsedImportFile>) : AbstractList<ParsedImportFile>() {
+    private val pending = AtomicReference<List<ParsedImportFile>?>(files.toList())
+
+    override val size get() = required(pending.load()).size
+    override fun get(index: Int): ParsedImportFile = required(pending.load())[index]
+
+    internal fun claim(): ClaimedCashImportReviewSources = ClaimedCashImportReviewSources(required(pending.exchange(null)))
+
+    private fun required(files: List<ParsedImportFile>?): List<ParsedImportFile> =
+        checkNotNull(files) { "cash_import_review_sources_consumed" }
+}
+
+internal class ClaimedCashImportReviewSources(files: List<ParsedImportFile>) : AbstractList<ParsedImportFile>() {
+    private val working = files.toMutableList()
+
+    override val size get() = working.size
+    override fun get(index: Int): ParsedImportFile = working[index]
+
+    fun releaseParsedFields() {
+        for (index in working.indices) {
+            val file = working[index]
+            val document = file.document ?: continue
+            val rows = document.rows.map { row -> row.copy(fields = null, paymentMethod = "", providerId = null,
+                sourceAccountIdentifier = null, sourceExplanation = emptyMap()) }
+            working[index] = file.copy(document = document.copy(rows = rows))
+        }
+    }
+}
 
 class SourceBatchRows(
     val rows: LinkedHashMap<String, SourceOccurrence>,
