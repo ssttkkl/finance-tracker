@@ -1,0 +1,51 @@
+name: Cash reader projection diagnostic
+
+on:
+  push:
+    branches: [perf/project-cash-review-reader]
+
+permissions:
+  contents: read
+
+jobs:
+  reader-projection:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Measure the reader stages on one frozen fixture per size
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/cash-reader-projection"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/source.txt"
+          (cd compose && ./gradlew --max-workers=2 :business-domain:jvmTest \
+            --tests '**.CashImportReaderProjectionTest' --tests '**.CashImportReviewWorkspaceTest')
+          python3 - "$out" <<'PY'
+          import re
+          import sys
+          import xml.etree.ElementTree as xml
+          from pathlib import Path
+          proof = Path('compose/business-domain/build/test-results/jvmTest/TEST-com.finance.tracker.business.domain.CashImportReaderProjectionTest.xml')
+          suite = xml.parse(proof).getroot()
+          records = [row for row in suite.findtext('system-out', '').splitlines()
+                     if re.fullmatch(r'review-plan-field \d+ [a-z_]+ (array|object|scalar) \d+ \d+|review-reader-sample \d+ (full|projected) (construct|validate|view) \d+ \d+', row)]
+          assert len(records) >= 100
+          (Path(sys.argv[1]) / 'measurements.txt').write_text('\n'.join(records) + '\n')
+          PY
+      - name: Upload only field sizes and phase measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cash-reader-projection-metrics
+          path: ${{ runner.temp }}/cash-reader-projection
+          if-no-files-found: error
+          retention-days: 30

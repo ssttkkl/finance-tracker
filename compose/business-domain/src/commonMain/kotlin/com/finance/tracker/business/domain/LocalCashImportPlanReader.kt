@@ -3,11 +3,13 @@ package com.finance.tracker.business.domain
 import kotlinx.serialization.json.*
 
 /** Independent read-only views of a frozen calculation; lifecycle metadata must come from its actual owner. */
-class LocalCashImportPlanReader(plan: JsonObject, stored: Boolean, private val monthly: (List<*>, String) -> Map<String, Any?>) {
+class LocalCashImportPlanReader internal constructor(plan: JsonObject, stored: Boolean, projectStoredFields: Boolean,
+    private val monthly: (List<*>, String) -> Map<String, Any?>) {
+    constructor(plan: JsonObject, stored: Boolean, monthly: (List<*>, String) -> Map<String, Any?>) : this(plan, stored, true, monthly)
     constructor(plan: JsonObject, monthly: (List<*>, String) -> Map<String, Any?>) : this(plan, false, monthly)
     @Suppress("UNCHECKED_CAST")
-    private val plan = if (stored) plan.mapValues { (_, value) ->
-        when {
+    private val plan = if (stored) (if (projectStoredFields) plan.filterKeys { it in storedPreviewReadFields } else plan)
+        .mapValues { (_, value) -> when {
             value is JsonObject && value.isStoredReviewMap() -> {
                 val values = value
                 val keys = values.keys.toList()
@@ -67,6 +69,11 @@ class LocalCashImportPlanReader(plan: JsonObject, stored: Boolean, private val m
         else -> encodeLocalCashValue(value)
     }
 }
+
+private val storedPreviewReadFields = setOf(
+    "plan_id", "session_id", "session_revision", "expires_at", "summary", "item_counts", "can_commit", "contract_version",
+    "items", "item_details", "detail_values", "monthly_source", "operations", "processing_details", "file_results", "invalidated_choices",
+)
 
 private val planViewDigitStarts = pythonIntegerDigitStarts
 private val planViewNondecimalDigits = pythonNondecimalDigits
