@@ -17,6 +17,7 @@ data class AppRoute(
     val workspaceId: String? = null,
     val invitationToken: String? = null,
     val unmatchedPath: String? = null,
+    val assistantConversationId: String? = null,
 )
 
 data class WorkspaceLocation(
@@ -41,20 +42,29 @@ fun parseAppRoute(pathname: String, search: String = ""): AppRoute {
         return AppRoute(page = AppPage.NOT_FOUND, unmatchedPath = path)
     }
     val childPath = workspace?.childPath ?: path
-    val page = when (childPath) {
-        "/" -> AppPage.CASH_LEDGER
-        "/assistant" -> AppPage.LEDGER_ASSISTANT
-        "/cash-import" -> AppPage.CASH_IMPORT
-        "/cash-categories" -> AppPage.CASH_CATEGORIES
-        "/investment-holdings" -> AppPage.INVESTMENT_HOLDINGS
-        "/investment-events" -> AppPage.INVESTMENT_EVENTS
-        "/workspace-management" -> AppPage.WORKSPACE_MANAGEMENT
-        else -> AppPage.NOT_FOUND
+    val conversationId = childPath.takeIf { it.startsWith("/assistant/") }
+        ?.removePrefix("/assistant/")
+        ?.takeIf { it.isNotEmpty() && '/' !in it }
+        ?.let { percentDecode(it, plusAsSpace = false) }
+        ?.takeIf { it.isNotEmpty() && '/' !in it }
+    val page = when {
+        conversationId != null -> AppPage.LEDGER_ASSISTANT
+        else -> when (childPath) {
+            "/" -> AppPage.CASH_LEDGER
+            "/assistant" -> AppPage.LEDGER_ASSISTANT
+            "/cash-import" -> AppPage.CASH_IMPORT
+            "/cash-categories" -> AppPage.CASH_CATEGORIES
+            "/investment-holdings" -> AppPage.INVESTMENT_HOLDINGS
+            "/investment-events" -> AppPage.INVESTMENT_EVENTS
+            "/workspace-management" -> AppPage.WORKSPACE_MANAGEMENT
+            else -> AppPage.NOT_FOUND
+        }
     }
     return AppRoute(
         page = page,
         workspaceId = workspace?.workspaceId,
         unmatchedPath = path.takeIf { page == AppPage.NOT_FOUND },
+        assistantConversationId = conversationId,
     )
 }
 
@@ -99,7 +109,7 @@ fun workspacePath(workspaceId: String, path: String = "/"): String {
 fun appPathForRoute(route: AppRoute): String? {
     val childPath = when (route.page) {
         AppPage.CASH_LEDGER -> "/"
-        AppPage.LEDGER_ASSISTANT -> "/assistant"
+        AppPage.LEDGER_ASSISTANT -> "/assistant" + route.assistantConversationId?.let { "/${encodePathSegment(it)}" }.orEmpty()
         AppPage.CASH_IMPORT -> "/cash-import"
         AppPage.CASH_CATEGORIES -> "/cash-categories"
         AppPage.INVESTMENT_HOLDINGS -> "/investment-holdings"

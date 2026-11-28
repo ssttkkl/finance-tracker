@@ -418,10 +418,6 @@ private fun LedgerAssistantNavigation(
 
     val active = state.route.page == AppPage.LEDGER_ASSISTANT
     val colors = LocalFinanceColorRoles.current
-    val open = {
-        if (!active) state.onNavigate(AppPage.LEDGER_ASSISTANT)
-        onNavigate()
-    }
     HorizontalDivider(color = colors.fieldBorder.copy(alpha = 0.5f))
     Text(
         localizedText("assistant_title"),
@@ -434,8 +430,8 @@ private fun LedgerAssistantNavigation(
         NavigationGlyphKind.ADD, localizedText("assistant_new"), active && assistant.selectedId == null,
         true, showFocusRing, "assistant.new",
     ) {
-        assistant.newConversation()
-        open()
+        state.onOpenAssistantConversation(null)
+        onNavigate()
     }
     assistant.conversations
         .filter { !it.historyTitle.isNullOrEmpty() }
@@ -448,8 +444,8 @@ private fun LedgerAssistantNavigation(
                     active && assistant.selectedId == conversation.id, showFocusRing,
                     touchLayout = state.sizeClass == WindowSizeClass.COMPACT || !isWebPlatform,
                 ) {
-                    assistant.select(conversation.id)
-                    open()
+                    state.onOpenAssistantConversation(conversation.id)
+                    onNavigate()
                 }
             }
         }
@@ -1193,7 +1189,7 @@ private fun LedgerAssistantDestination(state: DestinationState, modifier: Modifi
             colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface, titleContentColor = colors.foreground),
             actions = {
                 if (assistant != null) {
-                    IconButton(onClick = assistant::newConversation, modifier = Modifier.testTag("assistant.header.new")) {
+                    IconButton(onClick = { state.onOpenAssistantConversation(null) }, modifier = Modifier.testTag("assistant.header.new")) {
                         Icon(painterResource(Res.drawable.ic_edit_square), localizedText("assistant_new"))
                     }
                     if (current?.historyTitle != null) AssistantCurrentHistoryMenu(assistant, current)
@@ -1202,9 +1198,13 @@ private fun LedgerAssistantDestination(state: DestinationState, modifier: Modifi
         )
         SessionConnectionNotice(Modifier.padding(horizontal = 14.dp))
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            LedgerAssistantScreen(
-                state.ledgerAssistant, state.cashMaintenanceRepository, state.cashMaintenanceRecovery, state.sizeClass,
-            )
+            if (state.route.workspaceId != state.session.activeWorkspaceId) {
+                SessionLoadingScreen()
+            } else {
+                LedgerAssistantScreen(
+                    state.ledgerAssistant, state.cashMaintenanceRepository, state.cashMaintenanceRecovery, state.sizeClass,
+                )
+            }
         }
     }
 }

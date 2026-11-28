@@ -76,6 +76,17 @@ class AppNavigationTest {
     }
 
     @Test
+    fun assistantRouteRoundTripsLocalConversationAndRetainsNewRoute() {
+        val base = "/w/team/assistant"
+        val saved = AppRoute(AppPage.LEDGER_ASSISTANT, workspaceId = "team", assistantConversationId = "conversation-1")
+        assertEquals(saved, parseAppRoute("$base/conversation-1"))
+        assertEquals("$base/conversation-1", appPathForRoute(saved))
+        assertEquals(saved, restoreAppRouteState(saveAppRouteState(saved)))
+        assertEquals(saved.copy(assistantConversationId = null), parseAppRoute(base))
+        assertEquals(AppPage.NOT_FOUND, parseAppRoute("$base/conversation-1/other").page)
+    }
+
+    @Test
     fun nativeBackStackReturnsToPreviousRouteInOrder() {
         val ledger = AppRoute(AppPage.CASH_LEDGER, workspaceId = "workspace-1")
         val holdings = AppRoute(AppPage.INVESTMENT_HOLDINGS, workspaceId = "workspace-1")

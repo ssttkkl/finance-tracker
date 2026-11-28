@@ -61,7 +61,7 @@ flowchart TD
 | F-08 | [投资持仓](investment/feature-map.md#f-08-投资持仓) | `/w/<workspaceId>/investment-holdings` |
 | F-09 | [投资流水](investment/feature-map.md#f-09-投资流水) | `/w/<workspaceId>/investment-events` |
 | F-10 | [管理](workspace/feature-map.md#f-10-管理) | `/w/<workspaceId>/workspace-management` |
-| F-11 | [账本助手](cash-ledger/feature-map.md#f-11-账本助手) | `/w/<workspaceId>/assistant`，主导航的新对话和已有对话 |
+| F-11 | [账本助手](cash-ledger/feature-map.md#f-11-账本助手) | `/w/<workspaceId>/assistant` 新对话；`/w/<workspaceId>/assistant/<conversationId>` 本机已有对话 |
 
 ## 跨端覆盖与待办
 

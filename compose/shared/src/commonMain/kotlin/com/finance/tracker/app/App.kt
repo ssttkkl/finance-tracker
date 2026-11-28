@@ -44,6 +44,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -108,6 +109,7 @@ internal data class DestinationState(
     val onLogout: () -> Unit,
     val demoStatement: FileSource? = null,
     val ledgerAssistant: LedgerAssistantUi? = null,
+    val onOpenAssistantConversation: (String?) -> Unit = {},
     val navigationIcon: @Composable () -> Unit = {},
 )
 
@@ -197,6 +199,7 @@ private fun FinanceTrackerAppContent(
         ?: IncomingInvitationLinks.currentToken()?.let { AppRoute(AppPage.INVITATION, invitationToken = it) }
         ?: initialRoute
     var navigationState by rememberAppNavigationState(resolvedInitialRoute)
+    var restoringAssistantWorkspace by remember { mutableStateOf<String?>(null) }
     var importExitGuard by remember { mutableStateOf<((() -> Unit) -> Unit)?>(null) }
     val registerImportExit = remember { { handler: ((() -> Unit) -> Unit)? -> importExitGuard = handler } }
     fun guardNavigation(action: () -> Unit) {
@@ -216,7 +219,7 @@ private fun FinanceTrackerAppContent(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(accessViewModel) {
         val removeListener = observeBrowserHistory {
             getBrowserLocation()?.let { location ->
                 val next = parseAppRoute(location.pathname, location.search)
@@ -226,6 +229,17 @@ private fun FinanceTrackerAppContent(
                     guardNavigation {
                         navigationState = navigationState.copy(currentRoute = next)
                         replaceBrowserPath(target)
+                        val currentSession = accessViewModel.state.value.session
+                        val requested = next.workspaceId
+                        val expected = restoringAssistantWorkspace ?: currentSession?.activeWorkspaceId
+                        if (next.page == AppPage.LEDGER_ASSISTANT && requested != null && requested != expected &&
+                            currentSession?.workspaces?.any { it.id == requested } == true
+                        ) {
+                            restoringAssistantWorkspace = requested
+                            accessViewModel.selectWorkspace(requested)
+                        } else if (requested != restoringAssistantWorkspace) {
+                            restoringAssistantWorkspace = null
+                        }
                     }
                 }
             }
@@ -244,10 +258,17 @@ private fun FinanceTrackerAppContent(
         accessViewModel.initialize(currentRoute.workspaceId.takeUnless { currentRoute.page == AppPage.INVITATION })
     }
 
-    LaunchedEffect(accessPhase, session?.activeWorkspaceId, currentRoute.page) {
+    LaunchedEffect(accessPhase, session?.activeWorkspaceId, currentRoute.page, currentRoute.workspaceId, accessBusy, restoringAssistantWorkspace) {
+        if (restoringAssistantWorkspace == currentRoute.workspaceId && restoringAssistantWorkspace != null &&
+            accessViewModel.state.value.busy
+        ) return@LaunchedEffect
+        restoringAssistantWorkspace = null
         val workspaceId = session?.activeWorkspaceId
         if (accessPhase == AccessStatus.AUTHENTICATED && workspaceId != null && currentRoute.page != AppPage.INVITATION) {
-            val routed = currentRoute.copy(workspaceId = workspaceId)
+            val routed = currentRoute.copy(
+                workspaceId = workspaceId,
+                assistantConversationId = currentRoute.assistantConversationId.takeIf { currentRoute.workspaceId == workspaceId },
+            )
             appPathForRoute(routed)?.let { path ->
                 if (getBrowserLocation()?.pathname != path) replaceBrowserPath(path)
             }
@@ -259,10 +280,20 @@ private fun FinanceTrackerAppContent(
         if (page != currentRoute.page) guardNavigation {
             val nextRoute = currentRoute.copy(page = page,
                 workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
-                invitationToken = null, unmatchedPath = null)
+                invitationToken = null, unmatchedPath = null, assistantConversationId = null)
             navigationState = navigationState.navigate(nextRoute, recordBackStack = getBrowserLocation() == null)
             appPathForRoute(nextRoute)?.let(::pushBrowserPath)
             onNavigate(nextRoute)
+        }
+    }
+
+    fun openAssistantConversation(workspaceId: String, conversationId: String?, replace: Boolean = false) {
+        val next = AppRoute(AppPage.LEDGER_ASSISTANT, workspaceId, assistantConversationId = conversationId)
+        if (next == navigationState.currentRoute) return
+        guardNavigation {
+            navigationState = navigationState.navigate(next, recordBackStack = !replace && getBrowserLocation() == null)
+            appPathForRoute(next)?.let { path -> if (replace) replaceBrowserPath(path) else pushBrowserPath(path) }
+            onNavigate(next)
         }
     }
 
@@ -283,6 +314,7 @@ private fun FinanceTrackerAppContent(
                 workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
                 invitationToken = null,
                 unmatchedPath = null,
+                assistantConversationId = null,
             )
             appPathForRoute(nextRoute)?.let(::pushBrowserPath)
             navigationState = navigationState.copy(currentRoute = nextRoute)
@@ -296,6 +328,7 @@ private fun FinanceTrackerAppContent(
             workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
             invitationToken = null,
             unmatchedPath = null,
+            assistantConversationId = null,
         )
         if (getBrowserLocation() != null) {
             navigationState = navigationState.copy(currentRoute = ledgerRoute)
@@ -325,7 +358,10 @@ private fun FinanceTrackerAppContent(
         if (workspaceId == null) {
             navigationState = AppNavigationState(AppRoute(AppPage.CASH_LEDGER))
         } else {
-            val route = currentRoute.copy(workspaceId = workspaceId)
+            val route = currentRoute.copy(
+                workspaceId = workspaceId,
+                assistantConversationId = currentRoute.assistantConversationId.takeIf { currentRoute.workspaceId == workspaceId },
+            )
             navigationState = navigationState.copy(currentRoute = route)
             appPathForRoute(route)?.let(::replaceBrowserPath)
         }
@@ -457,16 +493,48 @@ private fun FinanceTrackerAppContent(
                     val importRepository = remember(graph, importStores, SessionInstance(currentSession)) {
                         graph.cashImportRepository.forSession(currentSession)
                     }
-                    val assistantScope = rememberCoroutineScope()
-                    val assistant = remember(graph, SessionInstance(currentSession)) {
-                        graph.assistantWorkspace?.let { open ->
-                            LedgerAssistantUi(assistantScope, graph.diagnosticLogger) { open(currentSession) }
+                    val assistantWorkspaceId = currentSession.activeWorkspaceId
+                    val assistantSession = SessionInstance(currentSession)
+                    val assistantScope = key(graph, assistantSession) { rememberCoroutineScope() }
+                    fun selectedConversationId(): String? = navigationState.currentRoute
+                        .takeIf { it.page == AppPage.LEDGER_ASSISTANT && it.workspaceId == assistantWorkspaceId }
+                        ?.assistantConversationId
+                    val assistant = remember(graph, assistantSession) {
+                        if (assistantWorkspaceId == null) null else graph.assistantWorkspace?.let { open ->
+                            LedgerAssistantUi(
+                                assistantScope,
+                                graph.diagnosticLogger,
+                                selectedConversationId = ::selectedConversationId,
+                                captureConversationPublisher = {
+                                    val startedAt = navigationState.currentRoute
+                                    val publish: (String) -> Unit = { id ->
+                                        if (navigationState.currentRoute === startedAt &&
+                                            startedAt.page == AppPage.LEDGER_ASSISTANT &&
+                                            startedAt.workspaceId == assistantWorkspaceId &&
+                                            startedAt.assistantConversationId == null
+                                        ) openAssistantConversation(assistantWorkspaceId, id)
+                                    }
+                                    publish
+                                },
+                            ) { open(currentSession) }
                         }
                     }
                     LaunchedEffect(assistant) { assistant?.load() }
+                    LaunchedEffect(assistant, currentRoute.assistantConversationId) { assistant?.clearNavigationError() }
+                    val targetMissing = assistant?.ready == true && selectedConversationId() != null && assistant.current == null
+                    LaunchedEffect(assistant, currentRoute, targetMissing) {
+                        if (targetMissing && assistantWorkspaceId != null && navigationState.currentRoute == currentRoute) {
+                            openAssistantConversation(assistantWorkspaceId, null, replace = true)
+                        }
+                    }
                     val state = DestinationState(
                         route = currentRoute,
-                        ledgerAssistant = assistant,
+                        ledgerAssistant = assistant.takeIf {
+                            currentRoute.page != AppPage.LEDGER_ASSISTANT || currentRoute.workspaceId == assistantWorkspaceId
+                        },
+                        onOpenAssistantConversation = { id ->
+                            if (assistantWorkspaceId != null) openAssistantConversation(assistantWorkspaceId, id)
+                        },
                         financeRepository = graph.financeRepository,
                         cashMaintenanceRepository = graph.cashMaintenanceRepository,
                         cashCreationRepository = graph.cashCreationRepository,

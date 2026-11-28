@@ -24,7 +24,7 @@ internal data class AppNavigationState(
 internal fun saveAppRouteState(route: AppRoute): List<String> = listOf(
     route.page.name,
     route.workspaceId.orEmpty(),
-    route.invitationToken.orEmpty(),
+    (if (route.page == AppPage.LEDGER_ASSISTANT) route.assistantConversationId else route.invitationToken).orEmpty(),
     route.unmatchedPath.orEmpty(),
 )
 
@@ -34,7 +34,8 @@ internal fun restoreAppRouteState(values: List<String>): AppRoute? {
     return AppRoute(
         page = page,
         workspaceId = values[1].ifEmpty { null },
-        invitationToken = values[2].ifEmpty { null },
+        invitationToken = values[2].ifEmpty { null }.takeUnless { page == AppPage.LEDGER_ASSISTANT },
+        assistantConversationId = values[2].ifEmpty { null }.takeIf { page == AppPage.LEDGER_ASSISTANT },
         unmatchedPath = values[3].ifEmpty { null },
     )
 }

@@ -134,12 +134,13 @@ import kotlinx.serialization.json.put
 internal class LedgerAssistantUi(
     private val scope: CoroutineScope,
     private val diagnostics: DiagnosticLogger,
+    private val selectedConversationId: () -> String?,
+    private val captureConversationPublisher: () -> ((String) -> Unit),
     private val open: suspend () -> LedgerAssistantWorkspace,
 ) {
     var conversations by mutableStateOf<List<LedgerAssistantConversation>>(emptyList())
         private set
-    var selectedId by mutableStateOf<String?>(null)
-        private set
+    val selectedId: String? get() = selectedConversationId()
     var busy by mutableStateOf(false)
         private set
     var confirmingId by mutableStateOf<String?>(null)
@@ -171,8 +172,6 @@ internal class LedgerAssistantUi(
     var historyDeleteBlocked by mutableStateOf(false)
         private set
 
-    fun newConversation() = select(null)
-
     fun canDeleteHistory(conversation: LedgerAssistantConversation): Boolean =
         conversation.id != historyWriteId && !conversation.hasUnresolvedWrite
 
@@ -197,7 +196,6 @@ internal class LedgerAssistantUi(
         } else {
             deletedHistory += id
             conversations = conversations.filterNot { it.id == id }
-            if (selectedId == id) newConversation()
             historyDialog = null
         }
     }
@@ -231,8 +229,7 @@ internal class LedgerAssistantUi(
         ready = true
     }
 
-    fun select(id: String?) {
-        selectedId = id
+    fun clearNavigationError() {
         if (ready) failed = false
     }
 
@@ -251,17 +248,17 @@ internal class LedgerAssistantUi(
             }
             return
         }
+        val selectedId = selected?.id
+        val publishConversation = if (selectedId == null) captureConversationPublisher() else null
         run {
             val bound = checkNotNull(workspace)
-            val id = selectedId ?: bound.create().also {
-                accept(it)
-                selectedId = it.id
-            }.id
+            val id = selectedId ?: bound.create().id
             var published = false
             accept(bound.send(id, text) {
                 accept(it)
                 if (!published) {
                     published = true
+                    publishConversation?.invoke(id)
                     onSaved()
                 }
             })
@@ -429,11 +426,12 @@ internal fun LedgerAssistantScreen(
                 .padding(horizontal = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 24.dp),
             verticalArrangement = if (current == null) Arrangement.Center else Arrangement.Top,
         ) {
-            if (current == null) {
+            if (current == null && ui?.selectedId == null) {
                 AssistantGlyph(Modifier.size(42.dp), colors.primary)
                 Text(
                     localizedText("assistant_empty_heading"),
                     Modifier.padding(top = 20.dp, bottom = 22.dp),
+                    color = colors.onBackground,
                     style = if (sizeClass == WindowSizeClass.COMPACT) MaterialTheme.typography.headlineMedium
                         else MaterialTheme.typography.displaySmall,
                 )
@@ -444,7 +442,7 @@ internal fun LedgerAssistantScreen(
                     TextButton(onClick = { ui?.send(query) }, enabled = canSend) { Text(localizedText("assistant_example_query")) }
                     TextButton(onClick = { ui?.send(write) }, enabled = canSend) { Text(localizedText("assistant_example_write")) }
                 }
-            } else {
+            } else if (current != null) {
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     state = listState,

@@ -12,6 +12,8 @@
 - 验证于 2026-11-27（UTC+8），基线 `7428120a`。使用 JVM 21、Koog 1.3.0 发布物、确定性模型替身及临时 SQLite。执行 `compose/gradlew -p /tmp/koog-check.Fc77/probe --offline installDist` 和 `bash /tmp/koog-check.Fc77/probe/run-scenarios.sh`。待确认时退出，取消恢复沿用原调用 ID 和原输入，初始推理后仅请求一次，零写入。确认 36 元后模拟提交成功但进程退出，恢复按原 ID 取收据，单次写入、单条记录、单次续跑。证据位于 `/tmp/koog-check.Fc77/probe/scenarios.log` 和 `run.bBb1cU/`。
 - 将同一探针依次以 `prepare`、`cancel-and-crash`、`cancel-recover` 启动三次，退出码依次为 71、73、0。第二次在收到模型请求后、保存响应前退出，第三次再次发送相同取消结果和用户输入。计数及进程记录位于 `/tmp/koog-check.Fc77/probe/lost-continuation.OYjHe0/`。这项验证使用临时账本，正式共享写入、确认与发送并发以及三端接入仍待验证。
 
+- [x] 修复已复现的对话定位与暗色新对话前景色。旧版首次发送停留在 `/assistant`，刷新丢失选择。390×844 的暗色空白页标题继承了深色背景上的黑色前景。证据见 `/tmp/ledger-route-audit/before.log` 和 `dark-before.png`。
+
 ## 4. 构建
 
 - [x] 接入鉴权代理、设备历史、共享工具与恢复，并连接 Compose 对话页、A2UI 和现有详情。
@@ -39,6 +41,8 @@
 - 侧栏图标是 B 类局部呈现调整。独立审查比对 Google Material Symbols Outlined 原路径，确认开关复用既有图标容器、主题前景色及无障碍名称。Material 3 Navigation rail 的 Overview 与 Specs 用于核对展开与收起的图标位置和状态。只涉及宽屏导航开关。
 
 - 工具行视觉调整按 B 类执行。独立审查核对 FinanceTheme 前景色、键盘焦点、原工具操作与结果顺序。相邻有可见结果卡时保留原边界，空目录和详情入口与原渲染共用解析，历史详情仍取原有首个对象。鼠标和触屏共用紧凑行高及点击区域，键盘保留同一行的可见焦点。视觉自检核对默认、悬停、焦点与工具详情。
+
+- 对话地址和暗色空白页按 C 类修复。独立复核确认地址先于本机数据准备保持，跨工作区历史沿既有会话切换，切换期间用会话加载状态。首次保存回调验证原导航入口仍活跃，删除与缺失替换地址。暗色标题使用 `onBackground`，输入、提示和示例沿原组件及配对前景。
 
 ## 6. 测试与 QA
 
@@ -72,6 +76,10 @@
 - 2026-11-28，侧栏开关基于 `94ef0219`。Chrome 1440×900 使用正式 Web 构建核对两图标资源均为 200、悬浮展开、点击收起、固定展开和 Tab 聚焦展开，开关名称分别为「展开导航」「收起导航」。`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain`、`:shared:compileKotlinIosSimulatorArm64` 通过。Web 与原生宽屏共享资源和样式，窄屏抽屉合同不变。证据见 `/tmp/ledger-panel-symbols-browser-pass.log`、`/tmp/ledger-panel-symbols-build.log` 和 http://127.0.0.1:18805/panel-symbols/ 。
 
 - 2026-11-28，工具行基于 `b17595ea`，旧版间距参考 `94ef0219`。Chrome 1440×900、390×844 验证无可见卡的连续摘要行高及行距均为 32 px，原来行距 72 px。同一 390×844 视口的鼠标和触摸模式测得相同行距。宽窄屏只在悬停行改变图标与文字颜色，行位置不动。Enter／Space、Escape、点击关闭和触屏逐条点选两项均走对应工具详情，零额外推理及写入。空查询结果仍成组，有卡时仍为工具 A、卡 A、工具 B、正文。Web 与 Android／iOS 共用分组及焦点，保持同一点击尺寸。开发构建实测见 `/tmp/ledger-tool-spacing-route-dev.log`，截图见 http://127.0.0.1:18805/compact-tools/ 。
+
+- 2026-11-28，以 `a9ce210a` 为地址与暗色修复基线。Chrome 开发构建在 1440×900、390×844 用两条真实本机历史验证首次保存、页头新建、切换历史、刷新、直达、浏览器前进后退、重新登录、未知 ID 和删除回退。每个视口只发送两次推理，恢复各路径零额外推理。跨工作区前进后退恢复有权限的工作区，借用另一工作区 ID 回退。证据见 `/tmp/ledger-route-audit/route-final-dev.log` 与 `route-cross-current.log`。同视口深浅色及修正前对照见 http://127.0.0.1:18805/assistant-route/ 。Android 导航定向测试 10 项通过，iOS 模拟器目标编译通过，没有运行原生设备交互。
+
+- 最终 `:webApp:wasmJsBrowserDistribution`、Android 导航定向测试及 iOS 模拟器编译通过。Chrome 从正式产物复跑相同路由流程，延迟工作区切换期间显示「正在恢复会话」，未出现空白页或错误提示。也复跑统一 32 px 工具行、像素悬停差分、两行触屏逐条打开、可见卡顺序和空结果。18804 服务的 JS 与 Wasm SHA-256 均与正式产物相同，三个新增图标均返回 200。证据见 `/tmp/ledger-assistant-final-distribution.log`、`/tmp/ledger-route-audit/route-release.log`、`18804-assets.log`、`/tmp/ledger-tool-spacing-release.log`、`ledger-tool-empty-release.log`、`ledger-tool-card-release.log` 和 `ledger-tool-hover-pixels.log`。
 
 ## 7. 发布
 
