@@ -622,5 +622,9 @@ D 两轮核对均比 B 和 C 快。B 的 RSS 比 D 分别少 1,273,856 B 和 14,
 
 JVM 共享操作 12 项、SQLite 和真实 PostgreSQL 合同各 13 项、OpenAPI 17 项、Wasm 编译、846 项公开 ABI 检查、npm 实装和 24 项 Node 回归通过。独立评审核验授权、版本固定、跨段完整性和预算，补足未协商、超窗口及回放尺寸不匹配的失败回归。原始报告 `local/ft-client-review-full-bundle_base.ocTR4K`、`local/ft-client-review-full-bundle_real.ZvmmpG`、`local/ft-client-review-full-bundle_base_replay.lLsLA8`、`local/ft-client-review-full-bundle_replay.FV9yPF`，首次失败 `local/ft-client-review-full-bundle_replay.6OwSCc`。实际 #126 仍为 `82bb0b03`，固定检查失败。
 
+### 按代次跳过旧账本事实解码
+
+旧状态记录维持原 JSON 和 AES-GCM 格式。候选通过与父记录封装戳绑定的已认证索引读取版本，变更路径只认证原密文，不构造旧事实。同版线上与断网保留原读取。缺失或旧版本写入导致索引不匹配时按原路径。SQLite 的 `ABORT` 与整笔回滚故障回归覆盖正文及索引同时回滚、旧值可读和保留首个错误，篡改正文仍拒绝。9 项本机轻量 Node 回归及 14 项门禁与计量测试通过。数据验证与三种实装包在同一 Linux runner 的对照另行记录。固定资源数值保持，新增 ABI 只分配到现有调用和场景。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。

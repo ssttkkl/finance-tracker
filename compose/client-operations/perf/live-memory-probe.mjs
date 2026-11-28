@@ -51,7 +51,12 @@ DatabaseSync.prototype.prepare = function (sql) {
             if (row) {
                 const bytes = row.payload.byteLength;
                 reads[bucket(args[1])] += bytes;
-                if (bytes >= large) sample('sqlite-read');
+                if (bytes >= large) {
+                    const operation = bucket(args[1]);
+                    const event = operation === 'ledger' && new Error().stack.includes('Object.authenticateState')
+                        ? 'sqlite-ledger-authentication' : operation === 'ledger' ? 'sqlite-ledger-full-read' : 'sqlite-read';
+                    sample(event);
+                }
             }
             return row;
         };

@@ -1,0 +1,113 @@
+name: Ledger cache candidates diagnostic
+
+on:
+  push:
+    branches: [perf/read-ledger-generation-index]
+
+permissions:
+  contents: read
+
+jobs:
+  ledger-cache:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 55
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: ft_performance
+          POSTGRES_PASSWORD: disposable_ci_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ft_performance"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      LEDGER_CACHE_BASE: 742b87d52af4611f9ebb328d31dca63b76aae8ff
+      LEDGER_CACHE_SINGLE_CURSOR: 350476337b22d60a183fe659234303bbe74e09b2
+      FT_DIAGNOSTIC_PG: postgresql://ft_performance:disposable_ci_password@127.0.0.1:5432
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Prepare dedicated synthetic databases and delegated memory accounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
+          for database in base indexed single_cursor; do
+            psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ledger_candidates_${database}_test"
+          done
+          parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
+          printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
+          sudo chown "$(id -u):$(id -g)" "$parent"
+          printf 'FT_PERF_CGROUP_PARENT=%s\nFT_PERF_CGROUP_SUDO=1\n' "$parent" >> "$GITHUB_ENV"
+      - name: Verify store contracts and package each candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/ledger-cache"
+          control="$RUNNER_TEMP/ledger-cache-control"
+          mkdir -p "$out/base" "$out/indexed" "$out/single_cursor"
+          git worktree add --detach "$control" "$LEDGER_CACHE_BASE"
+          git rev-parse HEAD > "$out/indexed/source.txt"
+          git -C "$control" rev-parse HEAD > "$out/base/source.txt"
+          git rev-parse "$LEDGER_CACHE_SINGLE_CURSOR" > "$out/single_cursor/source.txt"
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
+            :client-operations:jvmTest --tests '**.ClientSessionConcurrentReadTest' \
+            --tests '**.CompatibleReadPageAssemblyTest' :client-operations:dumpPerformanceAbi :backend:installDist :cli:stageNpm)
+          cp compose/client-operations/build/performance/client-operations.abi "$out/indexed/client-operations.abi"
+          node compose/client-operations/perf/gate.mjs inventory compose/client-operations/perf/budgets.json \
+            "$out/indexed/client-operations.abi"
+          node --test compose/cli/test/storage.test.cjs
+          (cd "$control/compose" && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm)
+          (cd compose && ./gradlew --stop)
+          npm pack --json --pack-destination "$out/indexed" compose/cli/build/npm > "$out/indexed/pack.json"
+          npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
+          git show "$LEDGER_CACHE_SINGLE_CURSOR:compose/cli/npm/lib/host.mjs" > "$control/compose/cli/build/npm/lib/host.mjs"
+          npm pack --json --pack-destination "$out/single_cursor" "$control/compose/cli/build/npm" > "$out/single_cursor/pack.json"
+          mkdir -p "$RUNNER_TEMP/old-ft"
+          npm install --prefix "$RUNNER_TEMP/old-ft" --ignore-scripts --engine-strict --no-audit --no-fund "$out/base"/*.tgz
+      - name: Compare same-version, changed-version and offline cache access in sequential installed runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/ledger-cache"
+          export FT_DIAGNOSTIC_LEDGER_CACHE=1 FT_DIAGNOSTIC_FT_OLD="$RUNNER_TEMP/old-ft/node_modules/.bin/ft"
+          result=0
+          for label in base indexed single_cursor; do
+            export FT_PERF_CLI_PACKAGE=$(find "$out/$label" -maxdepth 1 -type f -name '*.tgz')
+            test -f "$FT_PERF_CLI_PACKAGE"
+            export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/ledger_candidates_${label}_test"
+            export FT_PERF_ARTIFACTS="$out/$label" FT_PERF_EVENTS="$out/$label/measurements.jsonl"
+            status=0
+            node compose/client-operations/perf/large-bench.mjs || status=$?
+            printf '%s\n' "$status" > "$FT_PERF_ARTIFACTS/exit.txt"
+            if [ "$status" -ne 0 ]; then result=1; fi
+          done
+          exit "$result"
+      - name: Upload raw synthetic cache samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-cache-candidates-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ledger-cache/**/source.txt
+            ${{ runner.temp }}/ledger-cache/**/pack.json
+            ${{ runner.temp }}/ledger-cache/**/client-operations.abi
+            ${{ runner.temp }}/ledger-cache/**/large-details.json
+            ${{ runner.temp }}/ledger-cache/**/measurements.jsonl
+            ${{ runner.temp }}/ledger-cache/**/*.live-memory.jsonl
+            ${{ runner.temp }}/ledger-cache/**/exit.txt
+          if-no-files-found: error
+          retention-days: 30

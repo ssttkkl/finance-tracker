@@ -18,7 +18,8 @@ class CompatibleReadPageAssemblyTest {
         val session = ClientStoredSession("synthetic-token", SessionDto(UserDto("fixture@example.invalid"),
             workspace.id, listOf(workspace)))
         for (mode in listOf("complete", "old-server", "closed", "missing", "duplicate", "premature-end", "wrong-scope",
-            "changed-version", "complete-bundle", "missing-chunk", "duplicate-chunk", "bundle-closed", "bundle-forbidden")) {
+            "changed-version", "complete-bundle", "missing-chunk", "duplicate-chunk", "bundle-closed", "bundle-forbidden",
+            "session-change")) {
             val cache = SnapshotStore(session, legacy)
             val paths = mutableListOf<String>()
             var pageIndex = 0
@@ -57,6 +58,8 @@ class CompatibleReadPageAssemblyTest {
                         if (mode == "closed" && pageIndex == 1) throw ClientNetworkUnavailable()
                         if (mode == "missing" && pageIndex == 1)
                             return@ClientHttp ClientHttpResponse(404, """{"error":{"code":"read_page_missing"}}""")
+                        if (mode == "session-change" && pageIndex == 1)
+                            cache.binding = ClientStoredSession("changed-token", session.session)
                         val index = if (mode == "duplicate" && pageIndex == 1) 0 else pageIndex
                         val section = sections[index]
                         val data = sourceFacts.getValue(section).jsonArray
@@ -101,7 +104,10 @@ class CompatibleReadPageAssemblyTest {
                         assertEquals("workspace_forbidden", failure.code)
                         assertEquals(1, cache.forgets)
                         assertNull(cache.current.ledger)
-                    } else assertEquals(legacy, cache.current.ledger?.snapshot)
+                    } else {
+                        if (mode == "session-change") assertEquals("session_changed", failure.code)
+                        assertEquals(legacy, cache.current.ledger?.snapshot)
+                    }
                 }
             }
             if (mode != "old-server") assertTrue("/api/v1/ledger/snapshot" !in paths)
@@ -222,14 +228,16 @@ class CompatibleReadPageAssemblyTest {
         }
     }
 
-    private class SnapshotStore(private val original: ClientStoredSession, ledger: LedgerSnapshotDto) : ClientSessionStore {
+    private class SnapshotStore(var binding: ClientStoredSession, ledger: LedgerSnapshotDto) : ClientSessionStore {
         var writes = 0
         var forgets = 0
         var current = ClientLedgerState("original", ClientStoredLedger(ledger, "2026-11-26T01:00:00Z"))
-        override suspend fun session() = original
+        override suspend fun session() = binding
         override suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean = error("Unused")
         override suspend fun verify(previous: ClientStoredSession, session: ClientStoredSession) = true
         override suspend fun ledgerState(session: ClientStoredSession, workspaceId: String) = current
+        override suspend fun indexedLedgerVersion(session: ClientStoredSession, workspaceId: String): ClientLedgerCacheVersion? =
+            current.ledger?.let { ClientLedgerCacheVersion(checkNotNull(current.generation), it.snapshot.ledgerSeq) }
         override suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean {
             assertEquals("original", expectedGeneration)
             writes++

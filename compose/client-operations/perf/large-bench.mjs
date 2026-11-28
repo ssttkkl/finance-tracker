@@ -275,7 +275,8 @@ async function main() {
             evidence.workspaceDisk = [];
         }
         let sequence = 0;
-        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined, concurrent = false } = {}) => {
+        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined,
+            concurrent = false, sampleMemory = false, client = ft } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
             const clocksPath = join(work, `${label}-http.jsonl`);
             if (flow) {
@@ -287,9 +288,9 @@ async function main() {
                 (diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow));
             const disk = observeDisk ? trackDisk(state) : null;
             try {
-                const measured = await measureCommand(ft, [...args, '--json'], {
+                const measured = await measureCommand(client, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
-                    collectLiveMemory: liveMemoryFlows.has(flow),
+                    collectLiveMemory: sampleMemory || liveMemoryFlows.has(flow),
                     collectGc: !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
                         NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
@@ -645,6 +646,24 @@ async function main() {
         await record('large.cash-refresh', refresh, {
             ledgerSeq: '3', snapshotDownloads: 1, rows: expectedPage.length, newAccount: refreshed.id,
         });
+        if (process.env.FT_DIAGNOSTIC_LEDGER_CACHE === '1') {
+            const probe = { state: coldState, sampleMemory: true };
+            const oldClient = process.env.FT_DIAGNOSTIC_FT_OLD;
+            const diagnostic = {};
+            const measureCache = async (name, version, offline, config = probe) => {
+                const result = await run(listArgs, config);
+                assert.deepEqual(readCashList(result.value, workspace, version, offline), expectedPage);
+                diagnostic[name] = { label: processes.at(-1).label, ms: result.ms, rssBytes: result.rssBytes };
+            };
+            await measureCache('sameVersion', '3', false);
+            await closeServer(proxy);
+            await measureCache('offline', '3', true);
+            if (oldClient) await measureCache('oldReader', '3', true, { state: coldState, client: oldClient });
+            await listen(proxy, proxyPort);
+            await run(['account', 'create', '--name', 'Synthetic probe version', '--type', 'cash', '--currency', 'CNY', ...scope]);
+            await measureCache('changedVersion', '4', false);
+            checks.ledgerCacheDiagnostic = diagnostic;
+        }
         checks.completed = true;
     } catch (error) {
         checks.completed = false;

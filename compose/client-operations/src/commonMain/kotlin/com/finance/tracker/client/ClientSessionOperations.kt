@@ -97,12 +97,16 @@ class ClientStoredLedger(
 @Serializable
 data class ClientLedgerState(val generation: String? = null, val ledger: ClientStoredLedger? = null)
 
+class ClientLedgerCacheVersion(val generation: String, val ledgerSeq: String)
+
 /** Both stores are scoped to this server. Ledger entries are additionally bound to the exact session and workspace. */
 interface ClientSessionStore {
     suspend fun session(): ClientStoredSession?
     suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean
     suspend fun verify(previous: ClientStoredSession, session: ClientStoredSession): Boolean
     suspend fun ledgerState(session: ClientStoredSession, workspaceId: String): ClientLedgerState
+    /** A host may read authenticated metadata for the current generation before reading ledger facts. */
+    suspend fun indexedLedgerVersion(session: ClientStoredSession, workspaceId: String): ClientLedgerCacheVersion? = null
     /** Compare both the original active session and the read generation, including prior invalidations. */
     suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean
     suspend fun forgetWorkspace(session: ClientStoredSession, workspaceId: String)
@@ -560,24 +564,28 @@ class ClientSessionOperations(
         return try {
             binding = onlineSession(original)
             val workspace = verifiedLedgerWorkspace(binding, initialWorkspace)
-            val state = store.ledgerState(binding, workspace)
-            val cached = state.ledger
+            val indexed = store.indexedLedgerVersion(binding, workspace)
+            val state = if (indexed == null) store.ledgerState(binding, workspace) else null
+            val generation = indexed?.generation ?: state?.generation
+            val cachedSeq = indexed?.ledgerSeq ?: state?.ledger?.snapshot?.ledgerSeq
             val suffix = "?workspace_id=${encodeComponent(workspace)}"
             val remote = ledgerRequest<LedgerVersionDto>("/api/v1/ledger/version$suffix", binding, workspace)
             requireCurrent(binding)
             val seq = revision(remote.ledgerSeq)
-            val ledger = if (cached != null && cached.snapshot.ledgerSeq == remote.ledgerSeq) {
-                if (store.ledgerState(binding, workspace).generation != state.generation)
+            val ledger = if (cachedSeq == remote.ledgerSeq) {
+                val current = store.ledgerState(binding, workspace)
+                val cached = current.ledger
+                if (current.generation != generation || cached?.snapshot?.ledgerSeq != cachedSeq)
                     throw ClientOperationFailure("read_snapshot_changed")
-                cached
+                checkNotNull(cached)
             } else {
-                val minimumSeq = maxOf(seq, cached?.snapshot?.ledgerSeq?.let(::revision) ?: 0L)
+                val minimumSeq = maxOf(seq, cachedSeq?.let(::revision) ?: 0L)
                 val snapshot = if (binding.supportsCompatibleReadPages) readPagedSnapshot(binding, workspace, minimumSeq)
                 else ledgerRequest<LedgerSnapshotDto>("/api/v1/ledger/snapshot$suffix", binding, workspace)
                 if (snapshot.workspaceId != workspace || revision(snapshot.ledgerSeq) < minimumSeq || snapshot.rulesVersion.isBlank())
                     throw ClientOperationFailure("protocol_error")
                 ClientStoredLedger(snapshot, now()).also {
-                    if (!store.saveLedger(binding, state.generation, it)) {
+                    if (!store.saveLedger(binding, generation, it)) {
                         requireCurrent(binding)
                         throw ClientOperationFailure("read_snapshot_changed")
                     }

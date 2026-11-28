@@ -1814,6 +1814,11 @@
       "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
     },
     {
+      "signature": "ClientSessionStore.indexedLedgerVersion|indexedLedgerVersion(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Optional host cache metadata used by the existing ledger read paths"
+    },
+    {
       "signature": "ClientSessionStore.ledgerState|ledgerState(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
       "disposition": "spi",
       "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"
@@ -2226,6 +2231,7 @@
         "ClientImportSubmissionState.Pending.<init>|<init>(com.finance.tracker.business.contracts.StoredCashImportSubmission){}",
         "ClientInvitation.<init>|<init>(kotlin.String;com.finance.tracker.business.contracts.Role;kotlin.Int){}",
         "ClientLedgerState.<init>|<init>(kotlin.String?;com.finance.tracker.client.ClientStoredLedger?){}",
+        "ClientLedgerCacheVersion.<init>|<init>(kotlin.String;kotlin.String){}",
         "ClientNetworkUnavailable.<init>|<init>(kotlin.Throwable?){}",
         "ClientOperationFailure.<init>|<init>(kotlin.String;kotlin.Int?;kotlin.Throwable?;kotlin.String?;kotlin.String?){}",
         "ClientPendingCommand.<init>|<init>(kotlin.String;kotlin.String;kotlin.String;kotlin.String;kotlin.collections.List<kotlin.String>;com.finance.tracker.business.contracts.CashMutationReceiptDto?;kotlin.String;kotlin.String?;com.finance.tracker.business.contracts.AccountCommandViewDto?;kotlin.String?;kotlin.Boolean;kotlin.String?;kotlin.String?){}",
@@ -2366,6 +2372,8 @@
         "CashImportCalculation.request.<get-request>|<get-request>(){}",
         "CashImportCalculation.requestBody.<get-requestBody>|<get-requestBody>(){}",
         "CashImportCalculation.review.<get-review>|<get-review>(){}",
+        "ClientLedgerCacheVersion.generation.<get-generation>|<get-generation>(){}",
+        "ClientLedgerCacheVersion.ledgerSeq.<get-ledgerSeq>|<get-ledgerSeq>(){}",
         "CashImportFileCapture.Prepared.component1|component1(){}",
         "CashImportFileCapture.Prepared.copy|copy(com.finance.tracker.business.contracts.StoredCashImportFile){}",
         "CashImportFileCapture.Prepared.equals|equals(kotlin.Any?){}",

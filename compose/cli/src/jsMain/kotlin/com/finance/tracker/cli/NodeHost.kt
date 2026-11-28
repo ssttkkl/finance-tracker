@@ -29,6 +29,7 @@ import com.finance.tracker.client.ClientHttpBody
 import com.finance.tracker.client.ClientHttpResponse
 import com.finance.tracker.client.ClientAccessOperations
 import com.finance.tracker.client.ClientLedgerState
+import com.finance.tracker.client.ClientLedgerCacheVersion
 import com.finance.tracker.client.ClientNetworkUnavailable
 import com.finance.tracker.client.ClientOperationFailure
 import com.finance.tracker.client.ClientSessionOperations
@@ -225,15 +226,34 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         return state
     }
 
+    override suspend fun indexedLedgerVersion(session: ClientStoredSession, workspaceId: String): ClientLedgerCacheVersion? =
+        ledgerIndex(slot(session, workspaceId))?.let { ClientLedgerCacheVersion(it.generation, it.ledgerSeq) }
+
+    private fun ledgerIndex(key: String): StoredLedgerIndex? {
+        val index = try { read<StoredLedgerIndex>("$key.ledger-head") }
+        catch (failure: ClientOperationFailure) {
+            if (failure.code != "local_state_unreadable") throw failure
+            null
+        } ?: return null
+        val sequence = index.ledgerSeq.toLongOrNull()
+        if (index.generation.isEmpty() || sequence == null || sequence < 0 || sequence.toString() != index.ledgerSeq) return null
+        return index.takeIf { readLocalState { database.stateStamp(key) as String? } == it.stamp }
+    }
+
     override suspend fun saveLedger(session: ClientStoredSession, expectedGeneration: String?, ledger: ClientStoredLedger): Boolean {
         val workspaceId = ledger.snapshot.workspaceId
-        if (!sameState(session, session()) || ledgerState(session, workspaceId).generation != expectedGeneration) return false
-        val parts = ledgerCacheText(newReference(), ledger)
-        database.writeGeneratedState(slot(session, workspaceId), {
+        if (!sameState(session, session())) return false
+        val key = slot(session, workspaceId)
+        val index = ledgerIndex(key)
+        if ((index?.generation ?: ledgerState(session, workspaceId).generation) != expectedGeneration) return false
+        if (index != null) readLocalState { database.authenticateState(key) }
+        val generation = newReference()
+        val parts = ledgerCacheText(generation, ledger)
+        database.writeGeneratedLedger(key, {
             val cursor = parts.iterator()
             val next: () -> String? = { if (cursor.hasNext()) cursor.next() else null }
             next
-        })
+        }, generation, ledger.snapshot.ledgerSeq)
         observedLedger = null
         return true
     }
@@ -490,6 +510,9 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
 
 @Serializable
 private data class PendingConfirmationIndex(val stamp: String, val operationKey: String)
+
+@Serializable
+private data class StoredLedgerIndex(val stamp: String, val generation: String, val ledgerSeq: String)
 
 @Serializable
 private data class ArchivedConfirmationIndex(val stamp: String, val operationKey: String, val receiptId: String)

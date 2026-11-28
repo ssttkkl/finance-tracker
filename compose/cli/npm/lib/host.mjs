@@ -328,12 +328,18 @@ function sealFrozenImportBatch(key, aad, metadata, request, field) {
     return sealStateChunks(key, aad, bytes, chunks());
 }
 
-function open(key, aad, encrypted) {
+function open(key, aad, encrypted, authenticateOnly = false) {
     const value = Buffer.from(encrypted.buffer, encrypted.byteOffset, encrypted.byteLength);
     if (value.length < 28) throw new Error('Unrecognized ciphertext');
     const decipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12));
     decipher.setAAD(aad);
     decipher.setAuthTag(value.subarray(12, 28));
+    if (authenticateOnly) {
+        for (let offset = 28; offset < value.length; offset += storageTextBlockUnits)
+            decipher.update(value.subarray(offset, offset + storageTextBlockUnits)).fill(0);
+        decipher.final().fill(0);
+        return;
+    }
     const plaintext = decipher.update(value.subarray(28));
     const tail = decipher.final();
     return tail.length === 0 ? plaintext : Buffer.concat([plaintext, tail]);
@@ -502,6 +508,10 @@ export function openStore(origin, createKey) {
                 dataKey.fill(0);
             }
         };
+        const stateStamp = (slot) => {
+            const item = database.prepare('SELECT wrapped_key FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
+            return item ? Buffer.from(item.wrapped_key).toString('base64') : null;
+        };
         return {
             openImportWorkset(batch) {
                 return worksets.open(batch);
@@ -511,10 +521,7 @@ export function openStore(origin, createKey) {
             workspaceSlot(token, email, workspace) {
                 return createHmac('sha256', key).update(JSON.stringify([server, token, email, workspace])).digest('hex');
             },
-            stateStamp(slot) {
-                const item = database.prepare('SELECT wrapped_key FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
-                return item ? Buffer.from(item.wrapped_key).toString('base64') : null;
-            },
+            stateStamp,
             stateFingerprint(slot) {
                 const item = database.prepare('SELECT payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 return item ? createHash('sha256').update(item.payload).digest('hex') : null;
@@ -529,11 +536,37 @@ export function openStore(origin, createKey) {
                     dataKey.fill(0);
                 }
             },
+            authenticateState(slot) {
+                const item = database.prepare('SELECT wrapped_key, payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
+                if (!item) throw new Error('Ledger state disappeared');
+                const dataKey = open(key, aad(slot), item.wrapped_key);
+                try { open(dataKey, aad(slot), item.payload, true); }
+                finally { dataKey.fill(0); }
+            },
             write(slot, payload, fingerprint = false) {
                 return writeState(slot, (key, aad) => sealStateText(key, aad, payload), fingerprint);
             },
             writeGeneratedState(slot, createCursor) {
                 writeState(slot, (key, aad) => sealGeneratedState(key, aad, createCursor));
+            },
+            writeGeneratedLedger(slot, createCursor, generation, ledgerSeq) {
+                database.exec('SAVEPOINT ledger_publish');
+                try {
+                    writeState(slot, (key, aad) => sealGeneratedState(key, aad, createCursor));
+                    const metadata = JSON.stringify({ stamp: stateStamp(slot), generation, ledgerSeq });
+                    writeState(`${slot}.ledger-head`, (key, aad) => sealStateText(key, aad, metadata));
+                    database.exec('RELEASE ledger_publish');
+                } catch (error) {
+                    if (database.isTransaction) {
+                        try { database.exec('ROLLBACK TO ledger_publish; RELEASE ledger_publish'); }
+                        catch {
+                            // A storage failure can already have rolled back the savepoint or transaction.
+                            try { if (database.isTransaction) database.exec('ROLLBACK'); }
+                            catch { /* The caller still closes the transaction and must receive the original error. */ }
+                        }
+                    }
+                    throw error;
+                }
             },
             writeFrozenImportBatch(slot, metadata, request, field = 'submission') {
                 writeState(slot, (key, aad) => sealFrozenImportBatch(key, aad, metadata, request, field));

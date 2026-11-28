@@ -211,6 +211,67 @@ test('encrypted state avoids full-buffer copies and still rejects a modified tag
     }
 });
 
+test('generated ledger and its version index publish together in the old readable format', async (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'ft-indexed-ledger-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const env = { state: process.env.FT_CLI_STATE_DIR, key: process.env.FT_CLI_STORAGE_KEY };
+    t.after(() => {
+        if (env.state === undefined) delete process.env.FT_CLI_STATE_DIR;
+        else process.env.FT_CLI_STATE_DIR = env.state;
+        if (env.key === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+        else process.env.FT_CLI_STORAGE_KEY = env.key;
+    });
+    const { openStore } = await import('../npm/lib/host.mjs');
+    function reopen(create = false) {
+        process.env.FT_CLI_STATE_DIR = root;
+        process.env.FT_CLI_STORAGE_KEY = Buffer.alloc(32, 12).toString('base64');
+        return openStore('https://ledger-index.test', create);
+    }
+    function cursor(text) {
+        return () => { let remaining = text; return () => {
+            const next = remaining;
+            remaining = null;
+            return next;
+        }; };
+    }
+    const initial = '{"generation":"a","ledger":null}';
+    const later = '{"generation":"b","ledger":null}';
+    let store = reopen(true);
+    store.writeGeneratedLedger('ledger', cursor(initial), 'a', '9007199254740995');
+    const hint = JSON.parse(store.read('ledger.ledger-head'));
+    assert.equal(hint.stamp, store.stateStamp('ledger'));
+    assert.equal(hint.generation, 'a');
+    assert.equal(hint.ledgerSeq, '9007199254740995');
+    store.authenticateState('ledger');
+    store.close(true);
+
+    const db = new DatabaseSync(join(root, 'client.sqlite'));
+    try {
+        for (const failure of ['ABORT', 'ROLLBACK']) {
+            db.exec(`CREATE TRIGGER fail_ledger_head BEFORE INSERT ON client_state
+                WHEN NEW.slot = 'ledger.ledger-head' BEGIN SELECT RAISE(${failure}, 'index fault'); END`);
+            store = reopen();
+            try {
+                assert.throws(() => store.writeGeneratedLedger('ledger', cursor(later), 'b', '9007199254740996'), /index fault/);
+                assert.equal(store.read('ledger'), initial);
+                assert.deepEqual(JSON.parse(store.read('ledger.ledger-head')), hint);
+            } finally { store.close(true); }
+            db.exec('DROP TRIGGER fail_ledger_head');
+        }
+        store = reopen();
+        store.write('ledger', later);
+        assert.notEqual(store.stateStamp('ledger'), hint.stamp);
+        assert.equal(store.read('ledger'), later);
+        store.close(true);
+        const { payload } = db.prepare('SELECT payload FROM client_state WHERE slot = ?').get('ledger');
+        payload[12] ^= 1;
+        db.prepare('UPDATE client_state SET payload = ? WHERE slot = ?').run(payload, 'ledger');
+        store = reopen();
+        try { assert.throws(() => store.authenticateState('ledger'), /authenticate|auth tag/i); }
+        finally { store.close(false); }
+    } finally { db.close(); }
+});
+
 test('large state writes preserve UTF-8 boundaries without whole plaintext buffers', async () => {
     const root = mkdtempSync(join(tmpdir(), 'ft-encrypted-text-'));
     const previousRoot = process.env.FT_CLI_STATE_DIR;
