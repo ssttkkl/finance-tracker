@@ -518,6 +518,8 @@ async function main() {
             const beforeLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
             let expectedView;
             let expectedFrozen;
+            let expectedCandidateFrozen;
+            const fieldDifferences = (actual, expected) => Object.keys(expected).filter(key => actual[key] !== expected[key]);
             const oldHost = await import(pathToFileURL(resolve(dirname(reviewVariants.base), '../finance-tracker-cli/lib/host.mjs')));
             function inspectFrozen(state, planId) {
                 const keys = ['FT_CLI_STATE_DIR', 'FT_CLI_STORAGE_KEY'];
@@ -557,7 +559,8 @@ async function main() {
                 }
             }
             const results = [];
-            checks.reviewComparison = { seedPreparations: 1, results };
+            const frozenComparisons = [];
+            checks.reviewComparison = { seedPreparations: 1, results, frozenComparisons };
             for (const [index, { name, sampled, allocated }] of matrix.entries()) {
                 const state = join(work, `review-comparison-${index}`);
                 await cp(primaryState, state, { recursive: true });
@@ -584,8 +587,13 @@ async function main() {
                     expectedView ??= view;
                     assert.deepEqual(view, expectedView);
                     const frozen = inspectFrozen(state, plan_id);
-                    expectedFrozen ??= frozen;
-                    assert.deepEqual(frozen, expectedFrozen);
+                    if (name === 'base') expectedFrozen ??= frozen;
+                    else expectedCandidateFrozen ??= frozen;
+                    frozenComparisons.push({
+                        name, sampled: !!sampled, allocated: !!allocated,
+                        againstFirstBase: fieldDifferences(frozen, expectedFrozen),
+                        againstFirstVariant: fieldDifferences(frozen, name === 'base' ? expectedFrozen : expectedCandidateFrozen),
+                    });
                     const temporary = evidence.workspaceDisk.at(-1);
                     assert.equal(temporary.after.scratch, 0);
                     assert.equal(temporary.after.scratchDirectories, 0);
@@ -599,10 +607,14 @@ async function main() {
             assert.equal(afterLedger.originalReceipt, null);
             Object.assign(checks.reviewComparison, {
                 sharedLedgerVersion: true, zeroWrites: true, oldHostReopensEveryFrozenCommand: true,
-                exactFrozenCommandAndResultInput: true, exactLegacyConclusion: true,
+                exactFrozenCommandAndResultInput: frozenComparisons.every(row =>
+                    !row.againstFirstBase.some(key => ['requestHash', 'resultHash', 'requestBytes', 'rows'].includes(key))),
+                exactLegacyConclusion: frozenComparisons.every(row => !row.againstFirstBase.includes('conclusion')),
                 frozenRequestBytes: expectedFrozen.requestBytes, receiptInputRows: expectedFrozen.rows,
             });
             checks.completed = false;
+            assert(frozenComparisons.every(row => row.againstFirstBase.length === 0),
+                'Frozen command or history differs across the installed packages');
             return;
         }
 
