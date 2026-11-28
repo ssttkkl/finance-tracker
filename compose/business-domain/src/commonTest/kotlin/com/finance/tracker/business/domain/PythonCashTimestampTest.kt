@@ -60,6 +60,33 @@ class PythonCashTimestampTest {
     }
 
     @Test
+    fun workbookDayFormattingKeepsGregorianMonthBoundariesAcrossEras() {
+        for (year in (-400..400) + listOf(-10000000, -9999999, 1900, 2000, 9999, 10000, 9999999)) {
+            val leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+            val lengths = listOf(31, if (leap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+            val yearText = when {
+                year < 0 -> "-" + (-year).toString().padStart(4, '0')
+                year > 9999 -> "+$year"
+                else -> year.toString().padStart(4, '0')
+            }
+            for ((index, days) in lengths.withIndex()) {
+                for (day in listOf(1, days)) {
+                    val month = (index + 1).toString().padStart(2, '0')
+                    val date = day.toString().padStart(2, '0')
+                    assertEquals("$yearText-$month-$date", formatCashWorkbookDay(timestampCalendarDay(year, index + 1, day)))
+                }
+                assertFailsWith<IllegalArgumentException> { timestampCalendarDay(year, index + 1, days + 1) }
+            }
+        }
+        assertEquals("1970-01-01", formatCashWorkbookDay(0L))
+        assertEquals("-0001-12-31", formatBankCoverageDay(-719529L))
+        assertEquals("0000-01-01", formatCashCandidateDay(-719528L))
+        assertEquals("+10000-12-31", formatCashCandidateDay(timestampCalendarDay(10000, 12, 31)))
+        assertFailsWith<IllegalArgumentException> { formatCashWorkbookDay(timestampCalendarDay(-10000000, 1, 1) - 1) }
+        assertFailsWith<IllegalArgumentException> { formatCashWorkbookDay(timestampCalendarDay(10000000, 1, 1)) }
+    }
+
+    @Test
     fun separatedSurrogatesCannotBecomeAnAstralSeparator() {
         val text = "2026-08-04😀12:00Z"
         assertFailsWith<IllegalArgumentException> { parsePythonCashTimestamp(text, separateSurrogates = setOf(10, 11)) }
