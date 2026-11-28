@@ -29,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -85,6 +86,9 @@ import com.finance.tracker.presentation.LedgerAssistantUi
 import com.finance.tracker.presentation.AssistantHistoryMenuTarget
 import com.finance.tracker.presentation.localizedText
 import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_delete
+import com.finance.tracker.resources.ic_edit
+import com.finance.tracker.resources.ic_keep_off
 import com.finance.tracker.resources.ic_more_vert
 import com.finance.tracker.resources.ic_push_pin
 import org.jetbrains.compose.resources.painterResource
@@ -298,12 +302,17 @@ private fun AssistantHistoryMenuItems(
     val pending = assistant.historyActionPending
     DropdownMenuItem(
         text = { Text(localizedText(if (conversation.pinned) "assistant_history_unpin" else "assistant_history_pin")) },
+        leadingIcon = {
+            val icon = if (conversation.pinned) Res.drawable.ic_keep_off else Res.drawable.ic_push_pin
+            Icon(painterResource(icon), contentDescription = null)
+        },
         enabled = !pending,
         onClick = { assistant.pinHistory(conversation.id, !conversation.pinned); close() },
         modifier = firstModifier.testTag("assistant.history.pin"),
     )
     DropdownMenuItem(
         text = { Text(localizedText("assistant_history_rename")) },
+        leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), contentDescription = null) },
         enabled = !pending,
         onClick = { assistant.requestHistoryDialog(AssistantHistoryDialog.Rename(conversation.id)); close() },
         modifier = Modifier.testTag("assistant.history.rename"),
@@ -312,11 +321,15 @@ private fun AssistantHistoryMenuItems(
     DropdownMenuItem(
         text = {
             Column {
-                Text(localizedText("assistant_history_delete"),
-                    color = if (canDelete && !pending) MaterialTheme.colorScheme.error else Color.Unspecified)
+                Text(localizedText("assistant_history_delete"))
                 if (!canDelete) Text(localizedText("assistant_history_delete_blocked"), style = MaterialTheme.typography.bodySmall)
             }
         },
+        leadingIcon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null) },
+        colors = MenuDefaults.itemColors(
+            textColor = MaterialTheme.colorScheme.error,
+            leadingIconColor = MaterialTheme.colorScheme.error,
+        ),
         enabled = !pending && canDelete,
         onClick = { assistant.requestHistoryDialog(AssistantHistoryDialog.Delete(conversation.id)); close() },
         modifier = Modifier.testTag("assistant.history.delete"),

@@ -6,6 +6,7 @@ import app.cash.sqldelight.db.SqlPreparedStatement
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -43,16 +44,37 @@ class LedgerAssistantFilesTest {
             val initial = LedgerAssistantConversation("report", "2026-11-28T00:00:00Z")
             assertTrue(store.swap(null, initial))
             val file = newLedgerAssistantTemporaryFile("表格.csv", "=1+1,88")
-            val frozen = LedgerAssistantFileContent(file.metadata.copy(id = "attachment", attached = true), file.text)
+            val deadline = 100L + LEDGER_ASSISTANT_ATTACHMENT_TTL_MS
+            val frozen = LedgerAssistantFileContent(
+                file.metadata.copy(id = "attachment", attached = true, expiresAtMs = deadline), file.text,
+            )
             val next = initial.copy(revision = 1, messages = listOf(LedgerAssistantMessage(attachment = frozen.metadata)))
             val receipt = LedgerAssistantFileReceipt("publish", "fingerprint", JsonObject(emptyMap()))
             assertTrue(store.commitSkillRun(initial, next, emptySet(), listOf(file, frozen), receipt, 100L))
             val reopened = SqlLedgerAssistantConversations.open(driver)
             val afterExpiry = 100L + LEDGER_ASSISTANT_FILE_TTL_MS
-            assertEquals(listOf(frozen.metadata), reopened.skillFiles(initial.id, afterExpiry))
-            assertNull(reopened.readSkillFile(initial.id, file.metadata.id, afterExpiry))
+            assertEquals(2, reopened.skillFiles(initial.id, afterExpiry - 1).size)
+            assertEquals(file.text, reopened.readSkillFile(initial.id, file.metadata.id, afterExpiry)?.text)
+            val renewedTemporaryDeadline = afterExpiry - 1 + LEDGER_ASSISTANT_FILE_TTL_MS
+            assertEquals(listOf(frozen.metadata), reopened.skillFiles(initial.id, renewedTemporaryDeadline))
+            assertNull(reopened.readSkillFile(initial.id, file.metadata.id, renewedTemporaryDeadline))
             assertEquals(frozen.metadata, reopened.list().single().messages.single().attachment)
-            assertEquals("\"'=1+1\",\"88\"\r\n", reopened.readSkillFile(initial.id, "attachment", afterExpiry)?.text)
+            assertEquals(listOf(frozen.metadata), reopened.skillFiles(initial.id, deadline - 1))
+            val stillAvailable = checkNotNull(reopened.readSkillFile(initial.id, "attachment", deadline - 1))
+            assertEquals(frozen.metadata, stillAvailable.metadata)
+            assertEquals("\"'=1+1\",\"88\"\r\n", stillAvailable.text)
+            val replay = receipt.copy(callId = "repeat", result = JsonObject(mapOf("attachment_id" to JsonPrimitive("attachment"))))
+            val updated = next.copy(revision = 2)
+            assertTrue(reopened.commitSkillRun(next, updated, emptySet(), emptyList(), replay, deadline - 1))
+            assertEquals("file_expired", assertFailsWith<LedgerAssistantScriptFailure> {
+                reopened.commitSkillRun(updated, updated.copy(revision = 3), emptySet(), emptyList(),
+                    replay.copy(callId = "expired"), deadline)
+            }.reason)
+            assertNull(reopened.skillReceipt(initial.id, "expired"))
+            assertNull(reopened.readSkillFile(initial.id, "attachment", deadline))
+            assertTrue(reopened.skillFiles(initial.id, deadline).isEmpty())
+            assertNull(reopened.readSkillFile(initial.id, "attachment", deadline - 1))
+            assertEquals(frozen.metadata, reopened.list().single().messages.single().attachment)
         }
     }
 
@@ -98,7 +120,7 @@ class LedgerAssistantFilesTest {
                 ): QueryResult<Long> = try {
                     driver.execute(identifier, sql, parameters, binders)
                 } catch (failure: java.sql.SQLException) {
-                    if (sql.trimStart().startsWith("INSERT INTO local_ledger_assistant_files")) {
+                    if (sql.trimStart().startsWith("INSERT INTO local_ledger_assistant_attachments")) {
                         insertError = failure.errorCode
                     }
                     throw failure

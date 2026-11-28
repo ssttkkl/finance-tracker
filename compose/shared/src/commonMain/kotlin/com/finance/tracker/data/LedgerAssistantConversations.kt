@@ -8,6 +8,7 @@ import com.finance.tracker.client.LedgerAssistantDelivery
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable
 internal data class LedgerAssistantConversation(
@@ -129,6 +130,9 @@ internal class SqlLedgerAssistantConversations private constructor(
         driver.execute(null, "DELETE FROM local_ledger_assistant_files WHERE conversation_id = ?", 1) {
             bindString(0, previous.id)
         }.await()
+        driver.execute(null, "DELETE FROM local_ledger_assistant_attachments WHERE conversation_id = ?", 1) {
+            bindString(0, previous.id)
+        }.await()
         driver.execute(null, "DELETE FROM local_ledger_assistant_file_receipts WHERE conversation_id = ?", 1) {
             bindString(0, previous.id)
         }.await()
@@ -144,25 +148,38 @@ internal class SqlLedgerAssistantConversations private constructor(
             bindString(1, conversationId)
         }.await()
         driver.executeQuery(null, """
-            SELECT id, path, mime_type, byte_size, expires_at FROM local_ledger_assistant_files
-            WHERE conversation_id = ? ORDER BY path, id
+            SELECT id, path, mime_type, byte_size, expires_at, 0 FROM local_ledger_assistant_files
+            WHERE conversation_id = ? AND expires_at IS NOT NULL
+            UNION ALL
+            SELECT id, path, mime_type, byte_size, expires_at, 1 FROM local_ledger_assistant_attachments
+            WHERE conversation_id = ?
+            ORDER BY path, id
         """.trimIndent(), { cursor -> QueryResult.Value(buildList {
             while (cursor.next().value) add(cursor.assistantFile())
-        }) }, 1) { bindString(0, conversationId) }.await()
+        }) }, 2) {
+            bindString(0, conversationId)
+            bindString(1, conversationId)
+        }.await()
     }
 
     override suspend fun readSkillFile(conversationId: String, fileId: String, now: Long): LedgerAssistantFileContent? =
         driver.executeQuery(null, """
-            SELECT id, path, mime_type, byte_size, expires_at, content FROM local_ledger_assistant_files
-            WHERE conversation_id = ? AND id = ? AND (expires_at IS NULL OR expires_at > ?)
+            SELECT id, path, mime_type, byte_size, expires_at, 0, content FROM local_ledger_assistant_files
+            WHERE conversation_id = ? AND id = ? AND expires_at > ?
+            UNION ALL
+            SELECT id, path, mime_type, byte_size, expires_at, 1, content FROM local_ledger_assistant_attachments
+            WHERE conversation_id = ? AND id = ? AND expires_at > ?
         """.trimIndent(), { cursor ->
             QueryResult.Value(if (cursor.next().value) {
-                LedgerAssistantFileContent(cursor.assistantFile(), checkNotNull(cursor.getString(5)))
+                LedgerAssistantFileContent(cursor.assistantFile(), checkNotNull(cursor.getString(6)))
             } else null)
-        }, 3) {
+        }, 6) {
             bindString(0, conversationId)
             bindString(1, fileId)
             bindLong(2, now)
+            bindString(3, conversationId)
+            bindString(4, fileId)
+            bindLong(5, now)
         }.await()
 
     override suspend fun skillReceipt(conversationId: String, callId: String): LedgerAssistantFileReceipt? =
@@ -194,6 +211,10 @@ internal class SqlLedgerAssistantConversations private constructor(
         if (expectedLedgerVersion != null && readLedgerVersion() != expectedLedgerVersion) {
             throw LedgerAssistantScriptFailure("ledger_changed")
         }
+        val attachmentId = (receipt.result["attachment_id"] as? JsonPrimitive)?.content
+        if (attachmentId != null && files.none { it.metadata.attached } &&
+            readSkillFile(previous.id, attachmentId, now)?.metadata?.canSave(now) != true
+        ) throw LedgerAssistantScriptFailure("file_expired")
         if (!swap(previous, next)) rollback(false)
         purgeExpiredSkillFiles(now)
         for (id in removed) {
@@ -206,8 +227,9 @@ internal class SqlLedgerAssistantConversations private constructor(
         }
         for (content in files) {
             val file = content.metadata
+            val table = if (file.attached) "local_ledger_assistant_attachments" else "local_ledger_assistant_files"
             driver.execute(null, """
-                INSERT INTO local_ledger_assistant_files (conversation_id, id, path, mime_type, byte_size, expires_at, content)
+                INSERT INTO $table (conversation_id, id, path, mime_type, byte_size, expires_at, content)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(), 7) {
                 bindString(0, previous.id)
@@ -215,7 +237,7 @@ internal class SqlLedgerAssistantConversations private constructor(
                 bindString(2, file.path)
                 bindString(3, file.mimeType)
                 bindLong(4, file.size)
-                bindLong(5, if (file.attached) null else now + LEDGER_ASSISTANT_FILE_TTL_MS)
+                bindLong(5, now + if (file.attached) LEDGER_ASSISTANT_ATTACHMENT_TTL_MS else LEDGER_ASSISTANT_FILE_TTL_MS)
                 bindString(6, content.text)
             }.await()
         }
@@ -230,9 +252,11 @@ internal class SqlLedgerAssistantConversations private constructor(
     }
 
     override suspend fun purgeExpiredSkillFiles(now: Long) {
-        driver.execute(null, "DELETE FROM local_ledger_assistant_files WHERE expires_at <= ?", 1) {
-            bindLong(0, now)
-        }.await()
+        for (table in listOf("local_ledger_assistant_files", "local_ledger_assistant_attachments")) {
+            driver.execute(null, "DELETE FROM $table WHERE expires_at <= ?", 1) {
+                bindLong(0, now)
+            }.await()
+        }
     }
 
     private suspend fun hasRevision(item: LedgerAssistantConversation): Boolean = driver.executeQuery(
@@ -284,6 +308,17 @@ internal class SqlLedgerAssistantConversations private constructor(
                     PRIMARY KEY (conversation_id, call_id)
                 )
             """.trimIndent(), 0).await()
+            driver.execute(null, """
+                CREATE TABLE IF NOT EXISTS local_ledger_assistant_attachments (
+                    conversation_id TEXT NOT NULL, id TEXT NOT NULL, path TEXT NOT NULL,
+                    mime_type TEXT NOT NULL, byte_size INTEGER NOT NULL, expires_at INTEGER NOT NULL, content TEXT NOT NULL,
+                    PRIMARY KEY (conversation_id, id)
+                )
+            """.trimIndent(), 0).await()
+            driver.execute(null, """
+                CREATE INDEX IF NOT EXISTS local_ledger_assistant_attachment_expiry
+                ON local_ledger_assistant_attachments (expires_at)
+            """.trimIndent(), 0).await()
             return SqlLedgerAssistantConversations(driver, readLedgerVersion)
         }
     }
@@ -291,5 +326,5 @@ internal class SqlLedgerAssistantConversations private constructor(
 
 private fun app.cash.sqldelight.db.SqlCursor.assistantFile() = LedgerAssistantFile(
     checkNotNull(getString(0)), checkNotNull(getString(1)), checkNotNull(getString(2)),
-    checkNotNull(getLong(3)), attached = getLong(4) == null,
+    checkNotNull(getLong(3)), attached = getLong(5) == 1L, expiresAtMs = getLong(4).takeIf { getLong(5) == 1L },
 )

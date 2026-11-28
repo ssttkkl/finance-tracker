@@ -1042,14 +1042,8 @@
     <string name="assistant_tool_skill">读取技能</string>
     <string name="assistant_tool_script">运行脚本</string>
     <string name="assistant_tool_send_file">发送文件</string>
-    <string name="assistant_attachment_metadata">%1$s · %2$s 字节</string>
-    <string name="assistant_attachment_preview">预览</string>
-    <string name="assistant_attachment_export">导出</string>
-    <string name="assistant_attachment_unavailable">无法读取此文件</string>
     <string name="assistant_attachment_export_failed">无法导出此文件</string>
-    <string name="assistant_attachment_table_limit">预览最多显示前 30 行、20 列</string>
-    <string name="assistant_attachment_text_limit">预览仅显示文件开头</string>
-    <string name="assistant_attachment_text">纯文本</string>
-    <string name="assistant_close">关闭</string>
-    <string name="assistant_attachment_preview_named">预览 %1$s</string>
+    <string name="assistant_attachment_save_named">保存 %1$s</string>
+    <string name="assistant_attachment_expiry">到期日期 %1$s</string>
+    <string name="assistant_attachment_expired">已过期</string>
 </resources>

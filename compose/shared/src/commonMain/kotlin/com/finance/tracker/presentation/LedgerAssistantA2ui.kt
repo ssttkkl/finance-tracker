@@ -40,12 +40,25 @@ private val ledgerAssistantCatalog = CatalogDefinition(
 internal fun LedgerAssistantCard(
     kind: LedgerAssistantCardKind,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    actionModifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val current = rememberUpdatedState(content)
+    val action = rememberUpdatedState(onClick)
+    val actionEnabled = rememberUpdatedState(enabled)
+    val actionStyle = rememberUpdatedState(actionModifier)
     val registry = remember(kind) {
         ComponentRegistry(mapOf(kind.componentName to ComponentRenderer { _, surfaceModifier ->
-            OutlinedCard(surfaceModifier.fillMaxWidth()) { current.value() }
+            val callback = action.value
+            val fullWidth = surfaceModifier.fillMaxWidth()
+            if (callback == null) {
+                OutlinedCard(fullWidth) { current.value() }
+            } else {
+                OutlinedCard(onClick = callback, modifier = fullWidth.then(actionStyle.value),
+                    enabled = actionEnabled.value) { current.value() }
+            }
         }))
     }
     val renderer = remember(kind) {

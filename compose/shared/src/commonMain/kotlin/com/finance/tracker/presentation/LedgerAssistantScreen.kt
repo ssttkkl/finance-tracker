@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
@@ -390,7 +391,6 @@ internal fun LedgerAssistantScreen(
     val replyInterrupted = visibleReply && (lastDelivery?.status == LedgerAssistantDeliveryStatus.NOT_DELIVERED ||
         (hasPreview && current?.draft?.command?.receipt != null && ui?.busy == false))
 
-    var attachment by remember(current?.id) { mutableStateOf<Pair<LedgerAssistantFile, FocusRequester>?>(null) }
     var input by remember(current?.id) { mutableStateOf("") }
     var detail by remember(current?.id) { mutableStateOf<String?>(null) }
     var toolSheet by remember(current?.id) { mutableStateOf<AssistantToolSelection?>(null) }
@@ -475,7 +475,12 @@ internal fun LedgerAssistantScreen(
                                             .testTag("assistant.user-bubble")
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
                                     ) {
-                                        Text(delivery.input, Modifier.testTag("assistant.user-message"), color = colors.onSecondaryContainer, style = MaterialTheme.typography.bodyLarge)
+                                        SelectionContainer {
+                                            Text(
+                                                delivery.input, Modifier.testTag("assistant.user-message"),
+                                                color = colors.onSecondaryContainer, style = MaterialTheme.typography.bodyLarge,
+                                            )
+                                        }
                                         if (delivery.status == LedgerAssistantDeliveryStatus.WAITING_FOR_RECORD) {
                                             Text(
                                                 localizedText("assistant_save_unknown"),
@@ -517,7 +522,7 @@ internal fun LedgerAssistantScreen(
                                 row.forEach { item -> item.reply?.let { AssistantReply(it, markdownImages) } }
                                 row.forEach { item ->
                                     item.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
-                                    item.attachment?.let { file -> AssistantAttachmentCard(file) { focus -> attachment = file to focus } }
+                                    item.attachment?.let { file -> AssistantAttachmentCard(file) { ui.readAttachment(current.id, file) } }
                                 }
                             }
                         }
@@ -575,14 +580,6 @@ internal fun LedgerAssistantScreen(
             if (ui == null || ui.failed) StateMessage(localizedText("assistant_unavailable"), isError = true) {
                 if (ui != null && !ui.ready) TextButton(onClick = ui::load) { Text(localizedText("assistant_retry")) }
             }
-        }
-    }
-    val openFile = attachment
-    if (openFile != null && current != null && ui != null) {
-        val (file, focus) = openFile
-        AssistantAttachmentDialog(file, read = { ui.readAttachment(current.id, file) }) {
-            attachment = null
-            toolReturnFocus = focus
         }
     }
     toolSheet?.let { selection ->

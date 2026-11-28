@@ -1042,14 +1042,8 @@
     <string name="assistant_tool_skill">Read skill</string>
     <string name="assistant_tool_script">Run script</string>
     <string name="assistant_tool_send_file">Send file</string>
-    <string name="assistant_attachment_metadata">%1$s · %2$s bytes</string>
-    <string name="assistant_attachment_preview">Preview</string>
-    <string name="assistant_attachment_export">Export</string>
-    <string name="assistant_attachment_unavailable">Could not open this file</string>
     <string name="assistant_attachment_export_failed">Could not export this file</string>
-    <string name="assistant_attachment_table_limit">Preview shows up to 30 rows and 20 columns</string>
-    <string name="assistant_attachment_text_limit">Preview shows the beginning of the file</string>
-    <string name="assistant_attachment_text">Plain text</string>
-    <string name="assistant_close">Close</string>
-    <string name="assistant_attachment_preview_named">Preview %1$s</string>
+    <string name="assistant_attachment_save_named">Save %1$s</string>
+    <string name="assistant_attachment_expiry">Expires %1$s</string>
+    <string name="assistant_attachment_expired">Expired</string>
 </resources>

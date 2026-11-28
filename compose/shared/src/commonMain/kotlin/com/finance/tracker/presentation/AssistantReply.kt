@@ -1,6 +1,7 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -113,42 +114,44 @@ internal fun AssistantReply(text: String, images: ImageTransformer) {
         }
     }
     CompositionLocalProvider(LocalUriHandler provides links, LocalMarkdownA11yLabels provides accessibility) {
-        Markdown(
-            content = text,
-            modifier = Modifier.fillMaxWidth().testTag("assistant.reply"),
-            typography = markdownTypography(
-                h1 = type.headlineSmall,
-                h2 = type.titleLarge,
-                h3 = type.titleMedium,
-                h4 = type.titleMedium,
-                h5 = type.titleSmall,
-                h6 = type.titleSmall,
-                table = type.bodyMedium,
-            ),
-            imageTransformer = images,
-            extendedSpans = markdownExtendedSpans { remember { ExtendedSpans(RoundedCornerSpanPainter()) } },
-            components = markdownComponents(
-                checkbox = { MarkdownCheckBox(it.content, it.node, it.typography.text) },
-                codeBlock = { model ->
-                    key(dark) {
-                        MarkdownHighlightedCodeBlock(
-                            model.content, model.node, style = model.typography.code,
-                            highlightsBuilder = remember(dark) { Highlights.Builder().theme(SyntaxThemes.atom(darkMode = dark)) },
-                            showHeader = true,
-                        )
-                    }
-                },
-                codeFence = { model ->
-                    key(dark) {
-                        MarkdownHighlightedCodeFence(
-                            model.content, model.node, style = model.typography.code,
-                            highlightsBuilder = remember(dark) { Highlights.Builder().theme(SyntaxThemes.atom(darkMode = dark)) },
-                            showHeader = true,
-                        )
-                    }
-                },
-            ),
-            error = { modifier -> Text(text, modifier, style = type.bodyLarge) },
-        )
+        SelectionContainer {
+            Markdown(
+                content = text,
+                modifier = Modifier.fillMaxWidth().testTag("assistant.reply"),
+                typography = markdownTypography(
+                    h1 = type.headlineSmall,
+                    h2 = type.titleLarge,
+                    h3 = type.titleMedium,
+                    h4 = type.titleMedium,
+                    h5 = type.titleSmall,
+                    h6 = type.titleSmall,
+                    table = type.bodyMedium,
+                ),
+                imageTransformer = images,
+                extendedSpans = markdownExtendedSpans { remember { ExtendedSpans(RoundedCornerSpanPainter()) } },
+                components = markdownComponents(
+                    checkbox = { MarkdownCheckBox(it.content, it.node, it.typography.text) },
+                    codeBlock = { model ->
+                        key(dark) {
+                            MarkdownHighlightedCodeBlock(
+                                model.content, model.node, style = model.typography.code,
+                                highlightsBuilder = remember(dark) { Highlights.Builder().theme(SyntaxThemes.atom(darkMode = dark)) },
+                                showHeader = true,
+                            )
+                        }
+                    },
+                    codeFence = { model ->
+                        key(dark) {
+                            MarkdownHighlightedCodeFence(
+                                model.content, model.node, style = model.typography.code,
+                                highlightsBuilder = remember(dark) { Highlights.Builder().theme(SyntaxThemes.atom(darkMode = dark)) },
+                                showHeader = true,
+                            )
+                        }
+                    },
+                ),
+                error = { modifier -> Text(text, modifier, style = type.bodyLarge) },
+            )
+        }
     }
 }

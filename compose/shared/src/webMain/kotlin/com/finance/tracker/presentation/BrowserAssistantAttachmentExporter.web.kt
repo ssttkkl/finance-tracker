@@ -7,6 +7,7 @@ import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.download
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 
 @Composable
 internal actual fun rememberAssistantAttachmentExporter(onError: () -> Unit): (LedgerAssistantFileContent) -> Unit {
@@ -14,7 +15,9 @@ internal actual fun rememberAssistantAttachmentExporter(onError: () -> Unit): (L
     return { file ->
         scope.launch {
             try {
-                FileKit.download(file.text.encodeToByteArray(), file.metadata.name)
+                if (file.metadata.canSave(Clock.System.now().toEpochMilliseconds())) {
+                    FileKit.download(file.text.encodeToByteArray(), file.metadata.name)
+                } else onError()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {

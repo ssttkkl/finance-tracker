@@ -37,6 +37,7 @@ internal class LedgerAssistantSkills(
     private val conversationId: String,
     private val messageId: String,
     private val checkScope: suspend () -> Unit,
+    private val findAttachment: (String) -> LedgerAssistantFile?,
 ) {
     suspend fun execute(callId: String, name: String, fields: JsonObject): LedgerAssistantSkillOutcome = try {
         checkScope()
@@ -48,6 +49,9 @@ internal class LedgerAssistantSkills(
             val existing = store.skillReceipt(conversationId, callId)
             if (existing != null) {
                 if (existing.fingerprint != fingerprint) throw LedgerAssistantScriptFailure("call_conflict")
+                if (name == "send_file" && findAttachment(existing.result["attachment_id"].skillText())?.canSave(now()) != true) {
+                    throw LedgerAssistantScriptFailure("file_expired")
+                }
                 LedgerAssistantSkillOutcome(existing.result)
             } else when (name) {
                 "run_script" -> runScript(callId, fingerprint, fields)
@@ -110,13 +114,14 @@ internal class LedgerAssistantSkills(
         if (fields.keys != setOf("file_ref")) throw LedgerAssistantScriptFailure("invalid_tool_input")
         val reference = fields["file_ref"].skillText()
         val attachmentId = sha256Hex("$messageId\u0000$reference")
-        val previous = store.readSkillFile(conversationId, attachmentId, now())
-        val created = if (previous != null && previous.metadata.attached) null else {
+        val previous = findAttachment(attachmentId)
+        if (previous != null && !previous.canSave(now())) throw LedgerAssistantScriptFailure("file_expired")
+        val created = if (previous != null) null else {
             val source = store.readSkillFile(conversationId, reference, now())
                 ?.takeUnless { it.metadata.attached } ?: throw LedgerAssistantScriptFailure("file_expired")
             LedgerAssistantFileContent(source.metadata.copy(id = attachmentId, attached = true), source.text)
         }
-        val metadata = created?.metadata ?: checkNotNull(previous).metadata
+        val metadata = created?.metadata ?: checkNotNull(previous)
         val output = metadata.toolMetadata()
         return LedgerAssistantSkillOutcome(output, created?.metadata, LedgerAssistantSkillCommit(
             LedgerAssistantFileReceipt(callId, fingerprint, output), files = listOfNotNull(created), checkBeforeCommit = checkScope,
@@ -144,7 +149,8 @@ private class LedgerAssistantScriptFiles(
     suspend fun call(method: String, args: JsonArray): JsonElement = when (method) {
         "fs.list" -> {
             if (args.isNotEmpty()) throw LedgerAssistantScriptFailure("invalid_arguments")
-            JsonArray((files() + attachments.values).map { it.toolMetadata() })
+            val now = Clock.System.now().toEpochMilliseconds()
+            JsonArray((files() + attachments.values.filter { it.canSave(now) }).map { it.toolMetadata() })
         }
         "fs.readText" -> {
             val ref = args.singleOrNull().skillText()

@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 internal const val LEDGER_ASSISTANT_FILE_TTL_MS = 24L * 60 * 60 * 1000
+internal const val LEDGER_ASSISTANT_ATTACHMENT_TTL_MS = 30L * LEDGER_ASSISTANT_FILE_TTL_MS
 internal const val LEDGER_ASSISTANT_TEMP_BYTES = 16L * 1024 * 1024
 private const val LEDGER_ASSISTANT_FILE_BYTES = 2 * 1024 * 1024
 
@@ -14,7 +15,10 @@ internal data class LedgerAssistantFile(
     val mimeType: String,
     val size: Long,
     val attached: Boolean = false,
+    val expiresAtMs: Long? = null,
 ) {
+    fun canSave(now: Long): Boolean = attached && expiresAtMs?.let { now < it } == true
+
     val name: String get() = path.substringAfterLast('/')
     override fun toString() = "LedgerAssistantFile(size=$size, attached=$attached)"
 }

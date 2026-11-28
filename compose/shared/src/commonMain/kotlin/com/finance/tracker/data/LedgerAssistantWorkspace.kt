@@ -318,6 +318,11 @@ internal class LedgerAssistantWorkspace(
         onUpdate: (LedgerAssistantConversation) -> Unit,
     ): LedgerAssistantConversation {
         var saved = initial
+        val attachments = initial.messages.mapNotNull { it.attachment }.associateBy { it.id }.toMutableMap()
+        fun withAttachmentDeadlines(messages: List<LedgerAssistantMessage>) = messages.map { message ->
+            val committed = message.attachment?.let { attachments[it.id] }
+            if (committed == null) message else message.copy(attachment = committed)
+        }
         suspend fun finishInterrupted(): LedgerAssistantConversation = update(saved) {
             val interrupted = copy(messages = messages.interruptActiveReads())
             if (delivery == null) interrupted else interrupted.replaceDelivery(delivery.interrupted())
@@ -327,7 +332,7 @@ internal class LedgerAssistantWorkspace(
             val round = useApi(write = false) { api, _ ->
                 val messageId = delivery?.messageId ?: initial.messages.lastOrNull { it.delivery != null }?.delivery?.messageId
                 val skills = messageId?.let {
-                    LedgerAssistantSkills(reader, store, workspaceId, initial.id, it, api.requireCurrentRequest)
+                    LedgerAssistantSkills(reader, store, workspaceId, initial.id, it, api.requireCurrentRequest, attachments::get)
                 }
                 val executor = LedgerAssistantPromptExecutor(
                     api, checkNotNull(api.boundCredentials), api.requireCurrentRequest, skillsAvailable = skills != null,
@@ -337,20 +342,27 @@ internal class LedgerAssistantWorkspace(
                 runLedgerAssistantAgent(
                     executor, initial.id, initial.checkpoint, continuation,
                     onReadMessages = { observed ->
-                        saved = update(saved) { copy(messages = initial.messages + observed, incompleteReply = null) }.also(onUpdate)
+                        saved = update(saved) { copy(messages = initial.messages + withAttachmentDeadlines(observed), incompleteReply = null) }.also(onUpdate)
                     },
                     executeSkill = skills?.let { it::execute },
                     persistSkill = { work, observed ->
                         work.checkBeforeCommit()
+                        val committedAt = Clock.System.now()
+                        val sent = work.files.map { it.metadata }.filter { it.attached }.associate { file ->
+                            file.id to file.copy(expiresAtMs = committedAt.toEpochMilliseconds() + LEDGER_ASSISTANT_ATTACHMENT_TTL_MS)
+                        }
                         val next = saved.copy(
                             revision = saved.revision + 1,
-                            updatedAt = Clock.System.now().toString(),
-                            messages = initial.messages + observed,
+                            updatedAt = committedAt.toString(),
+                            messages = initial.messages + withAttachmentDeadlines(observed).map { message ->
+                                val file = message.attachment?.let { sent[it.id] }
+                                if (file == null) message else message.copy(attachment = file)
+                            },
                             incompleteReply = null,
                         )
                         val committed = try {
                             store.commitSkillRun(saved, next, work.removed, work.files, work.receipt,
-                                Clock.System.now().toEpochMilliseconds(), work.requiredSource, work.expectedLedgerVersion)
+                                committedAt.toEpochMilliseconds(), work.requiredSource, work.expectedLedgerVersion)
                         } catch (failure: LedgerAssistantScriptFailure) {
                             throw failure
                         } catch (cancelled: CancellationException) {
@@ -359,13 +371,14 @@ internal class LedgerAssistantWorkspace(
                             throw LedgerAssistantScriptFailure("file_storage_unavailable")
                         }
                         if (!committed) throw CancellationException("ledger_assistant_conversation_changed")
+                        attachments.putAll(sent)
                         saved = next.also(onUpdate)
                     },
                     readTool = ::readAssistantTool,
                 )
             }
             update(saved) {
-                val completed = copy(messages = initial.messages + round.messages, checkpoint = round.checkpoint, draft = round.draft, incompleteReply = null)
+                val completed = copy(messages = initial.messages + withAttachmentDeadlines(round.messages), checkpoint = round.checkpoint, draft = round.draft, incompleteReply = null)
                 if (delivery == null) completed else completed.replaceDelivery(checkNotNull(delivery.delivered(delivery.attempt)))
             }
         } catch (_: ApiFailure) {

@@ -6,12 +6,10 @@ import com.finance.tracker.business.contracts.RawCashRow
 import kotlin.time.Instant
 
 /** Parse decoded records, preserving quoted field text and the existing strict/non-strict CR behavior. */
-fun parseCashStatementDelimited(
-    text: String, delimiter: Char, strict: Boolean = false, rowLimit: Int = Int.MAX_VALUE,
-): List<List<String>> {
+fun parseCashStatementDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> {
     val records = mutableListOf<List<String>>()
     var index = 0
-    while (index < text.length && records.size < rowLimit) {
+    while (index < text.length) {
         val cells = mutableListOf<String>()
         val field = StringBuilder()
         var quoted = false

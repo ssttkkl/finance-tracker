@@ -12,6 +12,7 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFileSaverLauncher
 import io.github.vinceglb.filekit.write
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 
 @Composable
 internal actual fun rememberAssistantAttachmentExporter(onError: () -> Unit): (LedgerAssistantFileContent) -> Unit {
@@ -25,7 +26,8 @@ internal actual fun rememberAssistantAttachmentExporter(onError: () -> Unit): (L
         if (file != null && result != null) {
             scope.launch {
                 try {
-                    result.write(file.text.encodeToByteArray())
+                    if (file.metadata.canSave(Clock.System.now().toEpochMilliseconds())) result.write(file.text.encodeToByteArray())
+                    else onError()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -39,7 +41,7 @@ internal actual fun rememberAssistantAttachmentExporter(onError: () -> Unit): (L
         }
     }
     return { file ->
-        if (pending == null) {
+        if (pending == null && file.metadata.canSave(Clock.System.now().toEpochMilliseconds())) {
             pending = file
             saver.launch(
                 suggestedName = file.metadata.name.substringBeforeLast('.'),
