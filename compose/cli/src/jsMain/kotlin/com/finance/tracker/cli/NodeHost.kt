@@ -46,7 +46,7 @@ import kotlin.time.Instant
 
 @JsModule("./host.mjs")
 private external object NodeHost {
-    fun traceCashPhase(phase: String)
+    fun traceCashPhase(phase: String, count: Int?)
     fun serverOrigin(value: String): String?
     fun request(origin: String, method: String, path: String, token: String?, body: dynamic, headers: dynamic,
         maxResponseBytes: Int): Promise<dynamic>
@@ -502,7 +502,7 @@ private data class StoredReviewedCommand(val planId: String, val revision: Long,
 
 private fun weakReference(value: Any): dynamic = js("new WeakRef(value)")
 
-internal fun traceCashPhase(phase: String) = NodeHost.traceCashPhase(phase)
+internal fun traceCashPhase(phase: String, count: Int? = null) = NodeHost.traceCashPhase(phase, count)
 
 private fun encodeUrlComponent(value: String): String = js("encodeURIComponent(value)")
 

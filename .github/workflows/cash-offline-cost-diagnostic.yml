@@ -1,8 +1,8 @@
-name: Offline cash read phase diagnostic
+name: Offline cash projection diagnostic
 
 on:
   push:
-    branches: [perf/trace-offline-cash-list]
+    branches: [perf/trace-cash-ledger-projection]
 
 permissions:
   contents: read
@@ -42,6 +42,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cash-offline-phases
+          name: cash-ledger-projection
           path: ${{ runner.temp }}/cash-page-phases
           if-no-files-found: error

@@ -7,6 +7,36 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { measureCommand } from '../large-measure.mjs';
 
+function cpuSummary(profile) {
+    const nodes = new Map(profile.nodes.map(node => [node.id, node]));
+    const parents = new Map(profile.nodes.flatMap(node => (node.children ?? []).map(child => [child, node.id])));
+    const costs = new Map();
+    let projectionMicros = 0;
+    for (const [index, leaf] of profile.samples.entries()) {
+        const stack = [];
+        for (let id = leaf; id !== undefined; id = parents.get(id)) stack.push(nodes.get(id));
+        if (!stack.some(node => /^buildLocalCashProjections/.test(node.callFrame.functionName))) continue;
+        const micros = profile.timeDeltas[index];
+        projectionMicros += micros;
+        const visited = new Set();
+        for (const node of stack) {
+            const { functionName, lineNumber, url } = node.callFrame;
+            if (!functionName || !url.endsWith('FinanceTracker-business-domain.mjs')) continue;
+            const name = functionName + ':' + (lineNumber + 1);
+            if (visited.has(name)) continue;
+            visited.add(name);
+            const cost = costs.get(name) ?? { functionName, line: lineNumber + 1, ownMicros: 0, inclusiveMicros: 0 };
+            cost.inclusiveMicros += micros;
+            if (node.id === leaf) cost.ownMicros += micros;
+            costs.set(name, cost);
+        }
+    }
+    return {
+        projectionMicros, sampleCount: profile.samples.length,
+        top: [...costs.values()].sort((a, b) => b.inclusiveMicros - a.inclusiveMicros).slice(0, 20),
+    };
+}
+
 const [installDir, report] = process.argv.slice(2);
 assert(installDir && report && !process.env.FT_DIAGNOSTIC_CASH_PHASES);
 const installedHost = pathToFileURL(resolve(installDir, 'node_modules/finance-tracker-cli/lib/host.mjs'));
@@ -69,15 +99,18 @@ try {
     const cases = [
         { name: 'first', filter: [], expectedCount: 20 },
         { name: 'other-page-and-filter', filter: ['--start-index', '20', '--ledger-seq', snapshot.ledger_seq, '--keyword', 'orchard'], expectedCount: 20 },
+        { name: 'other-page-with-monthly-summaries', filter: ['--start-index', '20', '--keyword', 'orchard'], expectedCount: 20 },
     ];
     const results = [];
     for (const test of cases) {
         const args = ['cash', 'list', '--limit', '20', ...test.filter, '--json'];
         const trace = join(root, test.name + '-trace.jsonl');
         const samples = {};
-        for (const mode of ['plain', 'traced']) {
+        const cpuFile = test.name + '.cpuprofile';
+        for (const mode of ['plain', 'traced', 'cpu']) {
             const run = await measureCommand(bin, args, {
-                env: mode === 'traced' ? { ...env, FT_DIAGNOSTIC_CASH_PHASES: trace } : env,
+                env: mode === 'traced' ? { ...env, FT_DIAGNOSTIC_CASH_PHASES: trace } : mode === 'cpu' ?
+                    { ...env, NODE_OPTIONS: '--cpu-prof --cpu-prof-dir=' + root + ' --cpu-prof-name=' + cpuFile } : env,
                 timeoutMs: 30_000, outputDir: root, label: test.name + '-' + mode,
             });
             assert.equal(run.value.page.items.length, test.expectedCount);
@@ -90,8 +123,19 @@ try {
             'ledger_cache_decoded', 'ledger_graph_start', 'ledger_items_ready', 'terminal_output_ready']) {
             assert(phases.some(sample => sample.phase === name));
         }
+        const counts = Object.fromEntries(phases.filter(sample => sample.count !== null).map(sample => [sample.phase, sample.count]));
+        assert.equal(counts.ledger_projection_facts, count);
+        assert.equal(counts.ledger_projections, count);
+        assert.equal(counts.ledger_entries, count);
+        assert.equal(counts.ledger_items_ready, test.expectedCount);
+        assert.equal(counts.ledger_option_transfer_views, 0);
+        assert.equal(counts.ledger_scan_ready, test.name === 'first' ? count : Math.ceil(count / 3));
+        assert.equal(samples.value.page.total_count ?? null, test.name === 'first' ? null : Math.ceil(count / 3));
+        assert.equal(samples.value.page.monthly_summaries.length, test.name === 'other-page-and-filter' ? 0 : 1);
         const { plain, traced } = samples;
-        results.push({ case: test.name, items: test.expectedCount, plain, traced, phases });
+        const cpu = cpuSummary(JSON.parse(readFileSync(join(root, cpuFile), 'utf8')));
+        assert(cpu.projectionMicros > 0, 'Missing production projection samples');
+        results.push({ case: test.name, items: test.expectedCount, plain, traced, phases, counts, cpu });
     }
     writeFileSync(report, JSON.stringify({ transactions: count, cachePlainBytes: Buffer.byteLength(plaintext), results }, null, 2));
 } finally {

@@ -11,10 +11,15 @@ data class LocalCashLedgerEntry(val entry:LedgerCashEntryFactDto,val projection:
 }
 
 /** Bind one complete committed snapshot to its existing stable entries, without allocating identities. */
-fun buildLocalCashLedgerEntries(snapshot:LedgerSnapshotDto):List<LocalCashLedgerEntry> {
-    val projections=buildLocalCashProjections(snapshot).projections
+fun buildLocalCashLedgerEntries(snapshot:LedgerSnapshotDto):List<LocalCashLedgerEntry> =
+    buildLocalCashLedgerEntries(snapshot) { _, _ -> }
+
+internal fun buildLocalCashLedgerEntries(snapshot: LedgerSnapshotDto, sample: (String, Int?) -> Unit): List<LocalCashLedgerEntry> {
+    val projections=buildLocalCashProjections(snapshot, sample)
+        .projections
     val members=snapshot.facts.cashEntryMembers.associateBy {it.transactionId}
     val entries=snapshot.facts.cashEntries.associateBy {it.id}
+    sample("ledger_entry_indexes", members.size)
     val used=mutableSetOf<String>()
     fun incomplete():Nothing=throw CashProjectionDomainFailure("projection.incomplete")
     return projections.map {projection ->
@@ -23,5 +28,5 @@ fun buildLocalCashLedgerEntries(snapshot:LedgerSnapshotDto):List<LocalCashLedger
         val entry=entries[identities.single()] ?: incomplete()
         if(!used.add(entry.id))incomplete()
         LocalCashLedgerEntry(entry,projection)
-    }
+    }.also { sample("ledger_entries", it.size) }
 }

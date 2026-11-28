@@ -4,7 +4,11 @@ import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import kotlin.time.Instant
 
 /** Derive a cash ledger from one complete fact snapshot without network, storage or mutation. */
-fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<Long, Instant> {
+fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<Long, Instant> =
+    buildLocalCashProjections(snapshot) { _, _ -> }
+
+internal fun buildLocalCashProjections(snapshot: LedgerSnapshotDto,
+    sample: (String, Int?) -> Unit): CashProjectionBuild<Long, Instant> {
     val data = snapshot.facts
     val values = CashProjectionValues<Long, Instant>({ it > 0 },
         { runCatching { formatPythonCashTimestamp(it) }.isSuccess }, ::pythonCashUpper)
@@ -12,6 +16,7 @@ fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<
     val graph = CashRelationGraphRules(values, projections, { it as? Long }, String::toLong)
     val rows = data.cashTransactions.filter { it.deletedAt == null }.sortedBy { it.id.toLong() }
     val live = rows.map { it.id }.toSet()
+    sample("ledger_live_facts", rows.size)
     fun touches(primary: String, secondary: String?, anchor: String, ids: Set<String>) =
         primary in ids || secondary in ids || anchor in ids
     val relations = data.transactionRelations.filter { it.active && touches(it.primaryTransactionId,
@@ -29,6 +34,7 @@ fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<
         if (component.cashTransactionId !in fundingByParent) fundingByParent[component.cashTransactionId] = item.id.toLong()
     }
     val bindings = data.cashSourceBindings.groupBy { it.transactionId }
+    sample("ledger_fact_dependencies", data.cashSourceBindings.size)
     val facts = rows.map { row ->
         val key = cashSourceOrderKey(row.sourceType, row.recordId, bindings[row.id].orEmpty().map {
             listOf(it.sourceType, it.sourceScopeKind, it.sourceScopeKey, it.identityKind, it.identityKey)
@@ -39,6 +45,7 @@ fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<
             row.state, parsePythonCashTimestamp(row.createdAt), row.id in attention, row.recordType, row.recordSubtype,
             key, row.recordOrigin)
     }
+    sample("ledger_projection_facts", facts.size)
     val related = relations.filter { it.state == "confirmed" }
         .flatMap { listOfNotNull(it.primaryTransactionId, it.secondaryTransactionId) }.toSet()
     if (!live.containsAll(related)) throw CashProjectionDomainFailure("projection.incomplete")
@@ -70,5 +77,6 @@ fun buildLocalCashProjections(snapshot: LedgerSnapshotDto): CashProjectionBuild<
             throw CashProjectionDomainFailure("projection.invalid_relation")
         }
     }
-    return projections.build(facts, resolved)
+    sample("ledger_relation_closure", resolved.size)
+    return projections.build(facts, resolved).also { sample("ledger_projections", it.projections.size) }
 }

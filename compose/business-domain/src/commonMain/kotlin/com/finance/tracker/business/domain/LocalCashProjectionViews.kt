@@ -8,8 +8,8 @@ fun buildLocalCashProjectionViews(snapshot:LedgerSnapshotDto):List<CashProjectio
 /** Options describe the whole ledger's base visibility, independently of a selected page/filter. */
 fun buildLocalCashFilterOptions(snapshot: LedgerSnapshotDto): CashFilterOptionsDto = LocalCashProjectionViews(snapshot).options()
 
-internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) {
-    val entries: List<LocalCashLedgerEntry> = buildLocalCashLedgerEntries(snapshot)
+internal class LocalCashProjectionViews(private val snapshot: LedgerSnapshotDto, private val sample: (String, Int?) -> Unit = { _, _ -> }) {
+    val entries: List<LocalCashLedgerEntry> = buildLocalCashLedgerEntries(snapshot, sample)
     private val facts=snapshot.facts
     private val accounts=facts.accounts.associateBy {it.id}
     private val categories=facts.cashCategories.associateBy {it.id}
@@ -80,15 +80,22 @@ internal class LocalCashProjectionViews(private val snapshot:LedgerSnapshotDto) 
         val currencies = mutableSetOf<String>()
         val economics = mutableSetOf<String>()
         val internalTransferLabels = mutableSetOf<String>()
+        var transferChecks = 0
+        var transferViews = 0
         for (row in entries) {
             val projection = row.projection
-            if (projection.fundingRelationId != null || "transfer_pair" in projection.compositions) transfer(row)
+            if (projection.fundingRelationId != null || "transfer_pair" in projection.compositions) {
+                transferChecks++
+                if (transfer(row) != null) transferViews++
+            }
             if (!projection.visible && projection.attentionCount == 0) continue
             trimmed(projection.primaryRecord.currency)?.let { currencies.add(pythonCashUpper(it)) }
             val kind = trimmed(projection.economicType?.value) ?: continue
             economics.add(kind)
             if (kind == "internal_transfer") trimmed(projection.businessLabel)?.let(internalTransferLabels::add)
         }
+        sample("ledger_option_transfer_checks", transferChecks)
+        sample("ledger_option_transfer_views", transferViews)
         return CashFilterOptionsDto(catalog, currencies.sortedWith(::pythonStringOrder),
             economics.sortedWith(::pythonStringOrder).map { kind ->
                 val labels = if (kind == "internal_transfer") internalTransferLabels.sortedWith(::pythonStringOrder) else emptyList()

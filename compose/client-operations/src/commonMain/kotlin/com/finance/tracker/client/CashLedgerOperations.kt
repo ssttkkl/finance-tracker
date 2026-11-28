@@ -25,12 +25,12 @@ class CashLedgerOperations(
     private val snapshot: LedgerSnapshotDto,
     monthAt: (Instant, String) -> String,
     private val dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)?,
-    sample: (String) -> Unit,
+    sample: (String, Int?) -> Unit,
 ) {
     constructor(snapshot: LedgerSnapshotDto, monthAt: (Instant, String) -> String,
-        dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)? = null) : this(snapshot, monthAt, dateBounds, {})
+        dateBounds: ((String?, String?, String?) -> CashLedgerDateBounds)? = null) : this(snapshot, monthAt, dateBounds, { _, _ -> })
     constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar) : this(snapshot, calendar::monthAt, calendar::bounds)
-    constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar, sample: (String) -> Unit) :
+    constructor(snapshot: LedgerSnapshotDto, calendar: CashLedgerCalendar, sample: (String, Int?) -> Unit) :
         this(snapshot, calendar::monthAt, calendar::bounds, sample)
     private val query = LocalCashLedgerQuery(snapshot, monthAt, sample)
 

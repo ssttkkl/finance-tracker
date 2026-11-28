@@ -224,12 +224,12 @@ function seal(key, aad, payload) {
 
 const storageTextBlockUnits = 64 * 1024;
 
-export function traceCashPhase(phase) {
+export function traceCashPhase(phase, count = null) {
     const destination = process.env.FT_DIAGNOSTIC_CASH_PHASES;
     if (!destination) return;
     const timeMs = performance.now();
     const { rss, heapUsed, external, arrayBuffers } = process.memoryUsage();
-    appendFileSync(destination, JSON.stringify({ phase, timeMs, rss, heapUsed, external, arrayBuffers }) + '\n');
+    appendFileSync(destination, JSON.stringify({ phase, timeMs, rss, heapUsed, external, arrayBuffers, count }) + '\n');
 }
 
 function* stateTextChunks(payload) {
