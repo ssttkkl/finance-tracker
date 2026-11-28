@@ -19,10 +19,21 @@ internal class ReadPageAssembly(
     private var fragmentTotal: Int? = null
     private var fragmentParts = mutableListOf<ByteArray>()
 
+    fun appendBundle(first: ReadPageChunk, remaining: List<ReadPageChunk>) {
+        if (remaining.size >= sections.size) invalidReadPage()
+        append(first)
+        var section = first.position.section
+        for (chunk in remaining) {
+            if (chunk.position.section == section) invalidReadPage()
+            append(chunk)
+            section = chunk.position.section
+        }
+    }
+
     fun append(chunk: ReadPageChunk) {
         val position = expected ?: invalidReadPage()
         val total = chunk.total
-        if (chunk.position != position || total < position.offset ||
+        if (chunk.position != position || chunk.items.size > READ_PAGE_CHUNK_MAX_ITEMS || total < position.offset ||
             total == position.offset && total != 0 || sectionTotal?.let { total != it } == true)
             invalidReadPage()
         sectionTotal = total
@@ -117,7 +128,7 @@ internal class LedgerSnapshotAssembly(private val workspace: String, private val
         if (page.workspaceId != workspace || readPageSequence(page.ledgerSeq) < minimumSeq ||
             page.rulesVersion.isBlank() || metadata?.let { it != presented } == true) invalidReadPage()
         readPageSequence(page.categoryDirectoryRevision)
-        pages.append(page.chunk)
+        pages.appendBundle(page.chunk, page.moreChunks)
         metadata = presented
     }
 
@@ -157,7 +168,7 @@ internal class CashImportReceiptAssembly(private val workspace: String) {
             metadata?.let { it != presented } == true) invalidReadPage()
         readPageSequence(page.ledgerSeq)
         metadata = presented
-        pages.append(page.chunk)
+        pages.appendBundle(page.chunk, page.moreChunks)
     }
 
     fun complete(): CashMutationReceiptDto {

@@ -6,29 +6,29 @@ const expectation = (minimum, maximum, statuses = [200]) => ({ minimum, maximum,
 const optional = expectation(0, Infinity);
 const sessionReads = { session: optional, version: optional };
 const committedReads = {
-    receiptPage: expectation(10, Infinity),
+    receiptPage: expectation(1, Infinity),
     receiptRows: expectation(64, 64),
     receiptRelations: expectation(15, 15),
 };
 
 const flows = {
-    prepare: { ...sessionReads, snapshotPage: expectation(15, Infinity), pdf: expectation(2, 2), xls: expectation(2, 2) },
+    prepare: { ...sessionReads, snapshotPage: expectation(1, Infinity), pdf: expectation(2, 2), xls: expectation(2, 2) },
     file: { ...sessionReads, pdf: expectation(3, 3) },
     account: { ...sessionReads, createAccount: expectation(1, 1, [201]), accountReceipt: expectation(1, 1) },
-    review: { ...sessionReads, snapshotPage: expectation(15, Infinity) },
+    review: { ...sessionReads, snapshotPage: expectation(1, Infinity) },
     confirm: { ...sessionReads, accountReceipt: expectation(0, Infinity, [200, 404]),
         submit: expectation(1, 1, [202]), status: expectation(1, Infinity, [200, 404]), ...committedReads },
     'confirm-no-wait': { ...sessionReads, submit: expectation(2, 2, [202]), status: expectation(0, Infinity, [200, 404]) },
     cancel: { ...sessionReads, cancel: { ...expectation(1, Infinity, [200, 202, 409]), concurrent: true },
         status: expectation(0, Infinity) },
-    resume: { ...sessionReads, status: expectation(1, Infinity), receiptPage: expectation(10, Infinity),
+    resume: { ...sessionReads, status: expectation(1, Infinity), receiptPage: expectation(1, Infinity),
         receiptRows: expectation(15, 15), receiptRelations: expectation(1, 1) },
     status: { ...sessionReads, status: { ...expectation(1, Infinity), concurrent: true } },
     result: { session: expectation(2, 2) },
     batches: { session: expectation(1, 1) },
-    'cold-snapshot': { ...sessionReads, snapshotPage: expectation(15, Infinity) },
+    'cold-snapshot': { ...sessionReads, snapshotPage: expectation(1, Infinity) },
     revalidated: { ...sessionReads, version: expectation(1, Infinity) },
-    'refreshed-snapshot': { ...sessionReads, snapshotPage: expectation(15, Infinity) },
+    'refreshed-snapshot': { ...sessionReads, snapshotPage: expectation(1, Infinity) },
 };
 
 function workloadRoute(flow, route) {
@@ -42,6 +42,56 @@ const coverage = Object.fromEntries(Object.entries(flows).map(([flow, requiremen
 ]));
 
 export function completeReadPageSequence(rows, sections) {
+    if (rows.some(row => row.bundled)) return completeBundledSequence(rows, sections);
+    return completeLegacyReadPageSequence(rows, sections);
+}
+
+function completeBundledSequence(rows, sections) {
+    let ordinal = 0;
+    let offset = 0;
+    let fragmentOffset = 0;
+    let sectionTotal;
+    let recordBytes;
+    const coordinatesMatch = (position, section) => position?.section === section && position.offset === offset &&
+        position.fragmentOffset === fragmentOffset;
+    for (const [index, row] of rows.entries()) {
+        if (ordinal >= sections.length || row.bundled !== true ||
+            !coordinatesMatch(row.page, index === 0 ? null : sections[ordinal]) ||
+            !Array.isArray(row.pageChunks) || row.pageChunks.length < 1 || row.pageChunks.length > sections.length) return false;
+        let previousSection;
+        for (const segment of row.pageChunks) {
+            if (ordinal >= sections.length || !coordinatesMatch(segment, sections[ordinal]) ||
+                segment.section === previousSection) return false;
+            previousSection = segment.section;
+            const { total, rows: count, fragmentTotal, fragmentBytes } = segment;
+            if (![total, count, fragmentTotal, fragmentBytes].every(value => Number.isSafeInteger(value) && value >= 0) ||
+                count > 8192 || sectionTotal !== undefined && sectionTotal !== total || offset > total || (offset === total && total !== 0)) return false;
+            sectionTotal = total;
+            if (fragmentTotal === 0) {
+                if (fragmentOffset !== 0 || recordBytes !== undefined || fragmentBytes !== 0 ||
+                    count > total - offset || (count === 0 && total !== 0)) return false;
+                offset += count;
+            } else {
+                if (count !== 0 || offset >= total || fragmentBytes === 0 || fragmentBytes > fragmentTotal - fragmentOffset ||
+                    recordBytes !== undefined && recordBytes !== fragmentTotal) return false;
+                fragmentOffset += fragmentBytes;
+                recordBytes = fragmentTotal;
+                if (fragmentOffset !== fragmentTotal) continue;
+                fragmentOffset = 0;
+                recordBytes = undefined;
+                offset++;
+            }
+            if (offset === total) {
+                ordinal++;
+                offset = 0;
+                sectionTotal = undefined;
+            }
+        }
+    }
+    return ordinal === sections.length;
+}
+
+function completeLegacyReadPageSequence(rows, sections) {
     let ordinal = 0;
     let previous;
     for (const [i, row] of rows.entries()) {
@@ -75,7 +125,9 @@ function requestEvidence(details, phase) {
         }
         for (const [route, sections] of Object.entries(compatibleReadSections)) {
             const pages = run.requests.filter(row => row.route === route);
-            if (pages.length && !completeReadPageSequence(pages, sections)) {
+            if (pages.some(row => row.bundled !== true)) {
+                errors.push(`${phase}/${run.label}: missing negotiated ${route} chunk evidence`);
+            } else if (pages.length && !completeReadPageSequence(pages, sections)) {
                 errors.push(`${phase}/${run.label}: incomplete or duplicate ${route} positions`);
             }
         }
@@ -90,10 +142,10 @@ function requestEvidence(details, phase) {
 }
 
 function replayKey(row) {
-    // Poll results in different states can share HTTP status and query size.
-    const responseShape = row.route === 'status' ? row.responseDecodedBytes : null;
+    // Match poll state and the decoded load of each read window, including equally positioned bundles.
+    const responseShape = row.route === 'status' || row.page ? row.responseDecodedBytes : null;
     return JSON.stringify([row.flow, row.route, row.status, row.concurrent, row.requestWireBytes,
-        row.requestDecodedBytes, row.page ?? null, responseShape]);
+        row.requestDecodedBytes, row.page ?? null, row.pageChunks ?? null, responseShape]);
 }
 
 export function evaluateMaximumHttpGate(details, replayDetails, http) {
@@ -114,7 +166,7 @@ export function evaluateMaximumHttpGate(details, replayDetails, http) {
         return rows.filter(row => row.page).map(replayKey).sort();
     }
     if (JSON.stringify(pagedPositions(real.requests)) !== JSON.stringify(pagedPositions(replay.requests))) {
-        collectionErrors.push('Real and isolated runs used different page positions');
+        collectionErrors.push('Real and isolated runs used different page positions or decoded sizes');
     }
     const candidates = new Map();
     for (const row of replay.requests) {

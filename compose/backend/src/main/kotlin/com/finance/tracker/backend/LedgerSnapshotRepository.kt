@@ -32,35 +32,36 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
     internal fun categoryDirectoryRevision(): String = sql.select(CASH_CATEGORY_STATES.REVISION).from(CASH_CATEGORY_STATES)
         .where(CASH_CATEGORY_STATES.WORKSPACE_ID.eq(workspace)).fetchOne(CASH_CATEGORY_STATES.REVISION)?.toString() ?: "0"
 
-    internal fun page(section: LedgerSnapshotSection, position: ReadPagePosition): ReadPageChunk = checkNotNull(when (section) {
-        LedgerSnapshotSection.ACCOUNTS -> accounts(position).chunk
-        LedgerSnapshotSection.ACCOUNT_ALIASES -> accountAliases(position).chunk
-        LedgerSnapshotSection.STATEMENT_ACCOUNT_MAPPINGS -> statementAccountMappings(position).chunk
-        LedgerSnapshotSection.CASH_CATEGORIES -> cashCategories(position).chunk
-        LedgerSnapshotSection.CASH_TRANSACTIONS -> cashTransactions(position).chunk
-        LedgerSnapshotSection.CASH_TRANSACTION_COMPONENTS -> cashTransactionComponents(position).chunk
-        LedgerSnapshotSection.CASH_SOURCE_BINDINGS -> cashSourceBindings(position).chunk
-        LedgerSnapshotSection.CASH_SOURCE_EMPTY_PAGES -> cashSourceEmptyPages(position).chunk
-        LedgerSnapshotSection.TRANSACTION_RELATIONS -> transactionRelations(position).chunk
-        LedgerSnapshotSection.CASH_RELATION_CANDIDATES -> cashRelationCandidates(position).chunk
-        LedgerSnapshotSection.CASH_TRANSACTION_ISSUES -> cashTransactionIssues(position).chunk
-        LedgerSnapshotSection.CASH_ISSUE_CANDIDATES -> cashIssueCandidates(position).chunk
-        LedgerSnapshotSection.CASH_ENTRIES -> cashEntries(position).chunk
-        LedgerSnapshotSection.CASH_ENTRY_MEMBERS -> cashEntryMembers(position).chunk
-        LedgerSnapshotSection.CASH_INVESTMENT_FUNDING_RELATIONS -> cashInvestmentFundingRelations(position).chunk
+    internal fun page(section: LedgerSnapshotSection, window: ReadPageWindow): ReadPageChunk = checkNotNull(when (section) {
+        LedgerSnapshotSection.ACCOUNTS -> accounts(window).chunk
+        LedgerSnapshotSection.ACCOUNT_ALIASES -> accountAliases(window).chunk
+        LedgerSnapshotSection.STATEMENT_ACCOUNT_MAPPINGS -> statementAccountMappings(window).chunk
+        LedgerSnapshotSection.CASH_CATEGORIES -> cashCategories(window).chunk
+        LedgerSnapshotSection.CASH_TRANSACTIONS -> cashTransactions(window).chunk
+        LedgerSnapshotSection.CASH_TRANSACTION_COMPONENTS -> cashTransactionComponents(window).chunk
+        LedgerSnapshotSection.CASH_SOURCE_BINDINGS -> cashSourceBindings(window).chunk
+        LedgerSnapshotSection.CASH_SOURCE_EMPTY_PAGES -> cashSourceEmptyPages(window).chunk
+        LedgerSnapshotSection.TRANSACTION_RELATIONS -> transactionRelations(window).chunk
+        LedgerSnapshotSection.CASH_RELATION_CANDIDATES -> cashRelationCandidates(window).chunk
+        LedgerSnapshotSection.CASH_TRANSACTION_ISSUES -> cashTransactionIssues(window).chunk
+        LedgerSnapshotSection.CASH_ISSUE_CANDIDATES -> cashIssueCandidates(window).chunk
+        LedgerSnapshotSection.CASH_ENTRIES -> cashEntries(window).chunk
+        LedgerSnapshotSection.CASH_ENTRY_MEMBERS -> cashEntryMembers(window).chunk
+        LedgerSnapshotSection.CASH_INVESTMENT_FUNDING_RELATIONS -> cashInvestmentFundingRelations(window).chunk
     })
 
     private inline fun <R : Record, reified T> SelectLimitStep<R>.fetchFacts(
-        page: ReadPagePosition?, crossinline map: (R) -> T,
+        window: ReadPageWindow?, crossinline map: (R) -> T,
     ): SnapshotFacts<T> {
-        if (page == null) return SnapshotFacts(fetch { map(it) }, null)
+        if (window == null) return SnapshotFacts(fetch { map(it) }, null)
+        val page = window.position
         val total = this@LedgerSnapshotRepository.sql.fetchCount(this)
         if (page.offset > total || page.offset == total && total != 0) throw ReadPageFailure()
         val sections = LedgerSnapshotSection.entries.map { it.wireName }
         val chunk = if (total == 0) {
-            boundedReadPageChunk(page, sections, total, emptySequence(), snapshotReadPageTargetBytes)
+            boundedReadPageChunk(page, sections, total, emptySequence(), window.targetBytes, window.rows)
         } else {
-            val fetchRows = if (page.fragmentOffset == 0) readPageRowWindow else 1
+            val fetchRows = if (page.fragmentOffset == 0) window.rows else 1
             val fetchSize = when (page.section) {
                 "cash_transactions", "cash_transaction_components", "cash_source_bindings", "cash_source_empty_pages",
                 "transaction_relations", "cash_transaction_issues", "cash_entry_members" -> 1
@@ -70,7 +71,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
                 val candidates = cursor.iterator().asSequence().map {
                     compatibleReadPageJson.encodeToJsonElement(map(it))
                 }
-                boundedReadPageChunk(page, sections, total, candidates, snapshotReadPageTargetBytes)
+                boundedReadPageChunk(page, sections, total, candidates, window.targetBytes, window.rows)
             }
         }
         return SnapshotFacts(emptyList(), chunk)
@@ -78,13 +79,13 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
 
     private data class SnapshotFacts<T>(val rows: List<T>, val chunk: ReadPageChunk?)
 
-    private fun accounts(page: ReadPagePosition? = null): SnapshotFacts<LedgerAccountFactDto> {
+    private fun accounts(window: ReadPageWindow? = null): SnapshotFacts<LedgerAccountFactDto> {
         val table = ACCOUNTS
         return sql.select(listOf(
             table.ID, table.NAME, table.TYPE, table.ACTIVE,
             table.CURRENCIES, table.REVISION,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerAccountFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerAccountFactDto(
                 id = row[table.ID]!!.toString(),
                 name = row[table.NAME]!!,
                 type = row[table.TYPE]!!,
@@ -94,13 +95,13 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun accountAliases(page: ReadPagePosition? = null): SnapshotFacts<LedgerAccountAliasFactDto> {
+    private fun accountAliases(window: ReadPageWindow? = null): SnapshotFacts<LedgerAccountAliasFactDto> {
         val table = ACCOUNT_ALIASES
         return sql.select(listOf(
             table.ID, table.ALIAS_TYPE, table.ALIAS_VALUE, table.ACCOUNT_ID,
             table.CREATED_AT, table.UPDATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerAccountAliasFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerAccountAliasFactDto(
                 id = row[table.ID]!!.toString(),
                 aliasType = row[table.ALIAS_TYPE]!!,
                 aliasValue = row[table.ALIAS_VALUE]!!,
@@ -110,14 +111,14 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun statementAccountMappings(page: ReadPagePosition? = null): SnapshotFacts<LedgerStatementMappingFactDto> {
+    private fun statementAccountMappings(window: ReadPageWindow? = null): SnapshotFacts<LedgerStatementMappingFactDto> {
         val table = STATEMENT_ACCOUNT_MAPPINGS
         return sql.select(listOf(
             table.ID, table.SOURCE_TYPE, table.IDENTITY_KIND, table.SOURCE_ACCOUNT_KEY,
             table.ACCOUNT_ID, table.CONFIRMED_BY, table.REVISION, table.CREATED_AT,
             table.UPDATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerStatementMappingFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerStatementMappingFactDto(
                 id = row[table.ID]!!.toString(),
                 sourceType = row[table.SOURCE_TYPE]!!,
                 identityKind = row[table.IDENTITY_KIND]!!,
@@ -130,14 +131,14 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashCategories(page: ReadPagePosition? = null): SnapshotFacts<LedgerCategoryFactDto> {
+    private fun cashCategories(window: ReadPageWindow? = null): SnapshotFacts<LedgerCategoryFactDto> {
         val table = CASH_CATEGORIES
         return sql.select(listOf(
             table.ID, table.PARENT_ID, table.PARENT_SCOPE_KEY, table.NAME,
             table.NORMALIZED_NAME, table.DESCRIPTION, table.CATEGORY_PATH, table.DEPTH,
             table.SORT_ORDER, table.REVISION, table.CREATED_AT, table.UPDATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCategoryFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCategoryFactDto(
                 id = row[table.ID]!!,
                 parentId = row[table.PARENT_ID],
                 parentScopeKey = row[table.PARENT_SCOPE_KEY]!!,
@@ -153,7 +154,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashTransactions(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashTransactionFactDto> {
+    private fun cashTransactions(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashTransactionFactDto> {
         val table = CASH_TRANSACTIONS
         return sql.select(listOf(
             table.ID, table.ACCOUNT_ID, table.STATE, table.RECORD_ORIGIN,
@@ -164,7 +165,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             table.CATEGORY_ID, table.RECORD_TYPE, table.RECORD_SUBTYPE, table.CREATED_AT,
             table.DELETED_AT, table.DELETED_BY, table.DELETE_REASON,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCashTransactionFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCashTransactionFactDto(
                 id = row[table.ID]!!.toString(),
                 accountId = row[table.ACCOUNT_ID]?.toString(),
                 state = row[table.STATE]!!,
@@ -195,14 +196,14 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashTransactionComponents(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashComponentFactDto> {
+    private fun cashTransactionComponents(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashComponentFactDto> {
         val table = CASH_TRANSACTION_COMPONENTS
         return sql.select(listOf(
             table.ID, table.CASH_TRANSACTION_ID, table.ACCOUNT_ID, table.AMOUNT,
             table.CURRENCY, table.ORDINAL, table.LABEL, table.SOURCE_KEY,
             table.METADATA_JSON, table.CREATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCashComponentFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCashComponentFactDto(
                 id = row[table.ID]!!.toString(),
                 cashTransactionId = row[table.CASH_TRANSACTION_ID]!!.toString(),
                 accountId = row[table.ACCOUNT_ID]?.toString(),
@@ -216,7 +217,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashSourceBindings(page: ReadPagePosition? = null): SnapshotFacts<LedgerSourceBindingFactDto> {
+    private fun cashSourceBindings(window: ReadPageWindow? = null): SnapshotFacts<LedgerSourceBindingFactDto> {
         val table = CASH_SOURCE_BINDINGS
         return sql.select(listOf(
             table.ID, table.TRANSACTION_ID, table.SOURCE_TYPE, table.SOURCE_SCOPE_KIND,
@@ -224,7 +225,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             table.STABLE_EVIDENCE_KEY, table.STRATEGY_VERSION, table.COVERAGE, table.REVISION,
             table.CREATED_AT, table.UPDATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerSourceBindingFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerSourceBindingFactDto(
                 id = row[table.ID]!!.toString(),
                 transactionId = row[table.TRANSACTION_ID]!!.toString(),
                 sourceType = row[table.SOURCE_TYPE]!!,
@@ -242,13 +243,13 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashSourceEmptyPages(page: ReadPagePosition? = null): SnapshotFacts<LedgerSourceEmptyPageFactDto> {
+    private fun cashSourceEmptyPages(window: ReadPageWindow? = null): SnapshotFacts<LedgerSourceEmptyPageFactDto> {
         val table = CASH_SOURCE_EMPTY_PAGES
         return sql.select(listOf(
             table.SOURCE_TYPE, table.PARSER_VERSION, table.DOCUMENT_KEY, table.PAGE_NUMBER,
             table.COVERAGE,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.SOURCE_TYPE, table.PARSER_VERSION, table.DOCUMENT_KEY, table.PAGE_NUMBER).fetchFacts(page) { row -> LedgerSourceEmptyPageFactDto(
+            .orderBy(table.SOURCE_TYPE, table.PARSER_VERSION, table.DOCUMENT_KEY, table.PAGE_NUMBER).fetchFacts(window) { row -> LedgerSourceEmptyPageFactDto(
                 sourceType = row[table.SOURCE_TYPE]!!,
                 parserVersion = row[table.PARSER_VERSION]!!,
                 documentKey = row[table.DOCUMENT_KEY]!!,
@@ -257,7 +258,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun transactionRelations(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashRelationFactDto> {
+    private fun transactionRelations(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashRelationFactDto> {
         val table = TRANSACTION_RELATIONS
         return sql.select(listOf(
             table.ID, table.KIND, table.PRIMARY_TRANSACTION_ID, table.SECONDARY_TRANSACTION_ID,
@@ -267,7 +268,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             table.APPLIED_AMOUNT, table.RULE_ID, table.CREATED_BY, table.CREATED_AT,
             table.DECIDED_BY, table.DECIDED_AT, table.DECISION_REASON,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCashRelationFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCashRelationFactDto(
                 id = row[table.ID]!!.toString(),
                 kind = row[table.KIND]!!,
                 primaryTransactionId = row[table.PRIMARY_TRANSACTION_ID]!!.toString(),
@@ -294,13 +295,13 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashRelationCandidates(page: ReadPagePosition? = null): SnapshotFacts<LedgerRelationCandidateFactDto> {
+    private fun cashRelationCandidates(window: ReadPageWindow? = null): SnapshotFacts<LedgerRelationCandidateFactDto> {
         val table = CASH_RELATION_CANDIDATES
         return sql.select(listOf(
             table.ID, table.RELATION_ID, table.CANDIDATE_TRANSACTION_ID, table.CANDIDATE_COMPONENT_ID,
             table.EXPECTED_ROW_REVISION, table.EVIDENCE, table.VALIDITY,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerRelationCandidateFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerRelationCandidateFactDto(
                 id = row[table.ID]!!.toString(),
                 relationId = row[table.RELATION_ID]!!.toString(),
                 candidateTransactionId = row[table.CANDIDATE_TRANSACTION_ID]!!.toString(),
@@ -311,14 +312,14 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashTransactionIssues(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashIssueFactDto> {
+    private fun cashTransactionIssues(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashIssueFactDto> {
         val table = CASH_TRANSACTION_ISSUES
         return sql.select(listOf(
             table.ID, table.TRANSACTION_ID, table.ISSUE_KEY, table.CODE,
             table.FIELD_PATH, table.PENDING_SOURCE_PAYLOAD, table.PENDING_FIELDS, table.ORIGIN,
             table.REVISION, table.CREATED_AT, table.UPDATED_AT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCashIssueFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCashIssueFactDto(
                 id = row[table.ID]!!.toString(),
                 transactionId = row[table.TRANSACTION_ID]!!.toString(),
                 issueKey = row[table.ISSUE_KEY]!!,
@@ -333,12 +334,12 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashIssueCandidates(page: ReadPagePosition? = null): SnapshotFacts<LedgerIssueCandidateFactDto> {
+    private fun cashIssueCandidates(window: ReadPageWindow? = null): SnapshotFacts<LedgerIssueCandidateFactDto> {
         val table = CASH_ISSUE_CANDIDATES
         return sql.select(listOf(
             table.ID, table.ISSUE_ID, table.CANDIDATE_TRANSACTION_ID, table.EXPECTED_ROW_REVISION,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerIssueCandidateFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerIssueCandidateFactDto(
                 id = row[table.ID]!!.toString(),
                 issueId = row[table.ISSUE_ID]!!.toString(),
                 candidateTransactionId = row[table.CANDIDATE_TRANSACTION_ID]!!.toString(),
@@ -346,14 +347,14 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashEntries(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashEntryFactDto> {
+    private fun cashEntries(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashEntryFactDto> {
         val table = CASH_ENTRIES
         return sql.select(listOf(
             table.ID, table.ROOT_TRANSACTION_ID, table.IDENTITY_TRANSACTION_ID, table.REVISION,
             table.CATEGORY_ID, table.NOTE, table.COUNTERPARTY, table.COUNTERPARTY_ACCOUNT,
             table.COUNTERPARTY_ACCOUNT_ATTRS, table.MANUAL_FIELDS, table.SPLIT_INHERIT,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerCashEntryFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerCashEntryFactDto(
                 id = row[table.ID]!!,
                 rootTransactionId = row[table.ROOT_TRANSACTION_ID]!!.toString(),
                 identityTransactionId = row[table.IDENTITY_TRANSACTION_ID]!!.toString(),
@@ -368,12 +369,12 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashEntryMembers(page: ReadPagePosition? = null): SnapshotFacts<LedgerCashEntryMemberFactDto> {
+    private fun cashEntryMembers(window: ReadPageWindow? = null): SnapshotFacts<LedgerCashEntryMemberFactDto> {
         val table = CASH_ENTRY_MEMBERS
         return sql.select(listOf(
             table.TRANSACTION_ID, table.ENTRY_ID, table.STANDALONE_VALUES, table.STANDALONE_MANUAL_FIELDS,
         )).from(table).where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.TRANSACTION_ID).fetchFacts(page) { row -> LedgerCashEntryMemberFactDto(
+            .orderBy(table.TRANSACTION_ID).fetchFacts(window) { row -> LedgerCashEntryMemberFactDto(
                 transactionId = row[table.TRANSACTION_ID]!!.toString(),
                 entryId = row[table.ENTRY_ID]!!,
                 standaloneValues = row[table.STANDALONE_VALUES] ?: JsonNull,
@@ -381,7 +382,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
             ) }
     }
 
-    private fun cashInvestmentFundingRelations(page: ReadPagePosition? = null): SnapshotFacts<LedgerInvestmentFundingFactDto> {
+    private fun cashInvestmentFundingRelations(window: ReadPageWindow? = null): SnapshotFacts<LedgerInvestmentFundingFactDto> {
         val table = CASH_INVESTMENT_FUNDING_RELATIONS
         val event = INVESTMENT_EVENTS
         return sql.select(listOf(
@@ -392,7 +393,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
         )).from(table).leftJoin(event).on(event.WORKSPACE_ID.eq(table.WORKSPACE_ID))
             .and(event.ID.eq(table.INVESTMENT_EVENT_ID)).and(table.STATUS.eq("accepted")).and(table.ACTIVE_SLOT.eq("active"))
             .where(table.WORKSPACE_ID.eq(workspace))
-            .orderBy(table.ID).fetchFacts(page) { row -> LedgerInvestmentFundingFactDto(
+            .orderBy(table.ID).fetchFacts(window) { row -> LedgerInvestmentFundingFactDto(
                 id = row[table.ID]!!.toString(),
                 cashTransactionComponentId = row[table.CASH_TRANSACTION_COMPONENT_ID]!!.toString(),
                 investmentEventId = row[table.INVESTMENT_EVENT_ID]!!.toString(),

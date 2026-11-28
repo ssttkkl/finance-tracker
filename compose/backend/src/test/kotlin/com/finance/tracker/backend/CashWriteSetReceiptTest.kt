@@ -3,6 +3,7 @@ package com.finance.tracker.backend
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
+import com.finance.tracker.business.contracts.READ_PAGE_CHUNK_MAX_ITEMS
 import com.finance.tracker.business.contracts.CashImportReceiptSection
 import com.finance.tracker.business.contracts.LedgerSnapshotSection
 import com.finance.tracker.business.contracts.ReadPageChunk
@@ -107,20 +108,25 @@ class CashWriteSetReceiptTest(private val backend: String) {
         save(db, ws, user, result(1025))
         testApplication {
             application { financeModule(db, runCashImportWorker = false) }
-            suspend fun read(path: String, continuation: Map<String, String> = emptyMap()): HttpResponse = client.get(path) {
+            suspend fun read(path: String, continuation: Map<String, String> = emptyMap(),
+                bundle: Boolean = false): HttpResponse = client.get(path) {
                 bearerAuth(token)
                 parameter("workspace_id", ws)
-                if (path.endsWith("/pages")) header("Accept-Encoding", "gzip")
+                if (path.endsWith("/pages")) {
+                    header("Accept-Encoding", "gzip")
+                    if (bundle) header("X-FT-Read-Page-Bundle", "1")
+                }
                 if ("/receipt" in path) header("Idempotency-Key", "original")
                 continuation.forEach { (name, value) -> parameter(name, value) }
             }
-            suspend fun collect(path: String, pin: String, limit: Int): Triple<JsonObject, Map<String, JsonArray>, Int> {
+            suspend fun collect(path: String, pin: String, limit: Int,
+                bundle: Boolean = false): Triple<JsonObject, Map<String, JsonArray>, Int> {
                 val data = linkedMapOf<String, MutableList<JsonElement>>()
                 var first: JsonObject? = null
                 var continuation = emptyMap<String, String>()
                 var requests = 0
                 do {
-                    val response = read("$path/pages", continuation)
+                    val response = read("$path/pages", continuation, bundle)
                     assertEquals(HttpStatusCode.OK, response.status)
                     val encoded = response.bodyAsBytes()
                     assertTrue(encoded.size <= limit)
@@ -133,20 +139,32 @@ class CashWriteSetReceiptTest(private val backend: String) {
                     assertEquals(encoded.size, response.headers["Content-Length"]?.toIntOrNull())
                     assertTrue(decoded.size <= limit)
                     val envelope = Json.parseToJsonElement(decoded.decodeToString()).jsonObject
-                    val position = Json.decodeFromJsonElement<ReadPageChunk>(envelope.getValue("chunk"))
-                    val fields = JsonObject(envelope - "chunk")
+                    val chunks = listOf(envelope.getValue("chunk")) + envelope["more_chunks"]?.jsonArray.orEmpty()
+                    val fields = JsonObject(envelope - setOf("chunk", "more_chunks"))
                     if (first == null) first = fields else assertEquals(first, fields)
-                    assertEquals(0, position.position.fragmentOffset)
-                    assertNull(position.fragment)
-                    val values = data.getOrPut(position.position.section, ::mutableListOf)
-                    assertEquals(values.size, position.position.offset)
-                    values.addAll(position.items)
-                    if (position.next?.section != position.position.section) assertEquals(position.total, values.size)
-                    continuation = position.next?.let { next -> mapOf(
-                        pin to fields.getValue(pin).jsonPrimitive.content,
-                        "section" to next.section,
-                        "offset" to next.offset.toString(),
-                    ) } ?: emptyMap()
+                    if (bundle) {
+                        val segments = chunks.map { Json.decodeFromJsonElement<ReadPageChunk>(it) }
+                        val expected = segments.joinToString(",") {
+                            val (section, offset, fragmentOffset) = it.position
+                            "$section:$offset:$fragmentOffset:${it.total}:${it.items.size}:0:0"
+                        }
+                        assertEquals(expected, response.headers["X-FT-Read-Page-Chunks"])
+                    } else assertNull(envelope["more_chunks"])
+                    for (body in chunks) {
+                        val chunk = Json.decodeFromJsonElement<ReadPageChunk>(body)
+                        assertEquals(0, chunk.position.fragmentOffset)
+                        assertNull(chunk.fragment)
+                        assertTrue(chunk.items.size <= if (bundle) READ_PAGE_CHUNK_MAX_ITEMS else 1024)
+                        val values = data.getOrPut(chunk.position.section, ::mutableListOf)
+                        assertEquals(values.size, chunk.position.offset)
+                        values.addAll(chunk.items)
+                        if (chunk.next?.section != chunk.position.section) assertEquals(chunk.total, values.size)
+                        continuation = chunk.next?.let { next -> mapOf(
+                            pin to fields.getValue(pin).jsonPrimitive.content,
+                            "section" to next.section,
+                            "offset" to next.offset.toString(),
+                        ) } ?: emptyMap()
+                    }
                     requests++
                 } while (continuation.isNotEmpty())
                 return Triple(checkNotNull(first), data.mapValues { JsonArray(it.value) }, requests)
@@ -169,6 +187,17 @@ class CashWriteSetReceiptTest(private val backend: String) {
             val result = JsonObject(sections - setOf("header", "pending_transaction_ids"))
             assertEquals(legacyReceipt, JsonObject(header.getValue("receipt").jsonObject + ("write_set_result" to result)))
             assertEquals(legacyReceipt["receipt_id"], receiptHead["receipt_id"])
+            val (bundleSnapshotHead, bundledFacts, snapshotBundles) =
+                collect(snapshotPath, "ledger_seq", LEDGER_SNAPSHOT_PAGE_MAX_BYTES, bundle = true)
+            assertEquals(snapshotHead, bundleSnapshotHead)
+            assertEquals(facts, bundledFacts)
+            assertTrue(snapshotBundles < snapshotRequests)
+            val (bundleReceiptHead, bundledSections, receiptBundles) =
+                collect(receiptPath, "receipt_id", CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES, bundle = true)
+            assertEquals(receiptHead, bundleReceiptHead)
+            assertEquals(sections, bundledSections)
+            assertEquals(1025, bundledSections.getValue("transactions").size)
+            assertTrue(receiptBundles < receiptRequests)
 
             db.write { connection ->
                 check(connection.lockWorkspace(db.sqlite, ws))
@@ -177,14 +206,37 @@ class CashWriteSetReceiptTest(private val backend: String) {
             assertEquals(HttpStatusCode.Conflict, read("$snapshotPath/pages", mapOf(
                 "ledger_seq" to legacySnapshot.getValue("ledger_seq").jsonPrimitive.content,
                 "section" to "account_aliases", "offset" to "0",
-            )).status)
+            ), bundle = true).status)
             assertEquals(HttpStatusCode.Conflict, read("$receiptPath/pages", mapOf(
                 "receipt_id" to "other-original", "section" to "transactions", "offset" to "0",
-            )).status)
+            ), bundle = true).status)
             val (after, afterSections) = collect(receiptPath, "receipt_id", CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES)
             assertEquals(receiptHead, after)
             assertEquals(sections, afterSections)
         }
+    }
+
+    @Test fun bundledSnapshotRechecksWorkspaceAfterReadingAllSections() = authenticated { db, ws, token, _ ->
+        val principal = ReadServices(db, Instant::now).currentContext(token)
+        val selection = USER_SESSIONS.ACTIVE_WORKSPACE_ID
+        fun select(workspace: String?) {
+            db.write { connection ->
+                connection.jooq(db.sqlite).update(USER_SESSIONS).set(selection, workspace)
+                    .where(USER_SESSIONS.TOKEN_DIGEST.eq(tokenDigest(token))).execute()
+            }
+        }
+        val request = ReadPageRequest(ws, null, ReadPagePosition("accounts", 0), bundled = true)
+        val encoding = ReadPageEncoding(0.0, 1.0)
+        try {
+            val denied = LedgerReadService(db, afterRead = { select(null) })
+            assertTrue(assertFailsWith<AccessFailure> { denied.snapshotPage(token, principal, request, encoding) }.forbidden)
+        } finally {
+            select(ws)
+        }
+        val page = LedgerReadService(db).snapshotPage(token, principal, request, encoding)
+        val decoded = Json.decodeFromString<com.finance.tracker.business.contracts.LedgerSnapshotReadPage>(page.body.decodeToString())
+        assertTrue(decoded.moreChunks.isNotEmpty())
+        assertEquals(ws, decoded.workspaceId)
     }
 
     @Test fun pageEncodingRespectsQualityRefusalAndRepeatedFields() = authenticated { db, ws, token, _ ->

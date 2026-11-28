@@ -6944,7 +6944,8 @@
           "items": {
             "type": "array",
             "items": {},
-            "maxItems": 1024
+            "maxItems": 8192,
+            "description": "At most 1024 items when the bundle preference is absent."
           },
           "fragment": {
             "anyOf": [
@@ -6998,6 +6999,15 @@
           },
           "chunk": {
             "$ref": "#/components/schemas/CompatibleReadChunk"
+          },
+          "more_chunks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 14,
+            "description": "Consecutive sections sharing the version or receipt identity above. Present only with the bundle preference. The last chunk supplies the next request position.",
+            "items": {
+              "$ref": "#/components/schemas/CompatibleReadChunk"
+            }
           }
         },
         "required": [
@@ -7027,6 +7037,15 @@
           },
           "chunk": {
             "$ref": "#/components/schemas/CompatibleReadChunk"
+          },
+          "more_chunks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 9,
+            "description": "Consecutive sections sharing the version or receipt identity above. Present only with the bundle preference. The last chunk supplies the next request position.",
+            "items": {
+              "$ref": "#/components/schemas/CompatibleReadChunk"
+            }
           }
         },
         "required": [
@@ -13604,6 +13623,16 @@
         "operationId": "getCompatibleLedgerSnapshotPage",
         "parameters": [
           {
+            "name": "X-FT-Read-Page-Bundle",
+            "in": "header",
+            "required": false,
+            "description": "Opt in to a response containing consecutive sections. Servers that only support individual pages ignore this header.",
+            "schema": {
+              "type": "string",
+              "enum": ["1"]
+            }
+          },
+          {
             "description": "Expected selected workspace for the local cache. A mismatch is forbidden; it does not select a workspace.",
             "in": "query",
             "name": "workspace_id",
@@ -13674,7 +13703,15 @@
         ],
         "responses": {
           "200": {
-            "description": "One version-pinned page encoded as identity or negotiated gzip, at most 33554432 bytes including the JSON envelope. Null next marks the complete representation.",
+            "description": "One version-pinned response encoded as identity or negotiated gzip, at most 33554432 bytes both transferred and decoded. With the bundle preference, continuation comes from the final chunk. Null next marks the complete representation.",
+            "headers": {
+              "X-FT-Read-Page-Chunks": {
+                "description": "For a bundled response, comma-separated segment descriptions. Each segment lists the collection, row offset, fragment offset, collection total, item count, complete fragment size, and fragment bytes, separated by colons. The header contains no user or receipt identifier.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14511,6 +14548,16 @@
         "operationId": "getCompatibleCashImportReceiptPage",
         "parameters": [
           {
+            "name": "X-FT-Read-Page-Bundle",
+            "in": "header",
+            "required": false,
+            "description": "Opt in to a response containing consecutive sections. Servers that only support individual pages ignore this header.",
+            "schema": {
+              "type": "string",
+              "enum": ["1"]
+            }
+          },
+          {
             "in": "header",
             "name": "Idempotency-Key",
             "required": true,
@@ -14585,7 +14632,15 @@
         ],
         "responses": {
           "200": {
-            "description": "One version-pinned page encoded as identity or negotiated gzip, at most 2097152 bytes including the JSON envelope. Null next marks the complete representation.",
+            "description": "One receipt-pinned response encoded as identity or negotiated gzip, at most 2097152 bytes both transferred and decoded. With the bundle preference, continuation comes from the final chunk. Null next marks the complete original receipt.",
+            "headers": {
+              "X-FT-Read-Page-Chunks": {
+                "description": "For a bundled response, comma-separated segment descriptions. Each segment lists the collection, row offset, fragment offset, collection total, item count, complete fragment size, and fragment bytes, separated by colons. The header contains no user or receipt identifier.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

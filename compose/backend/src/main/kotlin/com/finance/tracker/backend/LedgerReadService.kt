@@ -46,9 +46,7 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
     }
 
     internal fun snapshotPage(token: String?, request: Principal, page: ReadPageRequest, encoding: ReadPageEncoding): EncodedReadPage {
-        val section = LedgerSnapshotSection.entries.singleOrNull { it.wireName == page.position.section }
-            ?: throw ReadPageFailure()
-        val (principal, result) = database.read { connection ->
+        val (principal, result, positions) = database.read { connection ->
             if (!database.sqlite) connection.transactionIsolation = Connection.TRANSACTION_REPEATABLE_READ
             val current = reads.context(connection, token, write = false)
             same(request, current)
@@ -59,11 +57,15 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
             if (page.pin != null && page.pin != version.toString()) readPageChanged()
             afterSnapshotVersionRead()
             val repository = LedgerSnapshotRepository(connection, workspace, database.sqlite)
-            val chunk = repository.page(section, page.position)
-            current to LedgerSnapshotReadPage(workspace, version.toString(), CASH_RULES_VERSION,
-                repository.categoryDirectoryRevision(), chunk)
+            val chunks = page.readChunks(snapshotReadPageTargetBytes) { window ->
+                val section = LedgerSnapshotSection.entries.singleOrNull { it.wireName == window.position.section }
+                    ?: throw ReadPageFailure()
+                repository.page(section, window)
+            }
+            Triple(current, LedgerSnapshotReadPage(workspace, version.toString(), CASH_RULES_VERSION,
+                repository.categoryDirectoryRevision(), chunks.first(), chunks.drop(1)), page.chunkPositions(chunks))
         }
-        val bytes = encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), LEDGER_SNAPSHOT_PAGE_MAX_BYTES)
+        val bytes = encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), LEDGER_SNAPSHOT_PAGE_MAX_BYTES, positions)
         afterRead()
         same(principal, reads.currentContext(token))
         return bytes

@@ -2,6 +2,8 @@ package com.finance.tracker.client
 
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
+import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_VERSION
+import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_HEADER
 import com.finance.tracker.business.contracts.CashImportReceiptReadPage
 import com.finance.tracker.business.contracts.LedgerSnapshotReadPage
 import com.finance.tracker.business.contracts.ReadPagePosition
@@ -116,6 +118,8 @@ class ClientLedgerRead internal constructor(
 }
 
 internal val clientJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+private val readPageBundlePreference = mapOf(READ_PAGE_BUNDLE_HEADER to READ_PAGE_BUNDLE_VERSION)
 
 internal val ClientLedgerRead.importWorkspace: ClientImportWorkspace
     get() = ClientImportWorkspace(binding, ledger.snapshot.workspaceId, offline)
@@ -599,7 +603,7 @@ class ClientSessionOperations(
             val position = assembly.position ?: break
             requireCurrent(binding)
             val query = pagePositionQuery(position, "ledger_seq", assembly.ledgerSeq)
-            val page = ledgerRequest<LedgerSnapshotReadPage>(path + query, binding, workspace)
+            val page = ledgerRequest<LedgerSnapshotReadPage>(path + query, binding, workspace, readPageBundlePreference)
             requireCurrent(binding)
             assembly.append(page)
         }
@@ -609,7 +613,7 @@ class ClientSessionOperations(
     private suspend fun readPagedCashImportReceipt(binding: ClientStoredSession, workspace: String, key: String): CashMutationReceiptDto {
         val assembly = CashImportReceiptAssembly(workspace)
         val path = "$CASH_IMPORT_RECEIPT_PAGE_PATH?workspace_id=${encodeComponent(workspace)}"
-        val headers = mapOf("Idempotency-Key" to key)
+        val headers = readPageBundlePreference + ("Idempotency-Key" to key)
         while (true) {
             val position = assembly.position ?: break
             requireCurrent(binding)
@@ -661,8 +665,11 @@ class ClientSessionOperations(
     private fun revision(value: String): Long =
         value.toLongOrNull()?.takeIf { it >= 0 && it.toString() == value } ?: throw ClientOperationFailure("protocol_error")
 
-    private suspend inline fun <reified T> ledgerRequest(path: String, session: ClientStoredSession, workspace: String): T =
-        authenticated(session) { withWorkspaceRead(session, workspace) { request("GET", path, session.token) } }
+    private suspend inline fun <reified T> ledgerRequest(path: String, session: ClientStoredSession, workspace: String,
+        headers: Map<String, String> = emptyMap(),
+    ): T = authenticated(session) {
+        withWorkspaceRead(session, workspace) { request("GET", path, session.token, headers = headers) }
+    }
 
     private suspend inline fun <T> withWorkspaceRead(
         session: ClientStoredSession, workspace: String, read: () -> T,

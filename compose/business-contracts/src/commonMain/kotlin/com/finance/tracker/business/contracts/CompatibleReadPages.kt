@@ -1,13 +1,19 @@
 @file:kotlinx.serialization.UseSerializers(ExactJsonElementSerializer::class)
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 
 package com.finance.tracker.business.contracts
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 const val COMPATIBLE_READ_PAGES_HEADER = "X-FT-Read-Pages"
 const val COMPATIBLE_READ_PAGES_VERSION = "1"
+const val READ_PAGE_BUNDLE_HEADER = "X-FT-Read-Page-Bundle"
+const val READ_PAGE_BUNDLE_VERSION = "1"
+const val READ_PAGE_CHUNKS_HEADER = "X-FT-Read-Page-Chunks"
+const val READ_PAGE_CHUNK_MAX_ITEMS = 8192
 const val LEDGER_SNAPSHOT_PAGE_PATH = "/api/v1/ledger/snapshot/pages"
 const val CASH_IMPORT_RECEIPT_PAGE_PATH = "/api/v1/cash-import/write-set/receipt/pages"
 const val LEDGER_SNAPSHOT_PAGE_MAX_BYTES = 32 * 1024 * 1024
@@ -73,6 +79,7 @@ data class LedgerSnapshotReadPage(
     @SerialName("rules_version") val rulesVersion: String,
     @SerialName("category_directory_revision") val categoryDirectoryRevision: String,
     val chunk: ReadPageChunk,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("more_chunks") val moreChunks: List<ReadPageChunk> = emptyList(),
 )
 
 @Serializable
@@ -81,4 +88,5 @@ data class CashImportReceiptReadPage(
     @SerialName("receipt_id") val receiptId: String,
     @SerialName("ledger_seq") val ledgerSeq: String,
     val chunk: ReadPageChunk,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("more_chunks") val moreChunks: List<ReadPageChunk> = emptyList(),
 )

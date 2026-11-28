@@ -54,39 +54,48 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
 
     internal fun importReceiptPage(token: String?, key: String, page: ReadPageRequest, encoding: ReadPageEncoding): EncodedReadPage =
         context(token, lock = false, expectedWorkspace = page.workspace, snapshot = true) { connection, principal ->
-            val section = CashImportReceiptSection.entries.singleOrNull { it.wireName == page.position.section }
-                ?: throw ReadPageFailure()
-            val stored = ReceiptRepository(connection, page.workspace, database.sqlite)
-                .importPage(principal.userId, key, section, page.position)
-                ?: throw ReceiptFailure("receipt_not_found")
-            if (page.pin != null && page.pin != stored.id) readPageChanged()
-            val items = when (section) {
-                CashImportReceiptSection.HEADER -> {
-                    val authority = publicReceipt(stored.items.single().jsonObject)
-                    stored.pendingCount?.let { count ->
-                        if (!validReceiptPendingCount(authority["pending_item_count"]?.jsonPrimitive?.intOrNull, count))
-                            throw IllegalArgumentException("mutation_receipt_invalid")
-                    }
-                    listOf(buildJsonObject {
-                        put("receipt", authority)
-                        put("has_pending_transaction_ids", stored.pendingCount != null)
-                    })
-                }
-                CashImportReceiptSection.PENDING_TRANSACTION_IDS ->
-                    receiptPendingTransactions(stored.items, "mutation_receipt_invalid")
-                else -> {
-                    val arrays = buildJsonObject {
-                        for (field in CashImportReceiptSection.entries.drop(1).dropLast(1)) {
-                            put(field.wireName, JsonArray(if (field == section) stored.items else emptyList()))
+            val sections = CashImportReceiptSection.entries
+            val sectionNames = sections.map { it.wireName }
+            val repository = ReceiptRepository(connection, page.workspace, database.sqlite)
+            var identity: Pair<String, String>? = null
+            val chunks = page.readChunks(importReceiptReadPageTargetBytes) { window ->
+                val section = sections.singleOrNull { it.wireName == window.position.section } ?: throw ReadPageFailure()
+                val stored = repository.importPage(principal.userId, key, section, window)
+                    ?: throw ReceiptFailure("receipt_not_found")
+                val currentIdentity = stored.id to stored.version
+                if (page.pin != null && page.pin != stored.id || identity != null && identity != currentIdentity)
+                    readPageChanged()
+                identity = currentIdentity
+                val items = when (section) {
+                    CashImportReceiptSection.HEADER -> {
+                        val authority = publicReceipt(stored.items.single().jsonObject)
+                        stored.pendingCount?.let { count ->
+                            if (!validReceiptPendingCount(authority["pending_item_count"]?.jsonPrimitive?.intOrNull, count))
+                                throw IllegalArgumentException("mutation_receipt_invalid")
                         }
+                        listOf(buildJsonObject {
+                            put("receipt", authority)
+                            put("has_pending_transaction_ids", stored.pendingCount != null)
+                        })
                     }
-                    receiptWriteSetResult(arrays, "mutation_receipt_invalid").getValue(section.wireName).jsonArray
+                    CashImportReceiptSection.PENDING_TRANSACTION_IDS ->
+                        receiptPendingTransactions(stored.items, "mutation_receipt_invalid")
+                    else -> {
+                        val arrays = buildJsonObject {
+                            for (field in CashImportReceiptSection.entries.drop(1).dropLast(1)) {
+                                put(field.wireName, JsonArray(if (field == section) stored.items else emptyList()))
+                            }
+                        }
+                        receiptWriteSetResult(arrays, "mutation_receipt_invalid").getValue(section.wireName).jsonArray
+                    }
                 }
+                boundedReadPageChunk(window.position, sectionNames, stored.count, items.asSequence(),
+                    window.targetBytes, window.rows)
             }
-            val chunk = boundedReadPageChunk(page.position, CashImportReceiptSection.entries.map { it.wireName },
-                stored.count, items.asSequence(), importReceiptReadPageTargetBytes)
-            val result = CashImportReceiptReadPage(page.workspace, stored.id, stored.version, chunk)
-            encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES)
+            val (receipt, version) = checkNotNull(identity)
+            val result = CashImportReceiptReadPage(page.workspace, receipt, version, chunks.first(), chunks.drop(1))
+            encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES,
+                page.chunkPositions(chunks))
         }
 
     internal fun results(token: String?,id: String,kind: String,page: ReceiptPage,expectedWorkspace: String? = null,

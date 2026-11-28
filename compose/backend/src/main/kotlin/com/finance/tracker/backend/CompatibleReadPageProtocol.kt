@@ -2,6 +2,10 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
+import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_HEADER
+import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_VERSION
+import com.finance.tracker.business.contracts.READ_PAGE_CHUNKS_HEADER
+import com.finance.tracker.business.contracts.READ_PAGE_CHUNK_MAX_ITEMS
 import com.finance.tracker.business.contracts.ReadPageChunk
 import com.finance.tracker.business.contracts.ReadPageFragment
 import com.finance.tracker.business.contracts.ReadPagePosition
@@ -33,7 +37,10 @@ internal class ReadPageFailure(val code: String = "read_page_invalid", val statu
 
 internal fun readPageChanged(): Nothing = throw ReadPageFailure("read_page_changed", HttpStatusCode.Conflict)
 
-internal data class ReadPageRequest(val workspace: String, val pin: String?, val position: ReadPagePosition)
+internal data class ReadPageRequest(val workspace: String, val pin: String?, val position: ReadPagePosition,
+    val bundled: Boolean = false)
+
+internal data class ReadPageWindow(val position: ReadPagePosition, val targetBytes: Int, val rows: Int)
 
 internal fun ApplicationCall.readPageRequest(pinName: String, sections: List<String>): ReadPageRequest {
     val query = request.queryParameters
@@ -53,22 +60,49 @@ internal fun ApplicationCall.readPageRequest(pinName: String, sections: List<Str
         if (pin == null || section !in sections || offset == null) throw ReadPageFailure()
         ReadPagePosition(checkNotNull(section), offset, fragment ?: 0)
     }
-    return ReadPageRequest(workspace, pin, position)
+    return ReadPageRequest(workspace, pin, position,
+        request.headers[READ_PAGE_BUNDLE_HEADER] == READ_PAGE_BUNDLE_VERSION)
 }
 
-internal data class EncodedReadPage(val body: ByteArray, val gzip: Boolean)
+internal fun ReadPageRequest.readChunks(targetBytes: Int, read: (ReadPageWindow) -> ReadPageChunk): List<ReadPageChunk> {
+    if (!bundled) return listOf(read(ReadPageWindow(position, targetBytes, readPageRowWindow)))
+    val chunks = mutableListOf<ReadPageChunk>()
+    var remaining = targetBytes
+    var position = position
+    while (true) {
+        val chunk = read(ReadPageWindow(position, remaining, READ_PAGE_CHUNK_MAX_ITEMS))
+        chunks += chunk
+        val next = chunk.next ?: break
+        if (next.section == position.section) break
+        remaining -= compatibleReadPageJson.encodeToString(chunk).encodeToByteArray().size + 1
+        if (remaining < 2 * pageEnvelopeReserveBytes) break
+        position = next
+    }
+    return chunks
+}
+
+internal fun ReadPageRequest.chunkPositions(chunks: List<ReadPageChunk>): String? = if (bundled) {
+    chunks.joinToString(",") { chunk ->
+        val (section, offset, fragmentOffset) = chunk.position
+        val base64 = chunk.fragment?.base64
+        val fragmentBytes = base64?.let { it.length / 4 * 3 - (it.length - it.trimEnd('=').length) } ?: 0
+        "$section:$offset:$fragmentOffset:${chunk.total}:${chunk.items.size}:${chunk.fragment?.totalBytes ?: 0}:$fragmentBytes"
+    }
+} else null
+
+internal data class EncodedReadPage(val body: ByteArray, val gzip: Boolean, val chunkPositions: String? = null)
 
 internal class ReadPageEncoding(private val gzipQuality: Double, private val identityQuality: Double) {
-    fun encode(body: ByteArray, limit: Int): EncodedReadPage {
+    fun encode(body: ByteArray, limit: Int, chunkPositions: String? = null): EncodedReadPage {
         check(body.size in 1..limit)
         if (gzipQuality > 0 && gzipQuality >= identityQuality &&
             (gzipQuality > identityQuality || body.size >= 1024)) {
             val compressed = gzipReadPage(body)
             if (compressed.size <= limit && (gzipQuality > identityQuality || compressed.size < body.size))
-                return EncodedReadPage(compressed, gzip = true)
+                return EncodedReadPage(compressed, gzip = true, chunkPositions)
         }
         if (identityQuality == 0.0) throw ReadPageFailure("read_encoding_not_acceptable", HttpStatusCode.NotAcceptable)
-        return EncodedReadPage(body, gzip = false)
+        return EncodedReadPage(body, gzip = false, chunkPositions)
     }
 }
 
@@ -85,7 +119,8 @@ internal fun ApplicationCall.readPageEncoding(): ReadPageEncoding {
 internal suspend fun ApplicationCall.respondReadPage(page: EncodedReadPage) {
     suppressCompression()
     response.header(HttpHeaders.CacheControl, "no-store, no-transform")
-    response.header(HttpHeaders.Vary, HttpHeaders.AcceptEncoding)
+    response.header(HttpHeaders.Vary, "${HttpHeaders.AcceptEncoding}, $READ_PAGE_BUNDLE_HEADER")
+    page.chunkPositions?.let { response.header(READ_PAGE_CHUNKS_HEADER, it) }
     if (page.gzip) response.header(HttpHeaders.ContentEncoding, "gzip")
     respondBytes(page.body, ContentType.Application.Json)
 }
@@ -102,6 +137,7 @@ internal fun boundedReadPageChunk(
     total: Int,
     candidates: Sequence<JsonElement>,
     targetBytes: Int,
+    rowWindow: Int = readPageRowWindow,
 ): ReadPageChunk {
     if (position.offset > total || position.offset == total && (total != 0 || position.fragmentOffset != 0))
         throw ReadPageFailure()
@@ -124,7 +160,7 @@ internal fun boundedReadPageChunk(
             return ReadPageChunk(position, total, emptyList(), fragment,
                 if (end < bytes.size) position.copy(fragmentOffset = end) else next(position.offset + 1))
         }
-        if (bytes.size + 1 > remaining || items.size == readPageRowWindow) break
+        if (bytes.size + 1 > remaining || items.size == rowWindow) break
         items += row
         remaining -= bytes.size + 1
     }

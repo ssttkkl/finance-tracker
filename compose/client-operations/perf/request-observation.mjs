@@ -1,6 +1,7 @@
 import { once } from 'node:events';
 import { createGunzip } from 'node:zlib';
 import { requestSequenceHeader } from './client-request-clock.mjs';
+import { readPageBundleHeader, readPageChunksHeader, readPageChunks } from './import-request-routes.mjs';
 import { startPeakRss } from './peak-rss.mjs';
 
 function countBody(message) {
@@ -39,6 +40,7 @@ export function observeProxyRequest(incoming, { flow, route, page, now = () => p
     const sequence = Number(incoming.headers[requestSequenceHeader]);
     if (!Number.isSafeInteger(sequence) || sequence <= 0) throw new Error('missing client request sequence');
     const requestBody = countBody(incoming);
+    const bundled = page && incoming.headers[readPageBundleHeader] === '1';
     let start;
     return {
         startServerWindow() { start = now(); },
@@ -49,6 +51,8 @@ export function observeProxyRequest(incoming, { flow, route, page, now = () => p
                 sequence, flow, route, ...(page ? { page } : {}), status: response.statusCode, serverMs: endMs - start,
                 requestWireBytes: sent.wireBytes, requestDecodedBytes: sent.decodedBytes,
                 responseWireBytes: received.wireBytes, responseDecodedBytes: received.decodedBytes,
+                ...(bundled ? { bundled, ...(response.statusCode === 200
+                    ? { pageChunks: readPageChunks(route, response.headers[readPageChunksHeader]) } : {}) } : {}),
             }));
         },
     };

@@ -62,3 +62,23 @@ export function readPageCoordinates(route, url) {
         fragmentOffset: index('fragment_offset'),
     };
 }
+
+
+export const readPageBundleHeader = 'x-ft-read-page-bundle';
+export const readPageChunksHeader = 'x-ft-read-page-chunks';
+
+export function readPageChunks(route, value) {
+    const sections = compatibleReadSections[route];
+    if (!sections || typeof value !== 'string' || value.length > 4096) throw new Error('missing read page chunks');
+    const fields = value.split(',');
+    if (fields.length > sections.length) throw new Error('invalid read page chunks');
+    return fields.map((field) => {
+        const [section, ...coordinates] = field.split(':');
+        if (!sections.includes(section) || coordinates.length !== 6 ||
+            coordinates.some((part) => !/^(0|[1-9][0-9]{0,9})$/.test(part) || Number(part) > 2147483647)) {
+            throw new Error('invalid read page chunks');
+        }
+        const [offset, fragmentOffset, total, rows, fragmentTotal, fragmentBytes] = coordinates.map(Number);
+        return { section, offset, fragmentOffset, total, rows, fragmentTotal, fragmentBytes };
+    });
+}

@@ -81,15 +81,15 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         }
     }
     internal fun importPage(
-        user: String, key: String, section: CashImportReceiptSection, position: ReadPagePosition,
+        user: String, key: String, section: CashImportReceiptSection, window: ReadPageWindow,
     ): StoredImportReceiptPage? {
         if (!validReceiptLookupKey(key)) throw IllegalArgumentException("mutation_reference_invalid")
-        if (section == CashImportReceiptSection.HEADER && position.offset != 0) throw ReadPageFailure()
-        return if (sqlite) sqliteImportPage(user, key, section, position.offset)
-        else postgresImportPage(user, key, section, position)
+        if (section == CashImportReceiptSection.HEADER && window.position.offset != 0) throw ReadPageFailure()
+        return if (sqlite) sqliteImportPage(user, key, section, window)
+        else postgresImportPage(user, key, section, window)
     }
 
-    private fun sqliteImportPage(user: String, key: String, section: CashImportReceiptSection, offset: Int): StoredImportReceiptPage? {
+    private fun sqliteImportPage(user: String, key: String, section: CashImportReceiptSection, window: ReadPageWindow): StoredImportReceiptPage? {
         val receipt = lookupKey(user, key)?.takeIf { it["operation_kind"] == JsonPrimitive("cash_write_set") } ?: return null
         val version = receiptLedgerSequence(receipt["ledger_seq"], "mutation_receipt_invalid").content
         val pending = receipt["pending_transaction_ids"]?.let { receiptPendingTransactions(it, "mutation_receipt_invalid") }
@@ -100,12 +100,13 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             CashImportReceiptSection.PENDING_TRANSACTION_IDS -> pending?.toList().orEmpty()
             else -> arrays.getValue(section.wireName).jsonArray
         }
-        return StoredImportReceiptPage(id, version, pending?.size, items.size, items.drop(offset).take(readPageRowWindow))
+        return StoredImportReceiptPage(id, version, pending?.size, items.size, items.drop(window.position.offset).take(window.rows))
     }
 
     private fun postgresImportPage(user: String, key: String, section: CashImportReceiptSection,
-        position: ReadPagePosition,
+        window: ReadPageWindow,
     ): StoredImportReceiptPage? {
+        val position = window.position
         val header = section == CashImportReceiptSection.HEADER
         val pending = section == CashImportReceiptSection.PENDING_TRANSACTION_IDS
         val array = if (pending) "result_summary -> 'pending_transaction_ids'" else "result_summary -> 'write_set_result' -> ?"
@@ -163,15 +164,16 @@ internal class ReceiptRepository(private val connection: Connection,private val 
                         summary.forEach { (name, value) -> put(name, value) }
                     })
                 } else if (count == 0 || position.offset >= count) emptyList()
-                else postgresImportPageItems(user, key, section, array, position)
+                else postgresImportPageItems(user, key, section, array, window)
                 StoredImportReceiptPage(id, version, pendingCount, count, items)
             }
         }
     }
 
     private fun postgresImportPageItems(
-        user: String, key: String, section: CashImportReceiptSection, array: String, position: ReadPagePosition,
+        user: String, key: String, section: CashImportReceiptSection, array: String, window: ReadPageWindow,
     ): List<JsonElement> {
+        val position = window.position
         val query = """
             select item.value::text
             from cash_mutation_receipts, lateral json_array_elements($array) with ordinality as item(value, position)
@@ -185,7 +187,7 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             statement.setString(index++, user)
             statement.setString(index++, key)
             statement.setInt(index++, position.offset)
-            statement.setInt(index, if (position.fragmentOffset == 0) readPageRowWindow else 1)
+            statement.setInt(index, if (position.fragmentOffset == 0) window.rows else 1)
             statement.fetchSize = 8
             statement.executeQuery().use { row ->
                 buildList {
@@ -193,10 +195,10 @@ internal class ReceiptRepository(private val connection: Connection,private val 
                     while (row.next()) {
                         val value = row.getString(1)
                         val size = value.encodeToByteArray().size
-                        if (isNotEmpty() && size > importReceiptReadPageTargetBytes - bytes) break
+                        if (isNotEmpty() && size > window.targetBytes - bytes) break
                         add(Json.parseToJsonElement(value))
                         bytes += size
-                        if (bytes >= importReceiptReadPageTargetBytes) break
+                        if (bytes >= window.targetBytes) break
                     }
                 }
             }

@@ -17,7 +17,8 @@ class CompatibleReadPageAssemblyTest {
         val workspace = WorkspaceDto(legacy.workspaceId, "Fixture", Role.EDITOR)
         val session = ClientStoredSession("synthetic-token", SessionDto(UserDto("fixture@example.invalid"),
             workspace.id, listOf(workspace)))
-        for (mode in listOf("complete", "old-server", "closed", "missing", "duplicate", "premature-end", "wrong-scope", "changed-version")) {
+        for (mode in listOf("complete", "old-server", "closed", "missing", "duplicate", "premature-end", "wrong-scope",
+            "changed-version", "complete-bundle", "missing-chunk", "duplicate-chunk", "bundle-closed", "bundle-forbidden")) {
             val cache = SnapshotStore(session, legacy)
             val paths = mutableListOf<String>()
             var pageIndex = 0
@@ -32,6 +33,27 @@ class CompatibleReadPageAssemblyTest {
                         ClientHttpResponse(200, Json.encodeToString(snapshot))
                     }
                     LEDGER_SNAPSHOT_PAGE_PATH -> {
+                        assertEquals(READ_PAGE_BUNDLE_VERSION, request.headers[READ_PAGE_BUNDLE_HEADER])
+                        if (mode == "bundle-closed" && pageIndex == 1) throw ClientNetworkUnavailable()
+                        if (mode == "bundle-forbidden" && pageIndex == 1)
+                            return@ClientHttp ClientHttpResponse(403, """{"error":{"code":"workspace_forbidden"}}""")
+                        if (mode in setOf("complete-bundle", "missing-chunk", "duplicate-chunk", "bundle-closed", "bundle-forbidden")) {
+                            assertEquals(0, pageIndex++)
+                            val chunks = sections.mapIndexed { index, section ->
+                                val rows = sourceFacts.getValue(section).jsonArray
+                                ReadPageChunk(ReadPagePosition(section, 0), rows.size, rows, null,
+                                    sections.getOrNull(index + 1)?.let { ReadPagePosition(it, 0) })
+                            }
+                            val more = when (mode) {
+                                "missing-chunk" -> chunks.drop(2)
+                                "duplicate-chunk" -> listOf(chunks.first()) + chunks.drop(2)
+                                "bundle-closed", "bundle-forbidden" -> chunks.subList(1, 3)
+                                else -> chunks.drop(1)
+                            }
+                            val bundled = LedgerSnapshotReadPage(workspace.id, snapshot.ledgerSeq, snapshot.rulesVersion,
+                                snapshot.facts.categoryDirectoryRevision, chunks.first(), more)
+                            return@ClientHttp ClientHttpResponse(200, Json.encodeToString(bundled))
+                        }
                         if (mode == "closed" && pageIndex == 1) throw ClientNetworkUnavailable()
                         if (mode == "missing" && pageIndex == 1)
                             return@ClientHttp ClientHttpResponse(404, """{"error":{"code":"read_page_missing"}}""")
@@ -55,22 +77,31 @@ class CompatibleReadPageAssemblyTest {
             }
             val operations = ClientSessionOperations(http, cache, { it }, { "2026-11-27T01:00:00Z" })
             when (mode) {
-                "complete", "old-server" -> {
+                "complete", "old-server", "complete-bundle" -> {
                     val result = operations.ledger(workspace.id)
                     assertEquals(snapshot, result.ledger.snapshot)
                     assertEquals(1, cache.writes)
-                    assertEquals(if (mode == "old-server") 0 else sections.size, pageIndex)
+                    val requests = when (mode) {
+                        "old-server" -> 0
+                        "complete-bundle" -> 1
+                        else -> sections.size
+                    }
+                    assertEquals(requests, pageIndex)
                 }
-                "closed" -> {
+                "closed", "bundle-closed" -> {
                     val result = operations.ledger(workspace.id)
                     assertTrue(result.offline)
                     assertEquals(legacy, result.ledger.snapshot)
                     assertEquals(0, cache.writes)
                 }
                 else -> {
-                    assertFailsWith<ClientOperationFailure>(mode) { operations.ledger(workspace.id) }
+                    val failure = assertFailsWith<ClientOperationFailure>(mode) { operations.ledger(workspace.id) }
                     assertEquals(0, cache.writes, mode)
-                    assertEquals(legacy, cache.current.ledger?.snapshot)
+                    if (mode == "bundle-forbidden") {
+                        assertEquals("workspace_forbidden", failure.code)
+                        assertEquals(1, cache.forgets)
+                        assertNull(cache.current.ledger)
+                    } else assertEquals(legacy, cache.current.ledger?.snapshot)
                 }
             }
             if (mode != "old-server") assertTrue("/api/v1/ledger/snapshot" !in paths)
@@ -92,7 +123,8 @@ class CompatibleReadPageAssemblyTest {
             put("receipt", Json.encodeToJsonElement(receipt))
             put("has_pending_transaction_ids", true)
         }
-        for (mode in listOf("complete", "missing-first", "missing-continuation", "changed-receipt", "wrong-version", "premature-end")) {
+        for (mode in listOf("complete", "missing-first", "missing-continuation", "changed-receipt", "wrong-version", "premature-end",
+            "complete-bundle", "missing-chunk")) {
             val cache = SnapshotStore(session, ledger)
             var index = 0
             val requests = mutableListOf<String>()
@@ -100,7 +132,23 @@ class CompatibleReadPageAssemblyTest {
                 assertEquals("GET", request.method)
                 assertEquals("origin-key", request.headers["Idempotency-Key"])
                 assertEquals(CASH_IMPORT_RECEIPT_PAGE_PATH, request.path.substringBefore('?'))
+                assertEquals(READ_PAGE_BUNDLE_VERSION, request.headers[READ_PAGE_BUNDLE_HEADER])
                 requests += request.path
+                if (mode == "complete-bundle" || mode == "missing-chunk") {
+                    assertEquals(0, index++)
+                    val chunks = sections.mapIndexed { position, section ->
+                        val values = when (position) {
+                            0 -> listOf(header)
+                            1 -> listOf(Json.encodeToJsonElement(transaction))
+                            else -> emptyList()
+                        }
+                        ReadPageChunk(ReadPagePosition(section, 0), values.size, values, null,
+                            sections.getOrNull(position + 1)?.let { ReadPagePosition(it, 0) })
+                    }
+                    val page = CashImportReceiptReadPage(workspace.id, receipt.receiptId, checkNotNull(receipt.ledgerSeq),
+                        chunks.first(), chunks.drop(if (mode == "missing-chunk") 2 else 1))
+                    return@ClientHttp ClientHttpResponse(200, Json.encodeToString(page))
+                }
                 val here = index++
                 if (mode == "missing-first" && here == 0 || mode == "missing-continuation" && here == 1)
                     return@ClientHttp ClientHttpResponse(404, """{"error":{"code":"receipt_not_found"}}""")
@@ -120,12 +168,12 @@ class CompatibleReadPageAssemblyTest {
             }
             val operations = ClientSessionOperations(http, cache, { it }, { "2026-11-27T01:00:00Z" })
             when (mode) {
-                "complete" -> {
+                "complete", "complete-bundle" -> {
                     val mounted = assertNotNull(operations.cashImportReceipt(session, workspace.id, "origin-key"))
                     assertEquals(receipt.copy(writeSetResult = CashWriteSetResultDto(listOf(transaction), emptyList(),
                         emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()),
                         pendingTransactionIds = emptyList()), mounted)
-                    assertEquals(sections.size, requests.size)
+                    assertEquals(if (mode == "complete-bundle") 1 else sections.size, requests.size)
                 }
                 "missing-first" -> assertNull(operations.cashImportReceipt(session, workspace.id, "origin-key"))
                 else -> {
@@ -133,7 +181,7 @@ class CompatibleReadPageAssemblyTest {
                         operations.cashImportReceipt(session, workspace.id, "origin-key")
                     }
                     assertEquals("protocol_error", failure.code)
-                    assertEquals(2, requests.size)
+                    assertEquals(if (mode == "missing-chunk") 1 else 2, requests.size)
                 }
             }
             assertEquals(0, cache.writes)
@@ -165,8 +213,18 @@ class CompatibleReadPageAssemblyTest {
         }
     }
 
+    @Test
+    fun oversizedChunkIsRejectedBeforeConsumingAnyRows() {
+        val assembly = ReadPageAssembly(listOf("facts")) { _, _ -> error("oversized chunk consumed") }
+        val rows = List(READ_PAGE_CHUNK_MAX_ITEMS + 1) { JsonPrimitive("value") }
+        assertFailsWith<ClientOperationFailure> {
+            assembly.append(ReadPageChunk(ReadPagePosition("facts", 0), rows.size, rows, null, null))
+        }
+    }
+
     private class SnapshotStore(private val original: ClientStoredSession, ledger: LedgerSnapshotDto) : ClientSessionStore {
         var writes = 0
+        var forgets = 0
         var current = ClientLedgerState("original", ClientStoredLedger(ledger, "2026-11-26T01:00:00Z"))
         override suspend fun session() = original
         override suspend fun authenticate(previous: ClientStoredSession?, session: ClientStoredSession): Boolean = error("Unused")
@@ -178,7 +236,10 @@ class CompatibleReadPageAssemblyTest {
             current = ClientLedgerState("next", ledger)
             return true
         }
-        override suspend fun forgetWorkspace(session: ClientStoredSession, workspaceId: String): Unit = error("Unused")
+        override suspend fun forgetWorkspace(session: ClientStoredSession, workspaceId: String) {
+            forgets++
+            current = ClientLedgerState("forgotten")
+        }
         override suspend fun clear(session: ClientStoredSession): Unit = error("Unused")
     }
 }
