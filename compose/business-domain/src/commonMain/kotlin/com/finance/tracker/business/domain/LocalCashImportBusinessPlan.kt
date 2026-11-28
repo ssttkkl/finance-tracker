@@ -30,8 +30,9 @@ class PreparedCashImportReview internal constructor(
     val previewContext: JsonElement?,
     private val source: LedgerSnapshotDto,
     private val retainedReview: LocalCashImportReview,
+    private val trustedWorkspacePlan: Boolean,
 ) {
-    fun confirmedReview(): LocalCashImportReview = retainedReview.withConclusion(source, changes, plan)
+    fun confirmedReview(): LocalCashImportReview = retainedReview.withConclusion(source, changes, plan, trustedWorkspacePlan)
 }
 
 /** Snapshot the choice history while the typed plan is still in scope. */
@@ -44,7 +45,7 @@ fun prepareLocalCashImportReview(
     val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace)
     return PreparedCashImportReview(frozen, changes, plan["can_commit"] == true, LocalCashImportReview.forPreview(plan),
         if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
-        source, LocalCashImportReview.freeze(input, plan))
+        source, LocalCashImportReview.freeze(input, plan), trustedWorkspacePlan = workspace != null)
 }
 
 private data class CalculatedImportPlan(val plan: Map<String, Any?>, val frozen: JsonObject, val changes: CashWriteSetDto)

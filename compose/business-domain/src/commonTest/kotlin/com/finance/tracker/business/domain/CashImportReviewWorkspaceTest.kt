@@ -1,6 +1,9 @@
 package com.finance.tracker.business.domain
 
+import com.finance.tracker.business.contracts.CashWriteSetDto
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -36,6 +39,18 @@ class CashImportReviewWorkspaceTest {
         assertEquals(reference.getValue("item_details").jsonObject["pi_2"], stored.getValue("item_details").jsonObject["pi_2"])
         assertEquals(2, blocks.reads)
         assertEquals(reference.toString(), stored.toString())
+    }
+
+    @Test fun choicesWithoutSelectedRelationsOrEntriesDoNotReadTrustedPreviewKeys() {
+        val source = fixture.source()
+        val unusedPlan = JsonObject(emptyMap())
+        val context = localCashImportChoiceContextFromPlan(unusedPlan)
+        val bindings = freezeLocalCashImportChoiceBindings(source, unusedPlan, CashWriteSetDto(),
+            fixture.input(fixture.files()), context, trustedPlan = true)
+        assertEquals(JsonPrimitive(source.workspaceId), bindings["workspace"])
+        assertEquals(JsonPrimitive(CASH_RULES_VERSION), bindings["rules"])
+        assertEquals(JsonObject(emptyMap()), bindings["relations"])
+        assertEquals(JsonObject(emptyMap()), bindings["entries"])
     }
 
     @Test fun authenticatedBlockRepresentationPreservesTheWriteSetAndOldConclusion() {

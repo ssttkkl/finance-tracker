@@ -40,11 +40,11 @@ class LocalCashImportReview private constructor(private val text: String) {
     }
 
     internal fun withConclusion(source: LedgerSnapshotDto, changes: CashWriteSetDto,
-        frozenPlan: JsonObject): LocalCashImportReview {
+        frozenPlan: JsonObject, trustedPlan: Boolean = false): LocalCashImportReview {
         val original = document()
         val conclusion = localCashImportConclusion(source, frozenPlan, changes)
         val bindings = freezeLocalCashImportChoiceBindings(source, frozenPlan, changes, original.getValue("input").jsonObject,
-            original.getValue("context").jsonObject)
+            original.getValue("context").jsonObject, trustedPlan)
         return LocalCashImportReview(JsonObject(original + mapOf("version" to JsonPrimitive(2), "conclusion" to JsonPrimitive(conclusion), "bindings" to bindings)).toString())
     }
 
