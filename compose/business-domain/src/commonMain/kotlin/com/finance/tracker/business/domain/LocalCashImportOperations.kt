@@ -15,8 +15,16 @@ fun prepareLocalCashImportOperations(files: List<ParsedImportFile>, snapshot: Le
 
 internal fun prepareOwnedLocalCashImportOperations(files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto,
     accountSelections: JsonElement, rowChoices: JsonElement, recordIds: Map<String, String>,
-): OwnedCashImportOperations = localCashImportOperationRules(snapshot, ::scanLocalCashFundingForOperations)
-    .prepareOwned(files, cashImportChoices(accountSelections), cashImportChoices(rowChoices), recordIds).first
+    workspace: CashImportReviewWorkspace? = null,
+): OwnedCashImportOperations {
+    val retained = workspace?.let(::StoredCashImportOperationValues)
+    val operations = localCashImportOperationRules(snapshot, ::scanLocalCashFundingForOperations).prepareOwned(
+        files, cashImportChoices(accountSelections), cashImportChoices(rowChoices), recordIds,
+        retainOperation = retained?.let { it::retain },
+    ).first
+    retained?.finish()
+    return operations
+}
 
 private fun cashImportChoices(value: JsonElement): List<Any?> = decodeLocalCashValue(value) as? List<*>
     ?: throw CashImportPlanError("plan_input_invalid")

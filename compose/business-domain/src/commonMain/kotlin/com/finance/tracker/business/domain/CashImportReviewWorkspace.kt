@@ -18,23 +18,34 @@ interface CashImportReviewWorkspace {
 private const val reviewBlockUnits = 64 * 1024
 
 internal fun CashImportReviewWorkspace.storeList(values: Sequence<JsonElement>): List<JsonElement> {
-    val pages = mutableListOf<Pair<Int, Int>>()
-    val pending = StringBuilder()
-    var size = 0
-    fun flush() {
+    val writer = ReviewBlockWriter(this)
+    for (value in values) writer.append(value)
+    return writer.finish()
+}
+
+internal class ReviewBlockWriter(private val workspace: CashImportReviewWorkspace) {
+    private val pages = mutableListOf<Pair<Int, Int>>()
+    private val pending = StringBuilder()
+    private var size = 0
+
+    private fun flush() {
         if (pending.isEmpty()) return
-        pages += size to write("[$pending]")
+        pages += size to workspace.write("[$pending]")
         pending.clear()
     }
-    for (value in values) {
+
+    fun append(value: JsonElement): Int {
         val text = value.toString()
         if (pending.isNotEmpty() && text.length + pending.length + 3 > reviewBlockUnits) flush()
         if (pending.isNotEmpty()) pending.append(',')
         pending.append(text)
-        size++
+        return size++
     }
-    flush()
-    return StoredReviewList(this, pages, size)
+
+    fun finish(): List<JsonElement> {
+        flush()
+        return StoredReviewList(workspace, pages, size)
+    }
 }
 
 private class StoredReviewList(

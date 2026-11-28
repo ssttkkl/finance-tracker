@@ -56,7 +56,7 @@ private fun calculateImportPlan(
     progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
     workspace: CashImportReviewWorkspace? = null,
 ): CalculatedImportPlan {
-    val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
     val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
@@ -69,7 +69,8 @@ private data class LocalPreparedImportPlan(val plan: MutableMap<String, Any?>, v
 
 private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
-    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant): LocalPreparedImportPlan {
+    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant, workspace: CashImportReviewWorkspace? = null,
+): LocalPreparedImportPlan {
     requireActive()
     progress(CashImportPlanningStage.PREPARE_SOURCES)
     val empty = JsonArray(emptyList())
@@ -86,7 +87,7 @@ private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: L
     }
     retainedIds.putAll(recordIds)
     val operations = prepareOwnedLocalCashImportOperations(files, source, input["account_selections"] ?: empty,
-        input["row_choices"] ?: empty, retainedIds)
+        input["row_choices"] ?: empty, retainedIds, workspace)
     @Suppress("UNCHECKED_CAST") val entries = choices["entry_choices"] as List<Map<String, Any?>>
     val prepared = LocalCashImportPreviewPreparation(source, requireActive).prepareOwned(
         operations.operations, operations.source.rows.rows, entries, previous)

@@ -81,6 +81,7 @@ class CashImportOperationRules(
 
     internal fun prepareOwned(files: List<ParsedImportFile>, accountSelections: List<Any?>,
         rowChoices: List<Any?>, recordIds: Map<String, String>, sourcePlan: PreparedCashSourcePlan? = null,
+        retainOperation: ((MutableMap<String, Any?>) -> Unit)? = null,
     ): Pair<OwnedCashImportOperations, CashFundingScan> {
         val validate = postingValidator()
         val filesList = files
@@ -157,7 +158,7 @@ class CashImportOperationRules(
             val record = records[resolution.transactionId]
             var candidates: List<String> = emptyList()
             var candidateGroup: String? = null
-            try {
+            val operation = try {
                 if (resolution.action == "conflict") {
                     if (record != null && resolution.reason == "fixed_field_conflict") {
                         val incoming = source.rows.rows.getValue(ref).fields.filterKeys { it in importFields }
@@ -204,9 +205,7 @@ class CashImportOperationRules(
                         })
                 }
                 operation["row_refs"] = related
-                operations += operation
-                decisions[ref] = linkedMapOf("row_ref" to ref, "operation_ref" to operation["operation_ref"],
-                    "planned_action" to operation["planned_action"], "transaction_id" to operation["transaction_id"])
+                operation
             } catch (error: CashImportPlanError) { throw error }
             catch (error: CashPolicyError) {
                 val skip = skip(ref, error.code, error.fields)
@@ -217,7 +216,12 @@ class CashImportOperationRules(
                             "incoming" to incoming[field], "effective" to record.fields[field], "resolution" to "fixed_conflict") }))
                 }
                 decisions[ref] = skip
+                continue
             }
+            retainOperation?.invoke(operation)
+            operations += operation
+            decisions[ref] = linkedMapOf("row_ref" to ref, "operation_ref" to operation["operation_ref"],
+                "planned_action" to operation["planned_action"], "transaction_id" to operation["transaction_id"])
         }
         for (resolution in source.plan.rows) {
             val duplicateOf = resolution.duplicateOf ?: continue

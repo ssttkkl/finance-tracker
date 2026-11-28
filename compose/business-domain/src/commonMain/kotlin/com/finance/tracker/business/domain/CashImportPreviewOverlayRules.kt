@@ -63,11 +63,15 @@ class CashImportPreviewOverlayRules<I : Comparable<I>, T : Comparable<T>>(
         "state", "record_origin", "record_id", "source_type", "record_type", "record_subtype", "source_payload",
     )
 
-    private fun projectedValues(values: Map<String, Any?>): MutableMap<String, Any?> = linkedMapOf<String, Any?>().apply {
-        for ((field, value) in values) if (field in projectionFields) put(field, value)
-        if ("counterparty_account_attrs" in this) {
-            this["counterparty_account_attrs"] = recordValues.copyValue(get("counterparty_account_attrs"))
+    private fun projectedValues(values: Map<String, Any?>): MutableMap<String, Any?> {
+        val projected = if (values is StoredCashImportOperationValues.Record) values.project(projectionFields)
+        else linkedMapOf<String, Any?>().apply {
+            for ((field, value) in values) if (field in projectionFields) put(field, value)
         }
+        if ("counterparty_account_attrs" in projected) {
+            projected["counterparty_account_attrs"] = recordValues.copyValue(projected["counterparty_account_attrs"])
+        }
+        return projected
     }
 
     private fun apply(snapshot: CashImportPreviewSnapshot<I, T>, fullValues: Boolean) {
