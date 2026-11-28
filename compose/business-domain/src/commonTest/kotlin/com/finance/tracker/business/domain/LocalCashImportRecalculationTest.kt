@@ -36,13 +36,21 @@ class LocalCashImportRecalculationTest {
         assertSame(data.operations.single(), owned.operations.single())
         val at = { Instant.parse("2026-10-03T09:00:00Z") }
         val external = buildLocalCashImportPreviewSnapshot(fixture.source, expected.context, expected.operations, original.rows, at)
-        val preview = buildOwnedLocalCashImportPreviewSnapshot(fixture.source, owned.context, data.operations, data.rows, at)
+        val preview = buildOwnedLocalCashImportPreviewSnapshot(fixture.source, owned.context, data.operations, data.rows, compactValues = true, now = at)
         assertEquals(external.operations, preview.operations)
         assertEquals(external.rows, preview.rows)
         assertSame(data.operations.single(), preview.operations.single())
         assertSame(data.rows.single(), preview.rows.single())
         assertFalse("preview_transaction_id" in expected.operations.single())
         val parent = preview.operations.single().getValue("preview_transaction_id") as String
+        val originalValues = external.values.getValue(parent)
+        val compactValues = preview.values.getValue(parent)
+        assertFalse(compactValues is LinkedHashMap<*, *>)
+        assertEquals(originalValues.keys.toList(), compactValues.keys.toList())
+        assertEquals(originalValues, compactValues)
+        assertEquals(compactValues, originalValues)
+        val initialComponents = (preview.operations.single().getValue("values") as Map<*, *>)["components"]
+        assertNotSame(initialComponents, compactValues.getValue("components"))
         val payload = assertNotNull((preview.operations.single().getValue("values") as Map<*, *>)["source_payload"])
         val externalPayload = external.values.getValue(parent).getValue("source_payload")
         assertEquals(payload, externalPayload)

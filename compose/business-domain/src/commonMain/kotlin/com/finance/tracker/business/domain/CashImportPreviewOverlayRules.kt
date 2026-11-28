@@ -57,20 +57,19 @@ class CashImportPreviewOverlayRules<I : Comparable<I>, T : Comparable<T>>(
 
     fun apply(snapshot: CashImportPreviewSnapshot<I, T>) = apply(snapshot, fullValues = true)
 
-    internal fun applyForLocalPlanning(snapshot: CashImportPreviewSnapshot<I, T>) = apply(snapshot, fullValues = false)
+    internal fun applyForLocalPlanning(snapshot: CashImportPreviewSnapshot<I, T>, compactValues: Boolean = false) =
+        apply(snapshot, fullValues = false, compactValues = compactValues)
 
-    private val projectionFields = commonCashFields + financialCashFields + setOf(
-        "state", "record_origin", "record_id", "source_type", "record_type", "record_subtype", "source_payload",
-    )
-
-    private fun projectedValues(values: Map<String, Any?>): MutableMap<String, Any?> = linkedMapOf<String, Any?>().apply {
-        for ((field, value) in values) if (field in projectionFields) put(field, value)
-        if ("counterparty_account_attrs" in this) {
-            this["counterparty_account_attrs"] = recordValues.copyValue(get("counterparty_account_attrs"))
+    private fun projectedValues(values: Map<String, Any?>, compactValues: Boolean): MutableMap<String, Any?> {
+        val projected = if (compactValues) CashImportPreviewFields() else linkedMapOf()
+        for ((field, value) in values) if (field in previewProjectionFields) projected[field] = value
+        if ("counterparty_account_attrs" in projected) {
+            projected["counterparty_account_attrs"] = recordValues.copyValue(projected["counterparty_account_attrs"])
         }
+        return projected
     }
 
-    private fun apply(snapshot: CashImportPreviewSnapshot<I, T>, fullValues: Boolean) {
+    private fun apply(snapshot: CashImportPreviewSnapshot<I, T>, fullValues: Boolean, compactValues: Boolean = false) {
         val graph = snapshot.context
         val values = snapshot.values
         val operations = snapshot.operations
@@ -79,7 +78,7 @@ class CashImportPreviewOverlayRules<I : Comparable<I>, T : Comparable<T>>(
             val identifier = operation["transaction_id"]?.toString() ?: virtual("transaction", operation["occurrence_key"]).toString()
             operation["preview_transaction_id"] = identifier
             @Suppress("UNCHECKED_CAST") val raw = operation["values"] as Map<String, Any?>
-            val value = if (fullValues) copy(raw) else projectedValues(raw)
+            val value = if (fullValues) copy(raw) else projectedValues(raw, compactValues)
             for (field in financialCashFields) if (field in value) value[field] = recordValues.normalize(field, value[field])
             if (value["record_origin"] == null) value["record_origin"] = values[identifier]?.get("record_origin") ?: "import"
             value["created_at"] = values[identifier]?.get("created_at") ?: now()

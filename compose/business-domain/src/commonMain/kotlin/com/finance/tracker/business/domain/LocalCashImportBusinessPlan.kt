@@ -56,7 +56,8 @@ private fun calculateImportPlan(
     progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
     workspace: CashImportReviewWorkspace? = null,
 ): CalculatedImportPlan {
-    val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now,
+        compactPreview = workspace != null)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
     val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
@@ -69,7 +70,7 @@ private data class LocalPreparedImportPlan(val plan: MutableMap<String, Any?>, v
 
 private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
-    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant): LocalPreparedImportPlan {
+    progress: (CashImportPlanningStage) -> Unit, now: () -> Instant, compactPreview: Boolean = false): LocalPreparedImportPlan {
     requireActive()
     progress(CashImportPlanningStage.PREPARE_SOURCES)
     val empty = JsonArray(emptyList())
@@ -90,7 +91,7 @@ private fun localCashImportBusinessPlan(files: List<ParsedImportFile>, source: L
     @Suppress("UNCHECKED_CAST") val entries = choices["entry_choices"] as List<Map<String, Any?>>
     val prepared = LocalCashImportPreviewPreparation(source, requireActive).prepareOwned(
         operations.operations, operations.source.rows.rows, entries, previous)
-    val preview = buildOwnedLocalCashImportPreviewSnapshot(source, prepared.context, operations.operations, operations.rows, now)
+    val preview = buildOwnedLocalCashImportPreviewSnapshot(source, prepared.context, operations.operations, operations.rows, compactValues = compactPreview, now = now)
     val seeds = cashImportPreviewDiscoverySeeds(preview)
     progress(CashImportPlanningStage.DISCOVER_RELATIONS)
     val proposals = if (seeds.isEmpty()) emptyList() else discoverLocalCashImportRelations(

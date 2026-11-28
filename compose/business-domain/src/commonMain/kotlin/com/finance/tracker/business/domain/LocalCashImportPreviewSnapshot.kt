@@ -36,9 +36,10 @@ internal fun buildOwnedLocalCashImportPreviewSnapshot(
     context: CashRelationReadContext<Long, Instant>,
     operations: MutableList<MutableMap<String, Any?>>,
     rows: MutableList<MutableMap<String, Any?>>,
+    compactValues: Boolean = false,
     now: () -> Instant,
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> =
-    localCashImportPreviewSnapshot(source, context, operations, rows, now, fullValues = false)
+    localCashImportPreviewSnapshot(source, context, operations, rows, now, fullValues = false, compactValues = compactValues)
 
 private fun localCashImportPreviewSnapshot(
     source: LedgerSnapshotDto,
@@ -47,6 +48,7 @@ private fun localCashImportPreviewSnapshot(
     rows: MutableList<MutableMap<String, Any?>>,
     now: () -> Instant,
     fullValues: Boolean,
+    compactValues: Boolean = false,
 ): CashImportPreviewSnapshot<CashImportPreviewInteger, Instant> {
     val projectionValues = CashProjectionValues<CashImportPreviewInteger, Instant>({ it.positive },
         { try { formatPythonCashTimestamp(it); true } catch (_: IllegalArgumentException) { false } }, ::pythonCashUpper)
@@ -82,7 +84,7 @@ private fun localCashImportPreviewSnapshot(
         result.facts[id] = fact(id, value, true)
     val overlay = CashImportPreviewOverlayRules(LocalCashRecordValues, now,
         { kind, items -> CashImportPreviewInteger.parse(localCashImportVirtualId(kind, items)) }, ::fact)
-    if (fullValues) overlay.apply(result) else overlay.applyForLocalPlanning(result)
+    if (fullValues) overlay.apply(result) else overlay.applyForLocalPlanning(result, compactValues)
     val (members, entries) = readLocalPreviewEntries(source, current)
     applyCashImportPreviewEntryPublic(result, members, entries, ::decodeLocalCashValue)
     return result
