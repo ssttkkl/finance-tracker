@@ -17,7 +17,7 @@ Compose Wasm 在后台从当前账本缓存生成流水列表、筛选和月度�
 
 手工记账、转账及旧现金新增／余额校准的后端命令已直接协调规范条目，不读取或发布物化状态；原组成项、精确分币种余额、校准覆盖和投资事件保持。物化表与其余在线引用仍待清理，证据见[创建命令规范协调](../../openspec/changes/offline-first-ledger-import/tasks.md#创建命令规范协调43)。
 
-本模块包含 **3 项页面级功能**：F-03 收支账本、F-04 收支详情与记账、F-07 收支分类管理。F-04 由详情面板／表单承载，F-07 嵌入管理页；均保留独立任务编号。
+本模块包含 **4 项页面级功能**：F-03 收支账本、F-04 收支详情与记账、F-07 收支分类管理、F-11 账本助手。F-04 由详情面板／表单承载，F-07 嵌入管理页；均保留独立任务编号。
 
 本工作树的 UI 修复记录见 [fix-cash-ui-audit-findings](../../openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md) ：页面数不变，Web／Android／iOS 共用共享呈现；Web 代表视口、共享测试和相称跨端编译已验证，设备交互 QA 未执行。
 
@@ -163,3 +163,12 @@ Compose Wasm 在后台从当前账本缓存生成流水列表、筛选和月度�
 - [分类管理规格](../../openspec/specs/cash-ledger/cash-category-management/spec.md)
 - [对方账户转账匹配规格](../../openspec/specs/cash-ledger/counterparty-account-transfer-matching/spec.md)
 - [交易关系规格](../../openspec/specs/cash-ledger/transaction-relations/spec.md)
+
+
+## F-11 账本助手
+
+从主导航开始新对话或打开本设备的历史对话。可从侧栏或当前对话的页头操作置顶、重命名和删除历史。已写入账本的流水保留，记账结果核实期间暂停删除。助手能查当前工作区的账户、分类、收支及汇总，并从查询结果和已记录卡片打开现有收支详情。支持多行输入，助手回复以 Markdown 逐段显示。点击对应工具摘要可核对实际查询或记账状态。
+
+记账时在对话里核对并编辑草稿，确认后才写入账本。在卡片待确认时发出新消息，会取消原卡。在首段回复前失败时，用户消息显示「未送达」。已有正文后中断时保留部分回复，并显示「回复中断」。可重试原消息，部分回复会由新回复替换。重新打开应用或恢复网络时保留历史及发送状态，推理需要手动重试。
+
+Web、Android 和 iOS 共用该页面及缓存逻辑。推理需要服务端配置模型，本机预览可连接合成模型或已配置的 DeepSeek。当前变更的实测范围和未完成验收见 [助手验收记录](../../openspec/changes/add-client-ledger-assistant/tasks.md)。

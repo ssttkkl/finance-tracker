@@ -24,6 +24,7 @@ internal fun primaryPageFor(page: AppPage): AppPage = when (page) {
 }
 
 fun titleKeyFor(page: AppPage): String = when (page) {
+    AppPage.LEDGER_ASSISTANT -> "assistant_title"
     AppPage.INVITATION -> "navigation_invitation"
     AppPage.NOT_FOUND -> "navigation_not_found"
     AppPage.CASH_IMPORT -> "cash_import_title"

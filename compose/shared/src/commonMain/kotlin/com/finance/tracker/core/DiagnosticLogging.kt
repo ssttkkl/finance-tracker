@@ -5,6 +5,7 @@ enum class DiagnosticFeature {
     WORKSPACE,
     INVITATION,
     CASH_LEDGER,
+    LEDGER_ASSISTANT,
     CASH_IMPORT,
     CASH_CATEGORIES,
     INVESTMENT_HOLDINGS,

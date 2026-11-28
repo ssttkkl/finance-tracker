@@ -13415,7 +13415,13 @@
           }
         },
         "responses": {
-          "200": { "description": "One model message with role assistant and text or tool calls" },
+          "200": {
+            "description": "JSON assistant message, or server-sent text and terminal message frames when Accept is text/event-stream",
+            "content": {
+              "application/json": { "schema": { "type": "object" } },
+              "text/event-stream": { "schema": { "type": "string" } }
+            }
+          },
           "400": { "description": "Invalid message context" },
           "401": { "description": "Authentication required" },
           "403": { "description": "Workspace access denied" },

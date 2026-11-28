@@ -17,6 +17,8 @@ kotlin = "2.4.20"
 kotlin-wrappers = "2026.9.2"
 material3 = "1.12.0-alpha03"
 ktor = "3.6.0"
+assistantMarkdown = "0.45.0"
+coil = "3.6.0"
 logback = "1.6.5"
 kotlinxSerialization = "1.10.0"
 kotlinxCoroutines = "1.10.2"
@@ -37,6 +39,12 @@ xmlutil = "0.91.3"
 postgresJdbc = "42.7.14"
 
 [libraries]
+assistant-markdown-material3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "assistantMarkdown" }
+assistant-markdown-coil3 = { module = "com.mikepenz:multiplatform-markdown-renderer-coil3", version.ref = "assistantMarkdown" }
+assistant-markdown-code = { module = "com.mikepenz:multiplatform-markdown-renderer-code", version.ref = "assistantMarkdown" }
+coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 android-desugarJdkLibs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }

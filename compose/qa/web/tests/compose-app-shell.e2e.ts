@@ -442,3 +442,78 @@ test(name, async ({ page }) => {
   if (scenario === "missing") expect(commands[1]).toEqual(commands[0]);
 });
 }
+
+test("assistant conversations sit below the existing business navigation", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  const heading = page.locator('[id="assistant.navigation.heading"]');
+  const newConversation = page.locator('[id="assistant.new"]');
+
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await page.goto("/");
+    await expect(page.locator('[id="ledger.screen"]')).toBeVisible();
+    if (width === 390) {
+      await clickStableComposeTarget(page, page.locator('[id="navigation-open"]'));
+    } else {
+      await expect(heading).toHaveCount(0);
+      await page.mouse.move(32, 500);
+    }
+    await expect(heading).toHaveAttribute("role", "heading");
+    await expect(heading).toContainText("账本助手");
+    await expect(page.locator('[id^="navigation-item-"]')).toHaveCount(4);
+    await expect(page.getByRole("button", { name: "账本助手", exact: true })).toHaveCount(0);
+    await clickStableComposeTarget(page, newConversation);
+    await expect(page).toHaveURL(/\/assistant$/);
+    await expect(page.locator('[id="page.ledger-assistant"]')).toBeVisible();
+    if (width === 390) {
+      await clickStableComposeTarget(page, page.locator('[id="navigation-open"]'));
+      await expect(newConversation).toBeVisible();
+      await expect(page.getByRole("button", { name: "账本助手", exact: true })).toHaveCount(0);
+    }
+  }
+});
+
+test("assistant tool sheet dismisses without moving the conversation or issuing commands", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  let inferenceRequests = 0;
+  let writeRequests = 0;
+  page.on("request", request => {
+    if (request.method() === "POST" && request.url().endsWith("/cash-records/commands")) writeRequests += 1;
+  });
+  await page.route("**/api/v1/ledger-assistant/inference", async route => {
+    inferenceRequests += 1;
+    const messages = route.request().postDataJSON();
+    const last = messages[messages.length - 1];
+    await route.fulfill({
+      json: last.role === "tool"
+        ? { role: "assistant", content: "账户已查到。" }
+        : {
+            role: "assistant", content: null,
+            tool_calls: [{
+              id: "read-accounts", type: "function",
+              function: { name: "list_accounts", arguments: "{}" },
+            }],
+          },
+    });
+  });
+
+  await page.goto("/w/workspace-1/assistant");
+  await typeIntoComposeInput(page, '[id="assistant.input"]', "查账户");
+  await clickStableComposeTarget(page, page.locator('[id="assistant.send"]'));
+  const trigger = page.locator('[id="assistant.tool.toggle"]');
+  const sheet = page.locator('[id="assistant.tool.sheet"]');
+  await expect(page.getByText("账户已查到。", { exact: true })).toBeVisible();
+  const original = await trigger.boundingBox();
+  await clickStableComposeTarget(page, trigger);
+  await expect(sheet).toBeVisible();
+  await expect(page.getByText("list_accounts", { exact: true })).toBeVisible();
+  await clickStableComposeTarget(page, page.locator('[id="assistant.tool.close"]'));
+  await expect(sheet).toHaveCount(0);
+  await expect.poll(async () => (await trigger.boundingBox())?.y).toBe(original?.y);
+  await page.keyboard.press("Enter");
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  expect(inferenceRequests).toBe(2);
+  expect(writeRequests).toBe(0);
+});

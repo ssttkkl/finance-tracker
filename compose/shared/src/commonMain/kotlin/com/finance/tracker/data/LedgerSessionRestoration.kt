@@ -96,6 +96,7 @@ internal class LedgerSessionRestoration(
     override suspend fun ledgerVersion() = readReady { it.ledgerVersion() }
 
     override suspend fun cashCreationJournal() = readReady { it.cashCreationJournal() }
+    override suspend fun assistantConversations() = readReady { it.assistantConversations() }
 
     override suspend fun imports(): LedgerSessionImports? = readReady { owner ->
         LedgerSessionImports(owner, { _ ->

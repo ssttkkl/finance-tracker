@@ -571,6 +571,18 @@ internal class LedgerSessionCacheOwner(
             }
     }
 
+    fun assistantConversations(): LedgerAssistantConversations = object : LedgerAssistantConversations {
+        override suspend fun list() = withLedgerStorage { storage ->
+            checkNotNull(storage.assistantConversations()).list()
+        }
+
+        override suspend fun delete(previous: LedgerAssistantConversation): Boolean =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).delete(previous) }
+
+        override suspend fun swap(previous: LedgerAssistantConversation?, next: LedgerAssistantConversation) =
+            withLedgerStorage { storage -> checkNotNull(storage.assistantConversations()).swap(previous, next) }
+    }
+
     private suspend fun <T> withImportFiles(action: suspend (LedgerImportBatches) -> T): T =
         withLedgerStorage { action(it.imports) }
 

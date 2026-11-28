@@ -36,6 +36,7 @@ internal interface LedgerSessionLocal : LedgerLocalReader, LedgerSessionResource
     val token: String?
     suspend fun restore(): SessionDto
     suspend fun cashCreationJournal(): CashCreationJournal? = null
+    suspend fun assistantConversations(): LedgerAssistantConversations? = null
     suspend fun imports(): LedgerSessionImports?
     /** Refresh committed facts; [committedLedgerSeq] is the confirmed receipt version lower bound. */
     suspend fun refreshFacts(committedLedgerSeq: String?)

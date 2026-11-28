@@ -4,6 +4,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondTextWriter
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import io.ktor.util.AttributeKey
@@ -18,10 +19,13 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.IOException
+import java.io.InputStream
+import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -36,6 +40,9 @@ internal class LedgerAssistantUnavailable(cause: Throwable? = null) : RuntimeExc
 
 internal fun interface LedgerAssistantInference {
     suspend fun complete(messages: JsonElement): JsonObject
+    suspend fun stream(messages: JsonElement, emit: suspend (JsonObject) -> Unit) {
+        emit(assistantStreamFrame("complete", complete(messages)))
+    }
 }
 
 internal fun Route.ledgerAssistantInferenceRoute(
@@ -51,6 +58,30 @@ internal fun Route.ledgerAssistantInferenceRoute(
         if (bytes.size > MAX_INFERENCE_BYTES) {
             call.respondText(assistantError("assistant_context_too_large"), ContentType.Application.Json,
                 HttpStatusCode.PayloadTooLarge)
+            return@post
+        }
+        if (call.request.headers["Accept"]?.contains("text/event-stream") == true) {
+            val messages = try {
+                (parseAssistantJson(bytes) ?: throw InvalidAssistantInference()).also { assistantModelRequest("", it) }
+            } catch (_: InvalidAssistantInference) {
+                call.respondText(assistantError("assistant_context_invalid"), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                return@post
+            }
+            if (inference == null) {
+                call.respondText(assistantError("assistant_unavailable"), ContentType.Application.Json, HttpStatusCode.ServiceUnavailable)
+                return@post
+            }
+            call.respondTextWriter(ContentType.Text.EventStream) {
+                suspend fun writeFrame(frame: JsonObject) {
+                    write("data: $frame\n\n")
+                    flush()
+                }
+                try {
+                    inference.stream(messages, ::writeFrame)
+                } catch (_: LedgerAssistantUnavailable) {
+                    writeFrame(assistantStreamFrame("error", JsonPrimitive("assistant_unavailable")))
+                }
+            }
             return@post
         }
         val response = try {
@@ -84,7 +115,7 @@ internal fun ledgerAssistantInference(environment: Map<String, String>): LedgerA
         endpoint.fragment == null && endpoint.query == null) { "invalid assistant completions URL" }
     require(key.all { it.code in 33..126 }) { "invalid assistant API key" }
     val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
-    return LedgerAssistantInference { messages ->
+    val buffered = LedgerAssistantInference { messages ->
         val body = assistantModelRequest(model, messages).toString()
         val request = HttpRequest.newBuilder(endpoint)
             .timeout(Duration.ofSeconds(45))
@@ -120,6 +151,123 @@ internal fun ledgerAssistantInference(environment: Map<String, String>): LedgerA
             }
         } } ?: throw LedgerAssistantUnavailable()
     }
+    return object : LedgerAssistantInference by buffered {
+        override suspend fun stream(messages: JsonElement, emit: suspend (JsonObject) -> Unit) {
+            val request = HttpRequest.newBuilder(endpoint)
+                .timeout(Duration.ofSeconds(60))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .header("Authorization", "Bearer $key")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                    JsonObject(assistantModelRequest(model, messages) + ("stream" to JsonPrimitive(true))).toString()
+                ))
+                .build()
+            try {
+                withTimeoutOrNull(60_000) {
+                    val response = runInterruptible(Dispatchers.IO) { http.send(request, HttpResponse.BodyHandlers.ofInputStream()) }
+                    response.body().buffered().use { input ->
+                        if (response.statusCode() !in 200..299 ||
+                            !response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream", true)
+                        ) throw LedgerAssistantUnavailable()
+                        relayAssistantStream(input, emit)
+                    }
+                } ?: throw LedgerAssistantUnavailable()
+            } catch (failure: IOException) {
+                throw LedgerAssistantUnavailable(failure)
+            }
+        }
+    }
+
+}
+
+private fun assistantStreamFrame(type: String, value: JsonElement) = buildJsonObject {
+    put("type", type)
+    put("value", value)
+}
+
+internal suspend fun relayAssistantStream(input: InputStream, emit: suspend (JsonObject) -> Unit) {
+    val content = StringBuilder()
+    val id = StringBuilder()
+    val name = StringBuilder()
+    val arguments = StringBuilder()
+    var toolSeen = false
+    var finish: String? = null
+    var remaining = MAX_INFERENCE_BYTES
+    fun readLine(): String? {
+        val bytes = ByteArrayOutputStream()
+        while (true) {
+            val next = input.read()
+            if (next == -1) return if (bytes.size() == 0) null else throw LedgerAssistantUnavailable()
+            if (--remaining < 0) throw LedgerAssistantUnavailable()
+            if (next == 10) return try { bytes.toByteArray().decodeToString(throwOnInvalidSequence = true).trimEnd('\r') }
+            catch (failure: java.nio.charset.CharacterCodingException) { throw LedgerAssistantUnavailable(failure) }
+            bytes.write(next)
+        }
+    }
+    fun JsonObject.text(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
+    while (true) {
+        val line = runInterruptible(Dispatchers.IO) { readLine() } ?: throw LedgerAssistantUnavailable()
+        if (!line.startsWith("data:")) continue
+        val payload = line.substringAfter(':').trimStart()
+        if (payload == "[DONE]") break
+        val frame = try { Json.parseToJsonElement(payload) as? JsonObject } catch (_: SerializationException) { null }
+            ?: throw LedgerAssistantUnavailable()
+        if ("error" in frame) throw LedgerAssistantUnavailable()
+        val choices = frame["choices"] as? JsonArray ?: throw LedgerAssistantUnavailable()
+        if (choices.isEmpty()) continue
+        val choice = choices.singleOrNull() as? JsonObject ?: throw LedgerAssistantUnavailable()
+        if (finish != null) throw LedgerAssistantUnavailable()
+        val delta = choice["delta"] as? JsonObject ?: throw LedgerAssistantUnavailable()
+        delta.text("content")?.let { text ->
+            if (text.isNotEmpty()) {
+                content.append(text)
+                emit(assistantStreamFrame("text", JsonPrimitive(text)))
+            }
+        }
+        if (delta["tool_calls"] != null && delta["tool_calls"] != JsonNull) {
+            val call = (delta["tool_calls"] as? JsonArray)?.singleOrNull() as? JsonObject
+                ?: throw LedgerAssistantUnavailable()
+            if ((call["index"] as? JsonPrimitive)?.intOrNull != 0 ||
+                (call.text("type")?.let { it != "function" } == true)
+            ) throw LedgerAssistantUnavailable()
+            toolSeen = true
+            call.text("id")?.let { id.append(it) }
+            val fn = call["function"] as? JsonObject
+            fn?.text("name")?.let { name.append(it) }
+            fn?.text("arguments")?.let { arguments.append(it) }
+        }
+        finish = choice.text("finish_reason")
+    }
+    if ((!toolSeen && (finish != "stop" || content.isBlank())) || (toolSeen && finish != "tool_calls")) {
+        throw LedgerAssistantUnavailable()
+    }
+    if (toolSeen) {
+        val decoded = try { Json.parseToJsonElement(arguments.toString()) } catch (_: SerializationException) { null }
+        val tool = assistantTools.firstOrNull { it.name == name.toString() } ?: throw LedgerAssistantUnavailable()
+        if (id.isBlank() || decoded !is JsonObject || !decoded.keys.containsAll(tool.required) ||
+            decoded.any { (field, value) ->
+                val primitive = value as? JsonPrimitive
+                when (tool.fields[field]) {
+                    "string" -> primitive?.isString != true
+                    "integer" -> primitive == null || primitive.isString || primitive.intOrNull == null
+                    else -> true
+                }
+            }
+        ) throw LedgerAssistantUnavailable()
+    }
+    val final = buildJsonObject {
+        put("role", "assistant")
+        put("content", content.toString())
+        if (toolSeen) put("tool_calls", JsonArray(listOf(buildJsonObject {
+            put("id", id.toString())
+            put("type", "function")
+            put("function", buildJsonObject {
+                put("name", name.toString())
+                put("arguments", arguments.toString())
+            })
+        })))
+    }
+    emit(assistantStreamFrame("complete", final))
 }
 
 private fun parseAssistantJson(bytes: ByteArray): JsonElement? = try {

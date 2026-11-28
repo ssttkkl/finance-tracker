@@ -88,3 +88,5 @@ actual suspend fun copyTextToClipboard(value: String): Boolean = runCatching {
     UIPasteboard.generalPasteboard.string = value
     true
 }.getOrDefault(false)
+
+internal actual fun observeBrowserContextMenu(handler: (Double, Double) -> Boolean): () -> Unit = {}

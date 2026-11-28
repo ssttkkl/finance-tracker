@@ -4,6 +4,8 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
 import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_edit_square
+import com.finance.tracker.resources.ic_add
 import com.finance.tracker.resources.ic_account_balance_wallet
 import com.finance.tracker.resources.ic_check
 import com.finance.tracker.resources.ic_chevron_left
@@ -76,6 +78,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -99,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -149,6 +153,9 @@ internal fun CompactAppShell(
                                 scope.launch { drawerState.close() }
                             },
                         )
+                        LedgerAssistantNavigation(state, expanded = true, showFocusRing = true) {
+                            scope.launch { drawerState.close() }
+                        }
                     }
                     CompactAccountTrigger(
                         session = state.session,
@@ -262,7 +269,8 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
     var collapseUntilTransientExit by remember { mutableStateOf(false) }
     val railHasKeyboardFocus = railHasFocus && keyboardNavigationActive
     val transientExpansionRequested = railHovered || railHasKeyboardFocus || accountPanelHovered || accountPanelHasFocus || accountMenuHoverOpen
-    val expanded = pinnedExpanded || (transientExpansionRequested && !collapseUntilTransientExit)
+    val expanded = pinnedExpanded || state.ledgerAssistant?.historyMenu?.fromSidebar == true ||
+        (transientExpansionRequested && !collapseUntilTransientExit)
     LaunchedEffect(railHovered) {
         if (railHovered) keyboardNavigationActive = false
     }
@@ -357,6 +365,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                         showFocusRing = keyboardNavigationActive,
                         onNavigate = state.onNavigate,
                     )
+                    LedgerAssistantNavigation(state, expanded, keyboardNavigationActive)
                 }
             }
             DesktopAccountMenu(
@@ -386,7 +395,7 @@ private fun NavigationDestinations(
 ) {
     appDestinations.forEach { destination ->
         NavigationDestinationItem(
-            page = destination.page,
+            glyph = navigationGlyphFor(destination.page),
             label = localizedText(destination.titleKey),
             selected = selectedPage == destination.page,
             expanded = expanded,
@@ -398,8 +407,57 @@ private fun NavigationDestinations(
 }
 
 @Composable
+private fun LedgerAssistantNavigation(
+    state: DestinationState,
+    expanded: Boolean,
+    showFocusRing: Boolean,
+    onNavigate: () -> Unit = {},
+) {
+    val assistant = state.ledgerAssistant ?: return
+    if (!expanded) return
+
+    val active = state.route.page == AppPage.LEDGER_ASSISTANT
+    val colors = LocalFinanceColorRoles.current
+    val open = {
+        if (!active) state.onNavigate(AppPage.LEDGER_ASSISTANT)
+        onNavigate()
+    }
+    HorizontalDivider(color = colors.fieldBorder.copy(alpha = 0.5f))
+    Text(
+        localizedText("assistant_title"),
+        modifier = Modifier.padding(start = 12.dp, top = 8.dp).semantics { heading() }
+            .testTag("assistant.navigation.heading"),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelSmall,
+    )
+    NavigationDestinationItem(
+        NavigationGlyphKind.ADD, localizedText("assistant_new"), active && assistant.selectedId == null,
+        true, showFocusRing, "assistant.new",
+    ) {
+        assistant.newConversation()
+        open()
+    }
+    assistant.conversations
+        .filter { !it.historyTitle.isNullOrEmpty() }
+        .sortedWith(compareByDescending<com.finance.tracker.data.LedgerAssistantConversation> { it.pinned }
+            .thenByDescending { kotlin.time.Instant.parse(it.updatedAt) }.thenByDescending { it.id })
+        .forEach { conversation ->
+            key(conversation.id) {
+                AssistantHistoryRow(
+                    assistant, conversation, checkNotNull(conversation.historyTitle),
+                    active && assistant.selectedId == conversation.id, showFocusRing,
+                    touchLayout = state.sizeClass == WindowSizeClass.COMPACT || !isWebPlatform,
+                ) {
+                    assistant.select(conversation.id)
+                    open()
+                }
+            }
+        }
+}
+
+@Composable
 private fun NavigationDestinationItem(
-    page: AppPage,
+    glyph: NavigationGlyphKind?,
     label: String,
     selected: Boolean,
     expanded: Boolean,
@@ -439,8 +497,8 @@ private fun NavigationDestinationItem(
             Box(Modifier.width(if (expanded) 4.dp else 3.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 if (selected) Box(Modifier.width(3.dp).height(28.dp).background(colors.accent, RoundedCornerShape(2.dp)))
             }
-            RailGlyph(
-                kind = navigationGlyphFor(page),
+            if (glyph != null) RailGlyph(
+                kind = glyph,
                 color = if (selected) colors.accent else colors.mutedForShell(),
                 modifier = Modifier.padding(start = if (expanded) 4.dp else 0.dp).size(20.dp),
             )
@@ -882,6 +940,7 @@ private fun AccountAction(
 }
 
 private enum class NavigationGlyphKind {
+    ADD,
     MENU,
     CHEVRON_LEFT,
     CHEVRON_RIGHT,
@@ -909,6 +968,7 @@ private fun navigationGlyphFor(page: AppPage): NavigationGlyphKind = when (page)
 @Composable
 private fun RailGlyph(kind: NavigationGlyphKind, color: Color, modifier: Modifier = Modifier.size(20.dp)) {
     val painter = when (kind) {
+        NavigationGlyphKind.ADD -> painterResource(Res.drawable.ic_add)
         NavigationGlyphKind.MENU -> painterResource(Res.drawable.ic_menu)
         NavigationGlyphKind.CHEVRON_LEFT -> painterResource(Res.drawable.ic_chevron_left)
         NavigationGlyphKind.CHEVRON_RIGHT -> painterResource(Res.drawable.ic_chevron_right)
@@ -983,6 +1043,10 @@ internal fun DestinationScaffold(
             importTask.startNew()
         }
     }
+    if (state.route.page == AppPage.LEDGER_ASSISTANT) {
+        LedgerAssistantDestination(state, modifier)
+        return
+    }
     val directoryFocus = remember { FocusRequester() }
     var directoryOpen by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
     var restoreDirectoryFocus by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
@@ -1048,6 +1112,7 @@ internal fun DestinationScaffold(
                     importPendingFilters = state.importPendingFilters,
                     onImportPendingFiltersApplied = state.onImportPendingFiltersApplied,
                 )
+                AppPage.LEDGER_ASSISTANT -> Unit
                 AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> Unit
                 AppPage.INVESTMENT_HOLDINGS -> InvestmentHoldingsScreen(
@@ -1107,5 +1172,39 @@ internal fun DestinationScaffold(
             importTask, accounts, state.session.activeWorkspaceId.orEmpty(),
             state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone,
             state.onReviewImportPending, state.onImportCompletionPending, state.demoStatement)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LedgerAssistantDestination(state: DestinationState, modifier: Modifier) {
+    val assistant = state.ledgerAssistant
+    val current = assistant?.current
+    val colors = LocalFinanceColorRoles.current
+    Column(modifier.fillMaxSize().background(colors.background)) {
+        TopAppBar(
+            navigationIcon = state.navigationIcon,
+            title = {
+                Text(
+                    current?.originalTitle ?: localizedText("assistant_title"),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface, titleContentColor = colors.foreground),
+            actions = {
+                if (assistant != null) {
+                    IconButton(onClick = assistant::newConversation, modifier = Modifier.testTag("assistant.header.new")) {
+                        Icon(painterResource(Res.drawable.ic_edit_square), localizedText("assistant_new"))
+                    }
+                    if (current?.historyTitle != null) AssistantCurrentHistoryMenu(assistant, current)
+                }
+            },
+        )
+        SessionConnectionNotice(Modifier.padding(horizontal = 14.dp))
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            LedgerAssistantScreen(
+                state.ledgerAssistant, state.cashMaintenanceRepository, state.cashMaintenanceRecovery, state.sizeClass,
+            )
+        }
     }
 }

@@ -58,3 +58,5 @@ expect fun formatLocalDateTime(instant: String): String
 expect fun getConfiguredWebOrigin(): String
 
 expect suspend fun copyTextToClipboard(value: String): Boolean
+
+internal expect fun observeBrowserContextMenu(handler: (Double, Double) -> Boolean): () -> Unit

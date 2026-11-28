@@ -2,6 +2,7 @@ package com.finance.tracker.core
 
 enum class AppPage {
     CASH_LEDGER,
+    LEDGER_ASSISTANT,
     CASH_IMPORT,
     CASH_CATEGORIES,
     INVESTMENT_HOLDINGS,
@@ -42,6 +43,7 @@ fun parseAppRoute(pathname: String, search: String = ""): AppRoute {
     val childPath = workspace?.childPath ?: path
     val page = when (childPath) {
         "/" -> AppPage.CASH_LEDGER
+        "/assistant" -> AppPage.LEDGER_ASSISTANT
         "/cash-import" -> AppPage.CASH_IMPORT
         "/cash-categories" -> AppPage.CASH_CATEGORIES
         "/investment-holdings" -> AppPage.INVESTMENT_HOLDINGS
@@ -97,6 +99,7 @@ fun workspacePath(workspaceId: String, path: String = "/"): String {
 fun appPathForRoute(route: AppRoute): String? {
     val childPath = when (route.page) {
         AppPage.CASH_LEDGER -> "/"
+        AppPage.LEDGER_ASSISTANT -> "/assistant"
         AppPage.CASH_IMPORT -> "/cash-import"
         AppPage.CASH_CATEGORIES -> "/cash-categories"
         AppPage.INVESTMENT_HOLDINGS -> "/investment-holdings"

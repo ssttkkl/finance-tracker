@@ -107,6 +107,7 @@ internal data class DestinationState(
     val onWorkspaceSelected: (String) -> Unit,
     val onLogout: () -> Unit,
     val demoStatement: FileSource? = null,
+    val ledgerAssistant: LedgerAssistantUi? = null,
     val navigationIcon: @Composable () -> Unit = {},
 )
 
@@ -456,8 +457,16 @@ private fun FinanceTrackerAppContent(
                     val importRepository = remember(graph, importStores, SessionInstance(currentSession)) {
                         graph.cashImportRepository.forSession(currentSession)
                     }
+                    val assistantScope = rememberCoroutineScope()
+                    val assistant = remember(graph, SessionInstance(currentSession)) {
+                        graph.assistantWorkspace?.let { open ->
+                            LedgerAssistantUi(assistantScope, graph.diagnosticLogger) { open(currentSession) }
+                        }
+                    }
+                    LaunchedEffect(assistant) { assistant?.load() }
                     val state = DestinationState(
                         route = currentRoute,
+                        ledgerAssistant = assistant,
                         financeRepository = graph.financeRepository,
                         cashMaintenanceRepository = graph.cashMaintenanceRepository,
                         cashCreationRepository = graph.cashCreationRepository,
@@ -513,6 +522,8 @@ private fun FinanceTrackerAppContent(
                                 }
                                 WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                             }
+                            AssistantWebHistoryMenu(state.ledgerAssistant)
+                            AssistantHistoryDialogs(state.ledgerAssistant)
                         }
                     }
                 }

@@ -80,7 +80,7 @@ kotlin {
        minSdk = libs.versions.android.minSdk.get().toInt()
 
        compilerOptions {
-           jvmTarget = JvmTarget.JVM_11
+           jvmTarget = JvmTarget.JVM_17
        }
        androidResources {
            enable = true
@@ -109,6 +109,18 @@ kotlin {
         commonMain.dependencies {
             api(project(":business-contracts"))
             implementation(project(":client-operations"))
+            implementation("ai.koog:agents-core:1.3.0") {
+                exclude(group = "ai.koog", module = "serialization-jackson")
+            }
+            implementation("ai.koog:agents-features-snapshot:1.3.0") {
+                exclude(group = "ai.koog", module = "serialization-jackson")
+            }
+            implementation("dev.ynagai.a2ui:a2ui-material3:0.3.0")
+            implementation(libs.assistant.markdown.material3)
+            implementation(libs.assistant.markdown.coil3)
+            implementation(libs.assistant.markdown.code)
+            implementation(libs.coil.network.ktor3)
+            implementation(libs.coil.svg)
             implementation(project(":business-domain"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

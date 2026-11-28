@@ -19,6 +19,11 @@ jsbi@^4.3.0:
   resolved "https://registry.yarnpkg.com/jsbi/-/jsbi-4.3.2.tgz#8a4d05d4e09907d73042135b6aa55a6d161ee955"
   integrity sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew==
 
+ws@8.18.0:
+  version "8.18.0"
+  resolved "https://registry.npmjs.org/ws/-/ws-8.18.0.tgz#0d7505a6eafe2b0e712d232b42279f53bc289bbc"
+  integrity sha512-8VbfWfHLbbwu3+N6OKsOMpBdT4kXPDDB9cJk2bJ6mh9ucxdlnNvH1e+roYkKmN9Nxw2yjz7VzeO9oOz2zJ04Pw==
+
 ws@8.20.1:
   version "8.20.1"
   resolved "https://registry.yarnpkg.com/ws/-/ws-8.20.1.tgz#91a9ae2b312ccf98e0a85ec499b48cef45ab0ddb"

@@ -72,9 +72,11 @@ internal class SessionCacheRepository(
         var readable = true
     }
 
-    internal fun businessOperations(api: FinanceApiClient): CashBusinessOperations = object : CashBusinessOperations {
+    internal fun businessOperations(api: FinanceApiClient): CashBusinessOperations = businessOperations(api, expected = null)
+
+    private fun businessOperations(api: FinanceApiClient, expected: ActiveLocal?): CashBusinessOperations = object : CashBusinessOperations {
         override suspend fun <T> run(write: Boolean, action: suspend (FinanceApiClient, suspend (String?) -> Unit) -> T): T {
-            val original = publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
+            val original = expected ?: publishedLocal.value ?: throw DomainFailure("projection.unavailable", 503, FailureCategory.RECOVERABLE)
             val (workspace, refresh, generation) = mutex.withLock {
                 if (local !== original || this@SessionCacheRepository.generation != original.generation) throw CancellationException("ledger_session_operation_superseded")
                 if (write && original.local.offline.value) throw DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
@@ -101,6 +103,21 @@ internal class SessionCacheRepository(
             checkCurrent()
             return withRejectionCleanup(original) { action(bound, refresh) }.also { checkCurrent() }
         }
+    }
+
+    internal suspend fun openAssistantWorkspace(api: FinanceApiClient, session: Session): LedgerAssistantWorkspace {
+        val active = mutex.withLock {
+            val current = local ?: throw CancellationException("ledger_assistant_workspace_changed")
+            if (current.session !== session || current.generation != generation || !current.readable)
+                throw CancellationException("ledger_assistant_workspace_changed")
+            current
+        }
+        val workspace = checkNotNull(session.activeWorkspaceId)
+        val role = session.workspaces.single { it.id == workspace }.role
+        return LedgerAssistantWorkspace(
+            businessOperations(api, active), active.local, checkNotNull(active.local.assistantConversations()),
+            workspace, session.user.email, role.canWrite,
+        )
     }
 
     internal suspend fun captureCashCreationJournal(api: FinanceApiClient): CashCreationJournal {

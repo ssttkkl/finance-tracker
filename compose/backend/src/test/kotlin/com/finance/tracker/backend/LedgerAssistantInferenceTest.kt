@@ -8,8 +8,11 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonArray
@@ -92,5 +95,34 @@ class LedgerAssistantInferenceTest {
         assertFailsWith<InvalidAssistantInference> {
             assistantModelRequest("configured-model", Json.parseToJsonElement("""{"messages":[],"tools":[]}"""))
         }
+    }
+
+    @Test
+    fun streamsVisibleTextAndOnlyEmitsCompleteValidatedTool() = runBlocking {
+        val upstream = listOf(
+            """{"choices":[{"delta":{"reasoning_content":"private thoughts","content":"visible"}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"get_transaction","arguments":"{\"projection"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"_id\":\"one\"}"}}]}}]}""",
+            """{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}""",
+            "[DONE]",
+        ).joinToString(separator = "\n\n", postfix = "\n\n") { "data: $it" }
+        val emitted = mutableListOf<JsonObject>()
+        relayAssistantStream(upstream.byteInputStream()) { emitted += it }
+        assertEquals(listOf("text", "complete"), emitted.map { it.getValue("type").jsonPrimitive.content })
+        assertEquals("visible", emitted.first().getValue("value").jsonPrimitive.content)
+        val completed = emitted.last().getValue("value").jsonObject
+        val call = completed.getValue("tool_calls").jsonArray.single().jsonObject
+        assertEquals("call-1", call.getValue("id").jsonPrimitive.content)
+        assertEquals("""{"projection_id":"one"}""", call.getValue("function").jsonObject.getValue("arguments").jsonPrimitive.content)
+    }
+
+    @Test
+    fun truncatedStreamKeepsVisibleTextWithoutCompletingTool() = runBlocking {
+        val source = """data: {"choices":[{"delta":{"content":"partial"}}]}""" + "\n\n"
+        val emitted = mutableListOf<JsonObject>()
+        assertFailsWith<LedgerAssistantUnavailable> {
+            relayAssistantStream(source.byteInputStream()) { emitted += it }
+        }
+        assertEquals(listOf("text"), emitted.map { it.getValue("type").jsonPrimitive.content })
     }
 }

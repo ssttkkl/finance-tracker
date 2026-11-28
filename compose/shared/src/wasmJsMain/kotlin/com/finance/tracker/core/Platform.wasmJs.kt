@@ -169,3 +169,6 @@ private fun writeClipboard(value: String, done: (Boolean) -> Unit): Unit = js(
         }
     }""",
 )
+
+internal actual fun observeBrowserContextMenu(handler: (Double, Double) -> Boolean): () -> Unit =
+    js("(function(){ const listener = (event) => { if (handler(event.clientX, event.clientY)) event.preventDefault(); }; window.addEventListener('contextmenu', listener, true); return () => window.removeEventListener('contextmenu', listener, true); })()")

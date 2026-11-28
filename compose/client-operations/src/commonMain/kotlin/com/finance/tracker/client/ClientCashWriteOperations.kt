@@ -353,7 +353,6 @@ suspend fun executeCashCommand(
     command.rejection?.let {
         throw ClientOperationFailure(it, commitState = "not_committed", operationId = command.id)
     }
-    val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
     val receipt = command.receipt ?: try {
         val known = if (lookupFirst) {
             try {
@@ -375,6 +374,11 @@ suspend fun executeCashCommand(
             throw ClientOperationFailure("result_unknown", failure.status, failure, "unknown", command.id)
         throw failure
     }
+    return validateCashCommandReceipt(command, receipt)
+}
+
+fun validateCashCommandReceipt(command: ClientPendingCommand, receipt: CashMutationReceiptDto): ClientCashWriteResult {
+    val creation = command.kind in setOf("cash_create_manual", "cash_create_transfer")
     if (receipt.operationKind != command.kind || !receipt.committed || receipt.receiptId.isBlank() ||
         command.planId != null && receipt.planId != command.planId ||
         creation && receipt.ledgerSeq == null)

@@ -5,6 +5,8 @@ import com.finance.tracker.core.DiagnosticLogger
 import com.finance.tracker.core.createDiagnosticLogger
 import com.finance.tracker.core.NoOpDiagnosticLogger
 import com.finance.tracker.data.LocalCashImportLifecycleRepository
+import com.finance.tracker.data.LedgerAssistantWorkspace
+import com.finance.tracker.domain.Session
 import com.finance.tracker.data.DemoCashImportLifecycleRepository
 import com.finance.tracker.domain.CashImportLifecycleRepository
 import com.finance.tracker.data.FinanceApiClient
@@ -41,7 +43,13 @@ data class FinanceTrackerGraph(
     val cashImportRepository: CashImportLifecycleRepository,
     val diagnosticLogger: DiagnosticLogger,
     val demoStatement: FileSource? = null,
-)
+) {
+    internal var assistantWorkspace: (suspend (Session) -> LedgerAssistantWorkspace)? = null
+        private set
+
+    internal fun withAssistant(open: suspend (Session) -> LedgerAssistantWorkspace): FinanceTrackerGraph =
+        apply { assistantWorkspace = open }
+}
 
 fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): FinanceTrackerGraph {
     val apiClient = FinanceApiClient({ apiOrigin }, tokenStore)
@@ -74,7 +82,7 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         cashImportRepository = LocalCashImportLifecycleRepository(sessionRepository::captureImports,
             captureSessionImports = sessionRepository::captureImportsFor),
         diagnosticLogger = diagnosticLogger,
-    )
+    ).withAssistant { sessionRepository.openAssistantWorkspace(apiClient, it) }
 }
 
 fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph {

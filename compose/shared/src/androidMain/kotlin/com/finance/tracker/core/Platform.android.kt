@@ -156,3 +156,5 @@ private class AndroidKeyStoreTokenStore(context: Context) : TokenStore {
         const val GCM_TAG_LENGTH_BITS = 128
     }
 }
+
+internal actual fun observeBrowserContextMenu(handler: (Double, Double) -> Boolean): () -> Unit = {}

@@ -16,6 +16,15 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "A2uiMavenCentral"
+                    url = uri("https://repo.maven.apache.org/maven2")
+                }
+            }
+            filter { includeGroup("dev.ynagai.a2ui") }
+        }
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")

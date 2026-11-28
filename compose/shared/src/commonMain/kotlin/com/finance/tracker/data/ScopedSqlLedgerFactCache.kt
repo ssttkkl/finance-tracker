@@ -35,6 +35,7 @@ internal class ScopedSqlLedgerFactCache private constructor(
     private var termination: Termination? = null // Access only while holding mutex.
     private var sessions: SqlLedgerSessionStore? = null // Access only while holding mutex.
     private var cashCreationStore: SqlCashCreationJournal? = null
+    private var assistantStore: SqlLedgerAssistantConversations? = null
     private var importStore: SqlLedgerImportBatchStore? = null // Access only while holding mutex.
     private data class RetainedSnapshot(val text: String, val ledgerVersion: Long)
     private var retainedSnapshot: RetainedSnapshot? = null // Scoped owner and storage mutex.
@@ -99,6 +100,24 @@ internal class ScopedSqlLedgerFactCache private constructor(
             override suspend fun read() = withCashCreation { it.read(scope, tokenKey) }
             override suspend fun swap(previous: CashCreationRecovery?, next: CashCreationRecovery?) =
                 withCashCreation { it.swap(scope, tokenKey, previous, next) }
+        }
+    }
+
+    override fun assistantConversations(): LedgerAssistantConversations = object : LedgerAssistantConversations {
+        override suspend fun list() = withAssistantStore { it.list() }
+        override suspend fun delete(previous: LedgerAssistantConversation) = withAssistantStore { it.delete(previous) }
+        override suspend fun swap(previous: LedgerAssistantConversation?, next: LedgerAssistantConversation) =
+            withAssistantStore { it.swap(previous, next) }
+    }
+
+    private suspend fun <T> withAssistantStore(action: suspend (SqlLedgerAssistantConversations) -> T): T = mutex.withLock {
+        currentCoroutineContext().ensureActive()
+        requireActive()
+        val conversations = assistantStore ?: SqlLedgerAssistantConversations.open(driver).also { assistantStore = it }
+        requireActive()
+        action(conversations).also {
+            currentCoroutineContext().ensureActive()
+            requireActive()
         }
     }
 
