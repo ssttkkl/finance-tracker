@@ -1,6 +1,5 @@
 package com.finance.tracker.data
 
-import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.domain.CashAmount
 import com.finance.tracker.client.CashLedgerSummary
@@ -342,11 +341,7 @@ internal class LedgerAssistantWorkspace(
     }
 
     private suspend fun readAssistantTool(name: String, fields: JsonObject): JsonObject {
-        val filters = CashFiltersDto(
-            dateFrom = fields.text("date_from"), dateTo = fields.text("date_to"), accountId = fields.text("account_id"),
-            counterparty = fields.text("counterparty"), categoryId = fields.text("category_id"), currency = fields.text("currency"),
-            amountMin = fields.text("amount_min"), amountMax = fields.text("amount_max"), economicType = fields.text("economic_type"),
-        )
+        val filters = assistantCashFilters(fields)
         val timeZone = fields.text("time_zone_id")
         return when (name) {
             "list_accounts" -> buildJsonObject {
@@ -383,16 +378,7 @@ internal class LedgerAssistantWorkspace(
             }
             "get_transaction" -> {
                 val projectionId = fields.text("projection_id") ?: return assistantToolError("transaction_id_required")
-                val group = reader.currentGroup(projectionId) ?: return assistantToolError("transaction_not_found")
-                val records = reader.sourceRecords(projectionId) ?: return assistantToolError("transaction_not_found")
-                if (records.evidence.projectionVersion != group.projectionVersion) return assistantToolError("transaction_changed")
-                buildJsonObject {
-                    put("group", Json.encodeToJsonElement(group))
-                    put("entry", Json.encodeToJsonElement(records.evidence.projection))
-                    put("records", kotlinx.serialization.json.JsonArray(records.evidence.members.map { member ->
-                        Json.encodeToJsonElement(member.copy(counterpartyAccount = null))
-                    }))
-                }
+                readLedgerAssistantTransaction(reader, projectionId)
             }
             else -> error("Unknown ledger assistant tool")
         }

@@ -19,7 +19,8 @@
 - [x] QuickJS 核心运行门槛先行。固定候选依赖，三端以同一脚本执行真实异步账本读取，核对 UTF-8 CSV 字节、同步死循环、等待宿主、迟到响应和下次运行。
 - [x] 服务端能力协商、OpenAPI 和完整工具调用参数检查。
 - [x] 接入原生 QuickJS 适配及正式 Web 分发所用的隔离 Worker。
-- [ ] 实施客户端协商、SDK、文件事务、附件和 UI，补应用峰值内存验收。
+- [x] 构建本机账本只读 SDK 宿主和 CSV 解析／生成。
+- [ ] 实施客户端协商、文件事务、附件和 UI，补应用峰值内存验收。
 
 ## 4. 构建
 
@@ -56,6 +57,8 @@
 - 技能协商独立复核覆盖鉴权范围、旧目录、禁止注入和 OpenAPI。已统一协商版缓冲响应与 SSE 的非空调用 ID 检查，并保留旧数组的缓冲响应参数行为。
 
 - 运行时适配独立复核修复两项阻断。共享派发顺序和调用数，拒绝仍有未等待宿主调用时发布结果；Web 在传输前限制字节与在途请求。依赖锁定实际进口模块版本，原生截止涵盖引擎启动与等待。
+
+- 只读 SDK 独立复核确认普通工具查询与详情输出兼容。脚本桥以字符串传递精确 ID 和版本，分页使用同一预期版本。文件事务须复核原会话和账本版本，并保护直接写入 CSV 的表格内容。Worker 回调完成后释放 Promise 句柄，以便分页及时释放已消费数据。
 
 ## 6. 测试与 QA
 
@@ -103,6 +106,8 @@
 - 技能协商基线 `e129fe97`，2026-11-28（UTC+8）。新增目录协商用例先失败。后端定向测试 `:backend:test --tests '*LedgerAssistantInferenceTest' --tests '*OpenApiContractTest'` 共 24 项通过，无跳过。分片用例覆盖完整对象参数、未协商时拒绝及数组参数拒绝。OpenSpec 严格校验通过。客户端继续发送旧数组，当前交付不影响 Web、Android 或 iOS 的用户流程。
 
 - 运行时适配基线 `c2afd9b4`。Android 主机桥接用例先编译失败，补实现后通过。Android API 36 和 iOS 18.3 模拟器以应用适配源码验证中文异步返回、宿主错误、同批次串行和未等待调用拒绝。正式 Web Wasm 构建包含 Worker 和引擎，Chrome 从该分发目录加载，验证异步返回、同步中断和再运行。入口分离的引擎与 Worker 合计 555 KB 左右；18804 的 Wasm MIME 为 `application/wasm`。见 `/tmp/ledger-skill-native-android-device.log`、探针 `TEST-iosSimulatorArm64Test.ProductScriptAdapterProbe.xml`、`/tmp/ledger-skill-adapter-final.log` 和 `/tmp/ledger-skill-worker-production-smoke.log`。运行时尚未在对话启用。
+
+- 只读 SDK 与 CSV 基线 `9e41f833`。回归用例先失败，Android 主机定向桥接、只读和 CSV 4 项通过，覆盖大整数、精确金额、UTF-8、公式防护、引号、逗号、换行及读取后的版本变化。见 `/tmp/ledger-skill-shared-sdk-tests.log`。重建后用 Chrome 复跑 Worker 异步读取、中断和再次运行，见 `/tmp/ledger-skill-worker-release-handles-smoke.log`。
 
 ## 7. 发布
 

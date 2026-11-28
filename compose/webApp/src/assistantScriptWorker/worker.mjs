@@ -16,7 +16,8 @@ self.onmessage = ({ data }) => {
 async function run({ program, timeoutMs, heapBytes }) {
   let context;
   let deadline = Infinity;
-  const calls = [];
+  let nextId = 0;
+  let inFlight;
   try {
     const module = await newQuickJSWASMModuleFromVariant(RELEASE_SYNC);
     context = module.newContext();
@@ -30,12 +31,17 @@ async function run({ program, timeoutMs, heapBytes }) {
       if (pending.size !== 0 || body.length > 7 * 1024 * 1024 || encoder.encode(body).length > 7 * 1024 * 1024) {
         throw new Error('invalid_bridge_request');
       }
-      const id = calls.length + 1;
+      const id = ++nextId;
       const promise = context.newPromise();
-      calls.push(promise);
+      inFlight = promise;
       pending.set(id, (body) => {
         pending.delete(id);
-        context.newString(body).consume(value => promise.resolve(value));
+        try {
+          context.newString(body).consume(value => promise.resolve(value));
+        } finally {
+          promise.dispose();
+          inFlight = undefined;
+        }
       });
       self.postMessage({ kind: 'hostRequest', id, body });
       return promise.handle;
@@ -68,7 +74,7 @@ async function run({ program, timeoutMs, heapBytes }) {
     self.postMessage({ kind: performance.now() >= deadline ? 'timeout' : 'failed' });
   } finally {
     pending.clear();
-    for (const call of calls) call.dispose();
+    inFlight?.dispose();
     context?.dispose();
   }
 }
