@@ -16,6 +16,9 @@
 
 - 核对提示的显示范围属于 C 类局部修复。验收覆盖空白与仅输入时无提示和占位，首条保存后至回复到达前显示，以及重开已有对话后仍显示。
 
+- [x] QuickJS 核心运行门槛先行。固定候选依赖，三端以同一脚本执行真实异步账本读取，核对 UTF-8 CSV 字节、同步死循环、等待宿主、迟到响应和下次运行。
+- [ ] 实施 SDK、文件事务、附件、兼容协商和 UI，补正式安装包、懒加载与峰值内存验收。
+
 ## 4. 构建
 
 - [x] 接入鉴权代理、设备历史、共享工具与恢复，并连接 Compose 对话页、A2UI 和现有详情。
@@ -86,6 +89,10 @@
 - 最终 `:webApp:wasmJsBrowserDistribution`、Android 导航定向测试及 iOS 模拟器编译通过。Chrome 从正式产物复跑相同路由流程，延迟工作区切换期间显示「正在恢复会话」，未出现空白页或错误提示。也复跑统一 32 px 工具行、像素悬停差分、两行触屏逐条打开、可见卡顺序和空结果。18804 服务的 JS 与 Wasm SHA-256 均与正式产物相同，三个新增图标均返回 200。证据见 `/tmp/ledger-assistant-final-distribution.log`、`/tmp/ledger-route-audit/route-release.log`、`18804-assets.log`、`/tmp/ledger-tool-spacing-release.log`、`ledger-tool-empty-release.log`、`ledger-tool-card-release.log` 和 `ledger-tool-hover-pixels.log`。
 
 - 核对提示以 `91adac86` 为基线。正式 Web 构建在 Chrome 1440×900、390×844 验证空白及仅输入时无提示节点，标题到输入框的间距均由 45 px 减至 22 px。拦住首轮模型回复时，已保存的消息与输入框上方的提示同时可见。重载已有对话仍保留提示，再次新建立即隐藏。每个视口只有一次主动发送产生推理。Android 和 iOS 模拟器目标编译通过，Web 与两原生端共享此呈现条件。18804 的 JS 和 Wasm 与正式产物一致。证据见 `/tmp/ledger-assistant-notice-before.log`、`ledger-assistant-notice-after.log`、`ledger-assistant-notice-build.log`、`ledger-assistant-notice-preview.log`，截图见 http://127.0.0.1:18805/assistant-notice/ 。
+
+- 运行时探针以 `c260f656` 为范围基线，2026-11-28。独立工程在 `/Volumes/NO NAME/offload/hl/ledger-quickjs-probe`，同一 `report.js` 经实际安装的 `ft cash summary` 异步读取隔离 SQLite 账本，三端输出相同的 51 字节中文 CSV，十进制字符串 `-88` 原样保留。Native 使用 Maven `quickjs-kt 1.0.19`，引擎报告 2026-06-04。Android API 36 arm64 运行 instrumentation APK，iOS 18.3 arm64 模拟器运行 `:iosSimulatorArm64Test`，Web 使用 Chrome 独立 Worker 和 npm `quickjs-emscripten 0.32.0` 标准同步 Wasm。
+- Android、iOS、Web 同步死循环分别在 202、203、218 ms 中断，计时窗口内主循环分别回调 18、20、21 次。Android／iOS 宿主等待约 302／309 ms 取消，Web 使用 300 ms 截止。Native 验证 host 协程取消及迟到完成被拒，Web 丢弃旧请求回调，三端中断后都继续得到 42 并导出真实 CSV。Native Promise 的兑现值经受限宿主回调接收，Web 显式驱动 QuickJS 待执行任务。详见探针目录的 `android-isolation-metrics.log`、`build/test-results/iosSimulatorArm64Test/`、`web-metrics.log`。
+- Android 探针包约 8.2 MiB，iOS 模拟器测试可执行文件约 9.7 MiB，独立 Web 探针首次运行下载 Worker 85,802 字节和 Wasm 503,134 字节。QuickJS 导出结束时采样内存为 Android 76,801、iOS 66,457、Web 53,968 字节，运行上限为 32 MiB。采样值不作为峰值，正式产品体积和峰值仍待验证。18804 已重启原页面和会话数据库，当前运行进程无模型配置。
 
 ## 7. 发布
 
