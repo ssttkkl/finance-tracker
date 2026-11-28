@@ -126,6 +126,14 @@ internal val ClientLedgerRead.importWorkspace: ClientImportWorkspace
 
 internal data class ClientImportWorkspace(val binding: ClientStoredSession, val id: String, val offline: Boolean)
 
+class DiagnosticCashListScope internal constructor(
+    internal val scope: ClientImportWorkspace,
+    val ledgerSeq: String?,
+    val offline: Boolean,
+) {
+    val workspace: String get() = scope.id
+}
+
 class ClientSessionOperations(
     private val http: ClientHttp,
     private val store: ClientSessionStore,
@@ -537,6 +545,23 @@ class ClientSessionOperations(
         }
         return ClientImportWorkspace(binding, verifiedLedgerWorkspace(binding, expected), offline = false)
     }
+
+    suspend fun diagnosticListScope(expected: String?): DiagnosticCashListScope {
+        val scope = localImportWorkspace(expected)
+        if (scope.offline) return DiagnosticCashListScope(scope, null, true)
+        val suffix = "?workspace_id=${encodeComponent(scope.id)}"
+        return try {
+            val remote = ledgerRequest<LedgerVersionDto>("/api/v1/ledger/version$suffix", scope.binding, scope.id)
+            requireCurrent(scope.binding)
+            revision(remote.ledgerSeq)
+            DiagnosticCashListScope(scope, remote.ledgerSeq, false)
+        } catch (_: ClientNetworkUnavailable) {
+            requireCurrent(scope.binding)
+            DiagnosticCashListScope(scope, null, true)
+        }
+    }
+
+    suspend fun requireDiagnosticListScope(scope: DiagnosticCashListScope) = requireCurrent(scope.scope.binding)
 
     private fun initialLedgerWorkspace(binding: ClientStoredSession, expected: String?): String? {
         val lastKnown = binding.session.activeWorkspaceId

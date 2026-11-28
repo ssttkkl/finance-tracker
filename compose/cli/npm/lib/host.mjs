@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
-import { appendFileSync, mkdirSync, mkdtempSync, lstatSync, fstatSync, closeSync, openSync, readSync, writeSync, fsyncSync, readdirSync, rmSync, constants } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, lstatSync, fstatSync, closeSync, openSync, readSync, readFileSync, writeSync, fsyncSync, readdirSync, rmSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -229,7 +229,9 @@ export function traceCashPhase(phase, count = null) {
     if (!destination) return;
     const timeMs = performance.now();
     const { rss, heapUsed, external, arrayBuffers } = process.memoryUsage();
-    appendFileSync(destination, JSON.stringify({ phase, timeMs, rss, heapUsed, external, arrayBuffers, count }) + '\n');
+    const io = process.platform === 'linux' ? readFileSync('/proc/self/io', 'utf8') : '';
+    const physicalReadBytes = Number(/^read_bytes: ([0-9]+)$/m.exec(io)?.[1] ?? NaN);
+    appendFileSync(destination, JSON.stringify({ phase, timeMs, rss, heapUsed, external, arrayBuffers, count, physicalReadBytes }) + '\n');
 }
 
 function* stateTextChunks(payload) {
@@ -469,9 +471,14 @@ function importWorksets(server, root) {
 
 export function openStore(origin, createKey) {
     const root = resolve(process.env.FT_CLI_STATE_DIR || join(homedir(), '.finance-tracker-cli'));
-    const database = new DatabaseSync(privateFile(root));
+    const extension = process.env.FT_DIAGNOSTIC_SQLITE_EXTENSION;
+    const database = new DatabaseSync(privateFile(root), { allowExtension: extension !== undefined });
     let key;
     try {
+        if (extension !== undefined) {
+            database.loadExtension(extension);
+            database.enableLoadExtension(false);
+        }
         database.exec('PRAGMA busy_timeout = 10000; PRAGMA secure_delete = ON; BEGIN IMMEDIATE');
         const worksets = importWorksets(origin, root);
         const version = database.prepare('PRAGMA user_version').get().user_version;
@@ -527,22 +534,54 @@ export function openStore(origin, createKey) {
                 const item = database.prepare('SELECT payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 return item ? createHash('sha256').update(item.payload).digest('hex') : null;
             },
-            read(slot) {
+            authenticateDiagnosticLedger(slot) {
+                const associated = aad(slot);
+                const row = database.prepare(
+                    'SELECT rowid, wrapped_key, length(payload) AS size FROM client_state WHERE server = ? AND slot = ?',
+                ).get(server, slot);
+                if (!row || row.size < 28 || row.size > 0x7fffffff) throw new Error('Unrecognized ciphertext');
+                const chunk = database.prepare('SELECT ft_ciphertext_chunk(?, ?, ?) AS payload');
+                const prefix = Buffer.from(chunk.get(row.rowid, 0, 28).payload);
+                const dataKey = open(key, associated, row.wrapped_key);
+                try {
+                    const decipher = createDecipheriv('aes-256-gcm', dataKey, prefix.subarray(0, 12));
+                    decipher.setAAD(associated);
+                    decipher.setAuthTag(prefix.subarray(12, 28));
+                    for (let offset = 28; offset < row.size; offset += 256 * 1024) {
+                        const size = Math.min(256 * 1024, row.size - offset);
+                        const { payload } = chunk.get(row.rowid, offset, size);
+                        decipher.update(payload).fill(0);
+                    }
+                    traceCashPhase('diagnostic_source_ciphertext_read', row.size);
+                    decipher.final().fill(0);
+                    traceCashPhase('diagnostic_source_authenticated');
+                } finally {
+                    dataKey.fill(0);
+                }
+            },
+            read(slot, diagnosticLabel = null) {
                 const ledger = process.env.FT_DIAGNOSTIC_CASH_PHASES && /^[0-9a-f]{64}$/.test(slot);
                 if (ledger) traceCashPhase('cache_blob_start');
                 const item = database.prepare('SELECT wrapped_key, payload FROM client_state WHERE server = ? AND slot = ?').get(server, slot);
                 if (!item) return null;
-                if (ledger) traceCashPhase('cache_blob_loaded');
+                if (ledger) traceCashPhase('cache_blob_loaded', item.payload.length);
+                if (diagnosticLabel !== null) traceCashPhase(diagnosticLabel, item.payload.length);
                 const dataKey = open(key, aad(slot), item.wrapped_key);
                 try {
                     const plaintext = open(dataKey, aad(slot), item.payload);
-                    if (ledger) traceCashPhase('cache_authenticated');
+                    if (ledger) traceCashPhase('cache_authenticated', item.payload.length);
                     const text = plaintext.toString('utf8');
                     if (ledger) traceCashPhase('cache_utf8');
                     return text;
                 } finally {
                     dataKey.fill(0);
                 }
+            },
+            writeDiagnosticCashBlock(slot, payload) {
+                const bytes = Buffer.byteLength(payload);
+                if (bytes > 1024 * 1024) throw new Error('Cash diagnostic block exceeds one MiB');
+                writeState(slot, (key, aad) => sealStateText(key, aad, payload));
+                traceCashPhase('diagnostic_block_written', bytes + 28);
             },
             write(slot, payload, fingerprint = false) {
                 return writeState(slot, (key, aad) => sealStateText(key, aad, payload), fingerprint);

@@ -1,0 +1,53 @@
+name: Sealed local cash list block diagnostic
+
+on:
+  push:
+    branches: [perf/diagnose-cash-list-block-cache]
+
+permissions:
+  contents: read
+
+jobs:
+  cash-list-blocks:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Build and measure one installed fixture in all three local storage modes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/cash-list-blocks"
+          installed="$RUNNER_TEMP/cash-list-blocks-installed"
+          mkdir -p "$out" "$installed"
+          git rev-parse HEAD > "$out/source.txt"
+          node --version > "$out/node.txt"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libsqlite3-dev time
+          gcc -shared -fPIC -Wall -Wextra -Werror -o "$RUNNER_TEMP/ftciphertext.so" \
+            compose/client-operations/perf/diagnosis/sqlite-ciphertext.c
+          export FT_DIAGNOSTIC_SQLITE_EXTENSION="$RUNNER_TEMP/ftciphertext.so"
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
+            :business-domain:jvmTest --tests '**.LocalCashLedgerQueryTest' :cli:stageNpm && ./gradlew --stop)
+          package=$(npm pack --pack-destination "$installed" ./compose/cli/build/npm --silent)
+          sha256sum "$installed/$package" | cut -d' ' -f1 > "$out/npm-sha256.txt"
+          npm --prefix "$installed" install --no-audit --no-fund --ignore-scripts "$installed/$package"
+          node compose/client-operations/perf/diagnosis/compare-cash-list-cache.mjs "$installed" "$out/results.json"
+      - name: Upload only synthetic measurements and boolean checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cash-list-blocks
+          path: ${{ runner.temp }}/cash-list-blocks
+          if-no-files-found: error

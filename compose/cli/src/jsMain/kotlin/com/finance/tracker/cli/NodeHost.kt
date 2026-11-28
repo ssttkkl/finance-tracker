@@ -17,6 +17,12 @@ import com.finance.tracker.client.ClientCashMaintenanceOperations
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
 import com.finance.tracker.business.contracts.CashImportConfirmation
+import com.finance.tracker.business.contracts.CashFiltersDto
+import com.finance.tracker.business.contracts.CashPageDto
+import com.finance.tracker.business.domain.DiagnosticCashListDirectory
+import com.finance.tracker.business.domain.LocalCashLedgerQuery
+import com.finance.tracker.business.domain.normalizeLocalCashLedgerQueryInput
+import com.finance.tracker.business.domain.readDiagnosticCashList
 import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
@@ -137,6 +143,40 @@ private suspend fun <T> withHost(
     }
 }
 
+internal data class DiagnosticCashPage(
+    val workspace: String, val ledgerSeq: String, val syncedAt: String, val offline: Boolean, val page: CashPageDto,
+)
+
+internal suspend fun diagnosticCashPage(
+    server: String?, expectedWorkspace: String?, mode: String, filters: CashFiltersDto, zone: String?,
+    cursor: String?, startIndex: Int?, expectedSeq: Long?, limit: Int,
+): DiagnosticCashPage = withHost(server, false) { operations, store ->
+    val bounds = nodeCalendar.bounds(filters.dateFrom, filters.dateTo, zone)
+    val input = normalizeLocalCashLedgerQueryInput(filters, bounds.timeZoneId) { _, _, _ -> bounds }
+    if (mode != "build") {
+        val scope = operations.diagnosticListScope(expectedWorkspace)
+        val hit = store.diagnosticListRead(scope.workspace, scope.ledgerSeq, mode == "strict") { header, read ->
+            readDiagnosticCashList(header.directory, read, nodeCalendar::monthAt, input, cursor, startIndex, expectedSeq, limit)
+        }
+        operations.requireDiagnosticListScope(scope)
+        if (hit != null) return@withHost DiagnosticCashPage(scope.workspace, hit.first.directory.ledgerSeq,
+            hit.first.syncedAt, scope.offline, hit.second)
+    }
+    val current = operations.ledger(expectedWorkspace)
+    val snapshot = current.ledger.snapshot
+    val query = LocalCashLedgerQuery(snapshot, nodeCalendar::monthAt, { stage, count -> traceCashPhase(stage, count) })
+    val page = query.page(input, cursor, startIndex, expectedSeq, limit)
+    store.diagnosticListBuild(snapshot.workspaceId, snapshot.rulesVersion, current.ledger.syncedAt) { write ->
+        query.writeDiagnosticCashList(write)
+    }
+    DiagnosticCashPage(snapshot.workspaceId, snapshot.ledgerSeq, current.ledger.syncedAt, current.offline, page)
+}
+
+@Serializable
+private data class DiagnosticStoredCashList(
+    val stamp: String, val generation: String, val rules: String, val syncedAt: String, val directory: DiagnosticCashListDirectory,
+)
+
 internal suspend fun previewInvitation(server: String?, token: String) =
     ClientAccessOperations(nodeTransport(requireServerOrigin(server)), ::encodeUrlComponent).previewInvitation(token)
 
@@ -186,6 +226,67 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private data class ObservedBatch(
         val key: String, val parentStamp: String?, val reviewedStamp: String?, val batch: dynamic,
     )
+
+    suspend fun diagnosticListRead(
+        workspace: String, remoteSeq: String?, strict: Boolean,
+        page: (DiagnosticStoredCashList, (Int, Boolean) -> String) -> CashPageDto,
+    ): Pair<DiagnosticStoredCashList, CashPageDto>? {
+        val session = session() ?: return null
+        val slot = slot(session, workspace)
+        val base = "$slot.diagnostic-cash-list."
+        val stamp = stateStamp(slot) ?: return null
+        val header = try {
+            val text = database.read(base + "directory", "diagnostic_read_directory") as String? ?: return null
+            Json.decodeFromString<DiagnosticStoredCashList>(text)
+        } catch (_: Throwable) { return null }
+        if (header.stamp != stamp || header.directory.workspace != workspace ||
+            header.rules != com.finance.tracker.business.domain.CASH_RULES_VERSION ||
+            remoteSeq != null && remoteSeq != header.directory.ledgerSeq) return null
+        if (strict) readLocalState { database.authenticateDiagnosticLedger(slot) }
+        val prefix = base + header.generation + "."
+        val result = try {
+            page(header) { block, detail ->
+                val name = if (detail) "details" else "columns"
+                requireNotNull(database.read("$prefix$name.$block", "diagnostic_read_$name") as String?)
+            }
+        } catch (failure: com.finance.tracker.business.domain.CashProjectionFailure) {
+            throw failure
+        } catch (_: Throwable) {
+            return null
+        }
+        if (stateStamp(slot) != stamp) throw ClientOperationFailure("read_snapshot_changed")
+        traceCashPhase("diagnostic_list_hit")
+        return header to result
+    }
+
+    suspend fun diagnosticListBuild(
+        workspace: String, rules: String, syncedAt: String,
+        build: ((Int, Boolean, String) -> Unit) -> DiagnosticCashListDirectory,
+    ) {
+        val session = session() ?: return
+        val slot = slot(session, workspace)
+        val stamp = stateStamp(slot) ?: return
+        val base = "$slot.diagnostic-cash-list."
+        val generation = newReference()
+        val prefix = base + generation + "."
+        traceCashPhase("diagnostic_list_build_start")
+        try {
+            val directory = build { block, details, text ->
+                val name = if (details) "details" else "columns"
+                database.writeDiagnosticCashBlock("$prefix$name.$block", text)
+            }
+            if (stateStamp(slot) != stamp) throw ClientOperationFailure("read_snapshot_changed")
+            database.writeDiagnosticCashBlock(base + "directory",
+                Json.encodeToString(DiagnosticStoredCashList(stamp, generation, rules, syncedAt, directory)))
+            for (old in database.slots(base).unsafeCast<Array<String>>()) {
+                if (old != base + "directory" && !old.startsWith(prefix)) database.remove(old)
+            }
+            traceCashPhase("diagnostic_list_build_ready")
+        } catch (failure: Throwable) {
+            database.removeByPrefix(prefix)
+            throw failure
+        }
+    }
 
     var accessInvalidated = false
         private set

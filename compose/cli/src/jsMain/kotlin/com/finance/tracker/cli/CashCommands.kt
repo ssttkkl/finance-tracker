@@ -3,6 +3,7 @@ package com.finance.tracker.cli
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.CashFiltersDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
+import com.finance.tracker.business.contracts.CashPageDto
 import com.finance.tracker.business.domain.page
 import com.finance.tracker.client.CashLedgerOperations
 import com.finance.tracker.client.ClientCashWriteResult
@@ -107,6 +108,12 @@ internal suspend fun cash(action: String?, args: List<String>): TerminalResult {
     val startIndex = options.integer("--start-index")
     val expectedSeq = options["--ledger-seq"]?.let { it.toLongOrNull() ?: throw CliFailure("invalid_parameter", "--ledger-seq") }
     val limit = options.integer("--limit") ?: 20
+    val diagnostic = process.env.FT_DIAGNOSTIC_CASH_LIST as String?
+    if (action == "list" && diagnostic in setOf("build", "strict", "fast")) {
+        val value = diagnosticCashPage(options["--server"], options["--workspace"], checkNotNull(diagnostic),
+            filters(options), options["--timezone"], options["--cursor"], startIndex, expectedSeq, limit)
+        return listResult(value.page, value.workspace, value.ledgerSeq, value.syncedAt, value.offline)
+    }
     return withClient(options["--server"]) { client ->
         val read = client.ledger(options["--workspace"])
         traceCashPhase("ledger_graph_start")
@@ -116,12 +123,7 @@ internal suspend fun cash(action: String?, args: List<String>): TerminalResult {
         when (action) {
             "list" -> {
                 val page = cash.page(filter, zone, options["--cursor"], startIndex, expectedSeq, limit)
-                traceCashPhase("terminal_output_start")
-                val lines = page.items.map { item ->
-                    listOfNotNull(item.projectionId, item.occurredAt, item.amount, item.currency, item.counterparty).joinToString("  ")
-                }
-                val payload = buildJsonObject { put("page", exactReadIdentifiers(outputJson.encodeToJsonElement(com.finance.tracker.business.contracts.CashPageDto.serializer(), page))) }
-                read.result(payload, lines.joinToString("\n").ifEmpty { "No cash records." }).also { traceCashPhase("terminal_output_ready") }
+                listResult(page, read.ledger.snapshot.workspaceId, read.ledger.snapshot.ledgerSeq, read.ledger.syncedAt, read.offline)
             }
             "record" -> {
                 val record = cash.record(checkNotNull(id), read.canWrite)
@@ -151,6 +153,23 @@ internal suspend fun cash(action: String?, args: List<String>): TerminalResult {
             }
         }
     }
+}
+
+private fun listResult(page: CashPageDto, workspace: String, version: String, syncedAt: String, offline: Boolean): TerminalResult {
+    traceCashPhase("terminal_output_start")
+    val lines = page.items.map { item ->
+        listOfNotNull(item.projectionId, item.occurredAt, item.amount, item.currency, item.counterparty).joinToString("  ")
+    }
+    val body = buildJsonObject {
+        put("page", exactReadIdentifiers(outputJson.encodeToJsonElement(CashPageDto.serializer(), page)))
+        put("workspace_id", workspace)
+        put("ledger_seq", version)
+        put("synced_at", syncedAt)
+        put("offline", offline)
+    }
+    val detail = lines.joinToString("\n").ifEmpty { "No cash records." }
+    return TerminalResult(body, "$detail\n${if (offline) "Offline. " else ""}Last synced $syncedAt")
+        .also { traceCashPhase("terminal_output_ready") }
 }
 
 private fun ClientLedgerRead.result(payload: JsonObject, detail: String) = TerminalResult(

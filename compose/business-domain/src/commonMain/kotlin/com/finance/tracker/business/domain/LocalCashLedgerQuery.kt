@@ -50,6 +50,31 @@ class LocalCashLedgerQuery(snapshot: LedgerSnapshotDto, private val monthAt: (In
             }.also { sample("ledger_sort_ready", null) }
     }
 
+    fun writeDiagnosticCashList(write: (Int, Boolean, String) -> Unit): DiagnosticCashListDirectory {
+        val blockRows = 32
+        var blocks = 0
+        for (group in rows.asSequence().chunked(blockRows)) {
+            val metadata = group.map { row ->
+                val projection = row.projection
+                val members = projection.memberIds.map { it.toString() }
+                val accounts = buildSet {
+                    projection.primaryRecord.accountId?.toString()?.let(::add)
+                    for (member in members) addAll(componentAccounts[member].orEmpty())
+                }
+                DiagnosticCashListRow(row.projectionId, DiagnosticCashTime(projection.sortAt),
+                    projection.occurredAt?.let(::DiagnosticCashTime), projection.state, projection.attentionCount,
+                    projection.statisticsEligible, projection.netAmount?.toString(), projection.primaryRecord.currency,
+                    projection.economicType?.value, projection.businessLabel, projection.compositions, row.entry.categoryId,
+                    renderer.category(row.entry.categoryId)?.path.orEmpty().map { it.id },
+                    row.entry.counterparty, row.entry.note, accounts, members)
+            }
+            write(blocks, false, Json.encodeToString(metadata))
+            write(blocks, true, Json.encodeToString(group.map(renderer::render)))
+            blocks++
+        }
+        return DiagnosticCashListDirectory(workspace, version.toString(), options, categories.keys, blocks)
+    }
+
     /** Current stable entry locations, including members which are not the display representative. */
     fun projectionRefs(transactionIds: List<String>): List<CashMutationProjectionRefDto> =
         transactionIds.distinct().mapNotNull { id -> projectionByTransactionId[id]?.let { CashMutationProjectionRefDto(id, it) } }

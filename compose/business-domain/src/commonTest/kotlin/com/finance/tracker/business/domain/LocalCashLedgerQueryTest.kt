@@ -34,6 +34,23 @@ class LocalCashLedgerQueryTest {
         LocalCashLedgerQueryInput(mapOf("state" to "all", "hide_zero_amount" to "True", "uncategorized" to "False", "timezone" to "UTC") + filters,
             start?.let(Instant::parse), end?.let(Instant::parse))
     private fun query(snapshot: LedgerSnapshotDto = snapshot()) = LocalCashLedgerQuery(snapshot) { instant, _ -> cashLedgerMonthAtOffset(instant, 0) }
+    @Test fun diagnosticColumnsKeepTheLiveCursorFiltersTotalsAndAmount() {
+        val live = query()
+        val saved = mutableMapOf<Pair<Int, Boolean>, String>()
+        val manifest = live.writeDiagnosticCashList { index, details, text -> saved[index to details] = text }
+        val configurations = listOf(input(), input(mapOf("amount_max" to "-0.000000000000000001")),
+            input(mapOf("counterparty" to "literal%_\\note")), input(mapOf("confirmation_status" to "pending")),
+            input(mapOf("account_id" to "20")), input(start = "2026-08-01T00:00:00Z"))
+        for (filter in configurations) {
+            val first = live.page(filter, limit = 1)
+            fun read(cursor: String? = null, index: Int? = null) = readDiagnosticCashList(manifest,
+                { block, detail -> saved.getValue(block to detail) },
+                { time, _ -> cashLedgerMonthAtOffset(time, 0) }, filter, cursor, index, null, 1)
+            assertEquals(first, read())
+            first.nextCursor?.let { cursor -> assertEquals(live.page(filter, cursor = cursor, limit = 1), read(cursor = cursor)) }
+            assertEquals(live.page(filter, startIndex = 1, limit = 1), read(index = 1))
+        }
+    }
     @Test fun callerMutationCannotSeparateCanonicalFiltersFromExecutedAmounts() {
         val input = normalizeLocalCashLedgerQueryInput(CashFiltersDto(amountMin = "0"), null) { _, _, _ ->
             CashLedgerDateBounds(null, null, "UTC", null, null)
