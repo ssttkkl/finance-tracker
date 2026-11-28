@@ -17,10 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.client.LedgerAssistantDeliveryStatus
 import com.finance.tracker.core.getLocalDateForInput
@@ -28,9 +24,7 @@ import com.finance.tracker.core.getLocalDateForInstant
 import com.finance.tracker.data.LedgerAssistantMessage
 import com.finance.tracker.data.LedgerAssistantToolStatus
 import com.finance.tracker.resources.Res
-import com.finance.tracker.resources.ic_check
 import com.finance.tracker.resources.ic_content_copy
-import com.finance.tracker.resources.ic_close
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -110,19 +104,13 @@ private fun assistantReplyTime(time: String?, today: String): String? {
 internal fun AssistantReplyActions(
     copy: AssistantReplyCopy?,
     today: String,
+    onCopyResult: (Boolean) -> Unit,
     retry: (@Composable () -> Unit)? = null,
 ) {
     val clipboard = rememberAssistantReplyClipboard()
     val scope = rememberCoroutineScope()
     var busy by remember(copy?.markdown) { mutableStateOf(false) }
-    var feedback by remember(copy?.markdown) { mutableStateOf<String?>(null) }
     val colors = MaterialTheme.colorScheme
-    LaunchedEffect(feedback) {
-        if (feedback != null) {
-            delay(2500)
-            feedback = null
-        }
-    }
     Row(
         Modifier.testTag("assistant.reply-actions"),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -130,39 +118,28 @@ internal fun AssistantReplyActions(
     ) {
         retry?.invoke()
         if (copy != null) {
-            val feedbackLabel = feedback?.let { localizedText(it) }
             IconButton(
                 enabled = !busy,
-                modifier = Modifier.testTag("assistant.reply-copy").semantics {
-                    liveRegion = LiveRegionMode.Polite
-                    feedbackLabel?.let { stateDescription = it }
-                },
+                modifier = Modifier.testTag("assistant.reply-copy"),
                 onClick = {
                     busy = true
-                    feedback = null
                     scope.launch {
-                        try {
+                        val copied = try {
                             clipboard(copy.markdown)
-                            feedback = "assistant_reply_copied"
+                            true
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
-                            feedback = "assistant_reply_copy_failed"
+                            false
                         } finally {
                             busy = false
                         }
+                        onCopyResult(copied)
                     }
                 },
             ) {
-                Icon(
-                    painterResource(when (feedback) {
-                        "assistant_reply_copied" -> Res.drawable.ic_check
-                        "assistant_reply_copy_failed" -> Res.drawable.ic_close
-                        else -> Res.drawable.ic_content_copy
-                    }),
-                    localizedText("assistant_reply_copy"),
-                    tint = if (feedback == "assistant_reply_copy_failed") colors.error else colors.onSurfaceVariant,
-                )
+                Icon(painterResource(Res.drawable.ic_content_copy), localizedText("assistant_reply_copy"),
+                    tint = colors.onSurfaceVariant)
             }
             assistantReplyTime(copy.time, today)?.let {
                 Text(it, Modifier.testTag("assistant.reply-time"), color = colors.onSurfaceVariant,

@@ -77,7 +77,9 @@
 
 - 独立契约复核确认附件截止同事务写入消息和新正文表，临时续期不触及附件、旧预览正文保留、过期重放拒绝。独立 UI 复核发现禁用卡仍带保存角色，改为独立的静态 OutlinedCard 分支后通过。菜单首图标和删除的 Material 3 状态、单消息选区与其它动作的层级经只读复核，无主要阻断。Hallmark 范围为附件卡、菜单项及选区，核对视觉主次、触点和可读状态。
 
-- 回复操作和对话文件的独立契约检查确认时间随会话事务保存，旧字段缺失仍可解码，查看文件绑定菜单所选对话 ID，面板只读已加载的消息。独立 UI 复用与 Hallmark 复核覆盖复制、红色中断提示及重试、文件菜单、底部面板和附件卡。中断重试使用独立 M3 按钮。复制反馈保持动作名称、用图标形状和无障碍状态区分成功与失败，遮罩保留指针关闭并退出焦点与读屏动作树。共享 Compose 影响 Web、Android、iOS，Web 调用异步浏览器剪贴板及根弹层，原生复用现有系统剪贴板和 M3 底部面板。服务端协议与账本存储无变化。
+- 回复操作和对话文件的独立契约检查确认时间随会话事务保存，旧字段缺失仍可解码，查看文件绑定菜单所选对话 ID，面板只读已加载的消息。独立 UI 复用与 Hallmark 复核覆盖复制、红色中断提示及重试、文件菜单、底部面板和附件卡。中断重试使用独立 M3 按钮。复制反馈保持动作名称和图标，用统一的 Material 3 Snackbar 播报成功或失败，遮罩保留指针关闭并退出焦点与读屏动作树。共享 Compose 影响 Web、Android、iOS，Web 调用异步浏览器剪贴板及根弹层，原生复用现有系统剪贴板和 M3 底部面板。服务端协议与账本存储无变化。
+
+- 复制 Snackbar 为 B 类共享呈现调整。独立 UI 复用及 Hallmark 复核修复了跨对话遗留提示和相同结果反复播报。当前提示及协程随对话切换释放，连续同文案合并，不同文案取消旧提示并显示最新结果。提示位于聊天页上方，沿用 M3 的无障碍播报，输入区保留原布局。影响 Web、Android、iOS 的共享界面，剪贴板底层、服务端及本机数据合同沿用既有实现。
 
 ## 6. 测试与 QA
 
@@ -149,6 +151,8 @@
 - 回复与文件面板，2026-11-29（UTC+8），基线 `812fb6fc`。Android 主机测试覆盖 1 月 1 日看前一日为昨天、闰日、同年及跨年、多段原文、待确认及空正文过滤、附件倒序与同名。测试先因缺少行为入口失败。Android Debug APK、iOS 模拟器共享编译、Web Wasm 开发 Webpack 通过，见 `/tmp/ledger-assistant-reply-files-final-android-web.log`、`/tmp/ledger-assistant-reply-files-final-ios.log`。命令在 `compose/` 使用既有本机依赖仓库配置运行 `:shared:testAndroidHostTest`（`*AssistantReplyCopyTest`、`*AssistantConversationFilesTest`、`*LedgerAssistant*`）、`:androidApp:assembleDebug`、`:shared:compileKotlinIosSimulatorArm64`、`:webApp:wasmJsBrowserDevelopmentWebpack`。
 - Chrome 隔离预览 18812 用 1440×900 亮色鼠标和 390×844 暗色触控核验回复。两段 Markdown 实际剪贴板含原标记且排除工具和业务卡，部分回复只复制已收到的原文。中断行四项横向顺序及红色渲染经截图核对。刷新保持原时间和原用户消息，未自动请求，手动重试后只有该轮原位置的最终正文。推进本地日历后显示昨天。既有 Markdown 选区、代码复制、编辑输入均复测。日志 `/tmp/ledger-reply-actions-browser-final.log` 和 `/tmp/ledger-reply-actions-selection-regression.log`。
 - Chrome 18812 两视口覆盖页头空态、桌面右键与手机长按打开 B 的文件，正在输入的 A 及 URL 保留。两份同名附件按最近发送在前，直接下载并逐字节核对。原页跨过 30 天截止，两张卡保留文件名及过期状态，点击无下载。关闭按钮及桌面 Escape 返回。每个视口均仅有夹具生成对话的 6 次推理及 0 次写入。见 `/tmp/ledger-conversation-files-browser.log`。当前 18815 隔离预览重新通过 51 字节月报下载，见 `/tmp/ledger-assistant-reply-files-live.log`。截图见 http://127.0.0.1:18816/ 的 reply-copy、conversation-files。原生系统剪贴板和文件选择仅编译核对，设备交互未运行。
+
+- 复制 Snackbar 验收基线 `ea7e3de2`，2026-11-29（UTC+8）。Android 回复复制主机测试、Debug APK、iOS 模拟器共享编译和 Web Wasm 开发构建通过，见 `/tmp/ledger-copy-snackbar-final-build.log`。Chrome 18812 在 1440×900 亮色鼠标和 390×844 暗色触控核对完整与中断回复的真实剪贴板、相同提示合并、权限策略拒绝后「无法复制」、恢复复制后「已复制」、图标像素、输入及切换清除。记录 `/tmp/ledger-copy-snackbar-browser-final.log`，截图见 http://127.0.0.1:18816/copy-snackbar/。18815 更新后用模型替身生成月报，成功下载 51 字节附件并验证复制原文及 Snackbar，见 `/tmp/ledger-copy-snackbar-live.log`。原生设备读屏和剪贴板实机交互未运行。
 
 ## 7. 发布
 

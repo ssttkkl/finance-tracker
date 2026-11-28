@@ -60,6 +60,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -126,6 +129,7 @@ import dev.ynagai.a2ui.core.protocol.ActionMessage
 import dev.ynagai.a2ui.core.protocol.AgentToRendererMessage
 import dev.ynagai.a2ui.material3.Material3Components
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -382,6 +386,22 @@ internal fun LedgerAssistantScreen(
     val connection = LocalSessionConnection.current
     val current = ui?.current
     val markdownImages = rememberAssistantMarkdownImages()
+    val copyNotices = remember(current?.id) { SnackbarHostState() }
+    val noticeScope = key(current?.id) { rememberCoroutineScope() }
+    var copyNoticeJob by remember(current?.id) { mutableStateOf<Job?>(null) }
+    var copyNoticeMessage by remember(current?.id) { mutableStateOf<String?>(null) }
+    val copied = localizedText("assistant_reply_copied")
+    val copyFailed = localizedText("assistant_reply_copy_failed")
+    fun showCopyResult(success: Boolean) {
+        val message = if (success) copied else copyFailed
+        if (copyNoticeMessage == message) return
+        copyNoticeJob?.cancel()
+        copyNoticeMessage = message
+        copyNoticeJob = noticeScope.launch {
+            copyNotices.showSnackbar(message, duration = SnackbarDuration.Short)
+            copyNoticeMessage = null
+        }
+    }
     val rows = remember(current?.messages) { assistantMessageRows(current?.messages.orEmpty()) }
     val currentMessages = current?.messages.orEmpty()
     val lastInput = currentMessages.indexOfLast { it.delivery != null }
@@ -537,14 +557,14 @@ internal fun LedgerAssistantScreen(
                                     item.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
                                     item.attachment?.let { file -> AssistantAttachmentCard(file) { ui.readAttachment(current.id, file) } }
                                 }
-                                replyCopies[rowIndex]?.let { AssistantReplyActions(it, today) }
+                                replyCopies[rowIndex]?.let { AssistantReplyActions(it, today, ::showCopyResult) }
                             }
                         }
                     }
                     if (hasPreview || replyInterrupted) item {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             preview?.let { AssistantReply(it, markdownImages) }
-                            if (replyInterrupted) AssistantReplyActions(interruptedCopy, today) {
+                            if (replyInterrupted) AssistantReplyActions(interruptedCopy, today, ::showCopyResult) {
                                 AssistantRetryStatus(
                                     "assistant_reply_interrupted", Modifier.testTag("assistant.reply-interrupted"),
                                     enabled = !ui.busy && connection.canSubmit, inline = true,
@@ -597,6 +617,11 @@ internal fun LedgerAssistantScreen(
                 if (ui != null && !ui.ready) TextButton(onClick = ui::load) { Text(localizedText("assistant_retry")) }
             }
         }
+        SnackbarHost(
+            copyNotices,
+            Modifier.align(Alignment.TopCenter).padding(horizontal = 16.dp, vertical = 8.dp)
+                .testTag("assistant.copy-notice"),
+        )
     }
     toolSheet?.let { selection ->
         AssistantToolSheet(selection.trace) {
