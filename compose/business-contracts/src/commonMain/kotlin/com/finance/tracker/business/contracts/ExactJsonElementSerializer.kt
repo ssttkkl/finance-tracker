@@ -7,7 +7,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.*
 
 /** Keep JSON number tokens through HTTP and local persistence. */
-internal object ExactJsonElementSerializer : KSerializer<JsonElement> {
+object ExactJsonElementSerializer : KSerializer<JsonElement> {
     override val descriptor = JsonElement.serializer().descriptor
 
     override fun deserialize(decoder: Decoder): JsonElement {

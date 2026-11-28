@@ -32,7 +32,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
     internal fun categoryDirectoryRevision(): String = sql.select(CASH_CATEGORY_STATES.REVISION).from(CASH_CATEGORY_STATES)
         .where(CASH_CATEGORY_STATES.WORKSPACE_ID.eq(workspace)).fetchOne(CASH_CATEGORY_STATES.REVISION)?.toString() ?: "0"
 
-    internal fun page(section: LedgerSnapshotSection, window: ReadPageWindow): ReadPageChunk = checkNotNull(when (section) {
+    internal fun page(section: LedgerSnapshotSection, window: ReadPageWindow): EncodedReadPageChunk = checkNotNull(when (section) {
         LedgerSnapshotSection.ACCOUNTS -> accounts(window).chunk
         LedgerSnapshotSection.ACCOUNT_ALIASES -> accountAliases(window).chunk
         LedgerSnapshotSection.STATEMENT_ACCOUNT_MAPPINGS -> statementAccountMappings(window).chunk
@@ -77,7 +77,7 @@ internal class LedgerSnapshotRepository(connection: Connection, private val work
         return SnapshotFacts(emptyList(), chunk)
     }
 
-    private data class SnapshotFacts<T>(val rows: List<T>, val chunk: ReadPageChunk?)
+    private data class SnapshotFacts<T>(val rows: List<T>, val chunk: EncodedReadPageChunk?)
 
     private fun accounts(window: ReadPageWindow? = null): SnapshotFacts<LedgerAccountFactDto> {
         val table = ACCOUNTS

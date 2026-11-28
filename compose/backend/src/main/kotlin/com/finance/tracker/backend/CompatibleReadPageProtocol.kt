@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.CASH_IMPORT_RECEIPT_PAGE_PATH
+import com.finance.tracker.business.contracts.ExactJsonElementSerializer
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
 import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_HEADER
 import com.finance.tracker.business.contracts.READ_PAGE_BUNDLE_VERSION
@@ -20,8 +21,17 @@ import io.ktor.server.response.respondBytes
 import java.io.ByteArrayOutputStream
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonUnquotedLiteral
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 
 internal const val snapshotReadPagePath = LEDGER_SNAPSHOT_PAGE_PATH
 internal const val importReceiptReadPagePath = CASH_IMPORT_RECEIPT_PAGE_PATH
@@ -64,9 +74,9 @@ internal fun ApplicationCall.readPageRequest(pinName: String, sections: List<Str
         request.headers[READ_PAGE_BUNDLE_HEADER] == READ_PAGE_BUNDLE_VERSION)
 }
 
-internal fun ReadPageRequest.readChunks(targetBytes: Int, read: (ReadPageWindow) -> ReadPageChunk): List<ReadPageChunk> {
+internal fun ReadPageRequest.readChunks(targetBytes: Int, read: (ReadPageWindow) -> EncodedReadPageChunk): List<EncodedReadPageChunk> {
     if (!bundled) return listOf(read(ReadPageWindow(position, targetBytes, readPageRowWindow)))
-    val chunks = mutableListOf<ReadPageChunk>()
+    val chunks = mutableListOf<EncodedReadPageChunk>()
     var remaining = targetBytes
     var position = position
     while (true) {
@@ -74,14 +84,14 @@ internal fun ReadPageRequest.readChunks(targetBytes: Int, read: (ReadPageWindow)
         chunks += chunk
         val next = chunk.next ?: break
         if (next.section == position.section) break
-        remaining -= compatibleReadPageJson.encodeToString(chunk).encodeToByteArray().size + 1
+        remaining -= chunk.encodedSize() + 1
         if (remaining < 2 * pageEnvelopeReserveBytes) break
         position = next
     }
     return chunks
 }
 
-internal fun ReadPageRequest.chunkPositions(chunks: List<ReadPageChunk>): String? = if (bundled) {
+internal fun ReadPageRequest.chunkPositions(chunks: List<EncodedReadPageChunk>): String? = if (bundled) {
     chunks.joinToString(",") { chunk ->
         val (section, offset, fragmentOffset) = chunk.position
         val base64 = chunk.fragment?.base64
@@ -91,6 +101,27 @@ internal fun ReadPageRequest.chunkPositions(chunks: List<ReadPageChunk>): String
 } else null
 
 internal data class EncodedReadPage(val body: ByteArray, val gzip: Boolean, val chunkPositions: String? = null)
+
+@Serializable
+internal data class EncodedReadPageChunk(
+    val position: ReadPagePosition,
+    val total: Int,
+    val items: List<JsonElement>,
+    val fragment: ReadPageFragment?,
+    val next: ReadPagePosition?,
+    @Transient val itemBytes: Int = 0,
+) {
+    fun headerChunk() = ReadPageChunk(position, total, emptyList(), fragment, next)
+    fun encodedSize(): Int = compatibleReadPageJson.encodeToString(headerChunk()).encodeToByteArray().size + itemBytes
+}
+
+internal inline fun <reified T> encodedReadPageBytes(header: T, chunks: List<EncodedReadPageChunk>): ByteArray {
+    val fields = compatibleReadPageJson.encodeToJsonElement(header).jsonObject.toMutableMap()
+    val encoded = chunks.map { compatibleReadPageJson.encodeToJsonElement(EncodedReadPageChunk.serializer(), it) }
+    fields["chunk"] = encoded.first()
+    if (encoded.size > 1) fields["more_chunks"] = JsonArray(encoded.drop(1))
+    return compatibleReadPageJson.encodeToString(JsonObject(fields)).encodeToByteArray()
+}
 
 internal class ReadPageEncoding(private val gzipQuality: Double, private val identityQuality: Double) {
     fun encode(body: ByteArray, limit: Int, chunkPositions: String? = null): EncodedReadPage {
@@ -131,6 +162,7 @@ private fun gzipReadPage(body: ByteArray): ByteArray {
     return buffer.toByteArray()
 }
 
+@OptIn(ExperimentalSerializationApi::class)
 internal fun boundedReadPageChunk(
     position: ReadPagePosition,
     sections: List<String>,
@@ -138,7 +170,7 @@ internal fun boundedReadPageChunk(
     candidates: Sequence<JsonElement>,
     targetBytes: Int,
     rowWindow: Int = readPageRowWindow,
-): ReadPageChunk {
+): EncodedReadPageChunk {
     if (position.offset > total || position.offset == total && (total != 0 || position.fragmentOffset != 0))
         throw ReadPageFailure()
     val sectionIndex = sections.indexOf(position.section)
@@ -147,24 +179,29 @@ internal fun boundedReadPageChunk(
         if (offset < total) ReadPagePosition(position.section, offset)
         else sections.getOrNull(sectionIndex + 1)?.let { ReadPagePosition(it, 0) }
     val items = mutableListOf<JsonElement>()
+    var itemBytes = 0
     var remaining = targetBytes - pageEnvelopeReserveBytes
     for (row in candidates) {
-        val encoded = row.toString()
-        val bytes = encoded.encodeToByteArray()
-        if (items.isEmpty() && (position.fragmentOffset > 0 || bytes.size + 1 > remaining)) {
+        val encoded = compatibleReadPageJson.encodeToString(ExactJsonElementSerializer, row)
+        val size = encoded.encodeToByteArray().size
+        if (items.isEmpty() && (position.fragmentOffset > 0 || size + 1 > remaining)) {
+            // A continuation can refer to bytes emitted by the previous server version.
+            val bytes = row.toString().encodeToByteArray()
             if (position.fragmentOffset >= bytes.size) throw ReadPageFailure()
-            val size = minOf(bytes.size - position.fragmentOffset, remaining / 4 * 3)
-            val end = position.fragmentOffset + size
+            val end = position.fragmentOffset + minOf(bytes.size - position.fragmentOffset, remaining / 4 * 3)
             val fragment = ReadPageFragment(bytes.size,
                 Base64.getEncoder().encodeToString(bytes.copyOfRange(position.fragmentOffset, end)))
-            return ReadPageChunk(position, total, emptyList(), fragment,
+            return EncodedReadPageChunk(position, total, emptyList(), fragment,
                 if (end < bytes.size) position.copy(fragmentOffset = end) else next(position.offset + 1))
         }
-        if (bytes.size + 1 > remaining || items.size == rowWindow) break
-        items += row
-        remaining -= bytes.size + 1
+        if (size + 1 > remaining || items.size == rowWindow) break
+        // Keep JSON emitted by the normal row serializer so the cursor's object graph can be reclaimed.
+        if (items.isNotEmpty()) itemBytes++
+        items += if (row == JsonNull) JsonNull else JsonUnquotedLiteral(encoded)
+        itemBytes += size
+        remaining -= size + 1
     }
     check(items.isNotEmpty() || position.offset == total)
     check(items.size <= total - position.offset)
-    return ReadPageChunk(position, total, items, null, next(position.offset + items.size))
+    return EncodedReadPageChunk(position, total, items, null, next(position.offset + items.size), itemBytes)
 }

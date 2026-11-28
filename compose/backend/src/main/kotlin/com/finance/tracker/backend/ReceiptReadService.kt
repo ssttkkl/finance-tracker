@@ -93,8 +93,8 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
                     window.targetBytes, window.rows)
             }
             val (receipt, version) = checkNotNull(identity)
-            val result = CashImportReceiptReadPage(page.workspace, receipt, version, chunks.first(), chunks.drop(1))
-            encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES,
+            val header = CashImportReceiptReadPage(page.workspace, receipt, version, chunks.first().headerChunk())
+            encoding.encode(encodedReadPageBytes(header, chunks), CASH_IMPORT_RECEIPT_PAGE_MAX_BYTES,
                 page.chunkPositions(chunks))
         }
 

@@ -46,7 +46,7 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
     }
 
     internal fun snapshotPage(token: String?, request: Principal, page: ReadPageRequest, encoding: ReadPageEncoding): EncodedReadPage {
-        val (principal, result, positions) = database.read { connection ->
+        val (principal, header, chunks) = database.read { connection ->
             if (!database.sqlite) connection.transactionIsolation = Connection.TRANSACTION_REPEATABLE_READ
             val current = reads.context(connection, token, write = false)
             same(request, current)
@@ -62,10 +62,11 @@ internal class LedgerReadService(private val database: Database, now: () -> Inst
                     ?: throw ReadPageFailure()
                 repository.page(section, window)
             }
-            Triple(current, LedgerSnapshotReadPage(workspace, version.toString(), CASH_RULES_VERSION,
-                repository.categoryDirectoryRevision(), chunks.first(), chunks.drop(1)), page.chunkPositions(chunks))
+            val header = LedgerSnapshotReadPage(workspace, version.toString(), CASH_RULES_VERSION,
+                repository.categoryDirectoryRevision(), chunks.first().headerChunk())
+            Triple(current, header, chunks)
         }
-        val bytes = encoding.encode(compatibleReadPageJson.encodeToString(result).encodeToByteArray(), LEDGER_SNAPSHOT_PAGE_MAX_BYTES, positions)
+        val bytes = encoding.encode(encodedReadPageBytes(header, chunks), LEDGER_SNAPSHOT_PAGE_MAX_BYTES, page.chunkPositions(chunks))
         afterRead()
         same(principal, reads.currentContext(token))
         return bytes
