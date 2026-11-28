@@ -17,7 +17,8 @@
 - 核对提示的显示范围属于 C 类局部修复。验收覆盖空白与仅输入时无提示和占位，首条保存后至回复到达前显示，以及重开已有对话后仍显示。
 
 - [x] QuickJS 核心运行门槛先行。固定候选依赖，三端以同一脚本执行真实异步账本读取，核对 UTF-8 CSV 字节、同步死循环、等待宿主、迟到响应和下次运行。
-- [ ] 实施 SDK、文件事务、附件、兼容协商和 UI，补正式安装包、懒加载与峰值内存验收。
+- [x] 服务端能力协商、OpenAPI 和完整工具调用参数检查。
+- [ ] 实施客户端协商、SDK、文件事务、附件和 UI，补正式安装包、懒加载与峰值内存验收。
 
 ## 4. 构建
 
@@ -50,6 +51,8 @@
 - 对话地址和暗色空白页按 C 类修复。独立复核确认地址先于本机数据准备保持，跨工作区历史沿既有会话切换，切换期间用会话加载状态。首次保存回调验证原导航入口仍活跃，删除与缺失替换地址。暗色标题使用 `onBackground`，输入、提示和示例沿原组件及配对前景。
 
 - 核对提示独立审查通过。已有消息布局复用原提示样式和输入组件，空白页完全移除提示节点和间距。Material 3 Applying type 的 Label 角色继续用于已有对话的次级提示。仅影响共享呈现，持久化与推理调用按原路径。
+
+- 技能协商独立复核覆盖鉴权范围、旧目录、禁止注入和 OpenAPI。已统一协商版缓冲响应与 SSE 的非空调用 ID 检查，并保留旧数组的缓冲响应参数行为。
 
 ## 6. 测试与 QA
 
@@ -93,6 +96,8 @@
 - 运行时探针以 `c260f656` 为范围基线，2026-11-28。独立工程在 `/Volumes/NO NAME/offload/hl/ledger-quickjs-probe`，同一 `report.js` 经实际安装的 `ft cash summary` 异步读取隔离 SQLite 账本，三端输出相同的 51 字节中文 CSV，十进制字符串 `-88` 原样保留。Native 使用 Maven `quickjs-kt 1.0.19`，引擎报告 2026-06-04。Android API 36 arm64 运行 instrumentation APK，iOS 18.3 arm64 模拟器运行 `:iosSimulatorArm64Test`，Web 使用 Chrome 独立 Worker 和 npm `quickjs-emscripten 0.32.0` 标准同步 Wasm。
 - Android、iOS、Web 同步死循环分别在 202、203、218 ms 中断，计时窗口内主循环分别回调 18、20、21 次。Android／iOS 宿主等待约 302／309 ms 取消，Web 使用 300 ms 截止。Native 验证 host 协程取消及迟到完成被拒，Web 丢弃旧请求回调，三端中断后都继续得到 42 并导出真实 CSV。Native Promise 的兑现值经受限宿主回调接收，Web 显式驱动 QuickJS 待执行任务。详见探针目录的 `android-isolation-metrics.log`、`build/test-results/iosSimulatorArm64Test/`、`web-metrics.log`。
 - Android 探针包约 8.2 MiB，iOS 模拟器测试可执行文件约 9.7 MiB，独立 Web 探针首次运行下载 Worker 85,802 字节和 Wasm 503,134 字节。QuickJS 导出结束时采样内存为 Android 76,801、iOS 66,457、Web 53,968 字节，运行上限为 32 MiB。采样值不作为峰值，正式产品体积和峰值仍待验证。18804 已重启原页面和会话数据库，当前运行进程无模型配置。
+
+- 技能协商基线 `e129fe97`，2026-11-28（UTC+8）。新增目录协商用例先失败。后端定向测试 `:backend:test --tests '*LedgerAssistantInferenceTest' --tests '*OpenApiContractTest'` 共 24 项通过，无跳过。分片用例覆盖完整对象参数、未协商时拒绝及数组参数拒绝。OpenSpec 严格校验通过。客户端继续发送旧数组，当前交付不影响 Web、Android 或 iOS 的用户流程。
 
 ## 7. 发布
 

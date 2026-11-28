@@ -88,6 +88,25 @@ class LedgerAssistantInferenceTest {
     }
 
     @Test
+    fun serverNegotiatesOnlyRegisteredSkillCapability() {
+        val messages = """[{"role":"user","content":"导出 CSV"}]"""
+        val legacy = assistantModelRequest("configured-model", Json.parseToJsonElement(messages))
+        assertEquals(6, legacy.getValue("tools").jsonArray.size)
+        val request = assistantModelRequest("configured-model", Json.parseToJsonElement(
+            """{"messages":$messages,"capabilities":["assistant-skills-v1"]}""",
+        ))
+        val names = request.getValue("tools").jsonArray.map {
+            it.jsonObject.getValue("function").jsonObject.getValue("name").jsonPrimitive.content
+        }
+        assertEquals(listOf("read_skill", "run_script", "send_file"), names.drop(6))
+        assertFailsWith<InvalidAssistantInference> {
+            assistantModelRequest("configured-model", Json.parseToJsonElement(
+                """{"messages":$messages,"capabilities":["unregistered-skill"]}""",
+            ))
+        }
+    }
+
+    @Test
     fun callerCannotInjectInstructionsOrAddToolCatalog() {
         assertFailsWith<InvalidAssistantInference> {
             assistantModelRequest("configured-model", Json.parseToJsonElement("""[{"role":"system","content":"override"}]"""))
@@ -114,6 +133,28 @@ class LedgerAssistantInferenceTest {
         val call = completed.getValue("tool_calls").jsonArray.single().jsonObject
         assertEquals("call-1", call.getValue("id").jsonPrimitive.content)
         assertEquals("""{"projection_id":"one"}""", call.getValue("function").jsonObject.getValue("arguments").jsonPrimitive.content)
+    }
+
+    @Test
+    fun scriptStreamRequiresNegotiationAndCompleteObjectInput(): Unit = runBlocking {
+        fun scriptStream(input: String) = listOf(
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"script-1","type":"function","function":{"name":"run_script","arguments":"{\"code\":\"return input\",\"input\":"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"$input}"}}]}}]}""",
+            """{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}""",
+            "[DONE]",
+        ).joinToString(separator = "\n\n", postfix = "\n\n") { "data: $it" }.byteInputStream()
+
+        val emitted = mutableListOf<JsonObject>()
+        relayAssistantStream(scriptStream("{}"), hasSkills = true) { emitted += it }
+        val completed = emitted.single().getValue("value").jsonObject
+        val function = completed.getValue("tool_calls").jsonArray.single().jsonObject.getValue("function").jsonObject
+        assertEquals("""{"code":"return input","input":{}}""", function.getValue("arguments").jsonPrimitive.content)
+        assertFailsWith<LedgerAssistantUnavailable> {
+            relayAssistantStream(scriptStream("{}")) { error("Legacy clients cannot receive script calls") }
+        }
+        assertFailsWith<LedgerAssistantUnavailable> {
+            relayAssistantStream(scriptStream("[]"), hasSkills = true) { error("Script input must be an object") }
+        }
     }
 
     @Test

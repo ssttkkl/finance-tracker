@@ -34,6 +34,7 @@ import java.time.Duration
 
 internal const val LEDGER_ASSISTANT_INFERENCE_PATH = "/api/v1/ledger-assistant/inference"
 private const val MAX_INFERENCE_BYTES = 512 * 1024
+private const val ASSISTANT_SKILLS_CAPABILITY = "assistant-skills-v1"
 
 internal class InvalidAssistantInference : IllegalArgumentException()
 internal class LedgerAssistantUnavailable(cause: Throwable? = null) : RuntimeException(cause)
@@ -60,13 +61,13 @@ internal fun Route.ledgerAssistantInferenceRoute(
                 HttpStatusCode.PayloadTooLarge)
             return@post
         }
+        val messages = try {
+            (parseAssistantJson(bytes) ?: throw InvalidAssistantInference()).also { assistantClientRequest(it) }
+        } catch (_: InvalidAssistantInference) {
+            call.respondText(assistantError("assistant_context_invalid"), ContentType.Application.Json, HttpStatusCode.BadRequest)
+            return@post
+        }
         if (call.request.headers["Accept"]?.contains("text/event-stream") == true) {
-            val messages = try {
-                (parseAssistantJson(bytes) ?: throw InvalidAssistantInference()).also { assistantModelRequest("", it) }
-            } catch (_: InvalidAssistantInference) {
-                call.respondText(assistantError("assistant_context_invalid"), ContentType.Application.Json, HttpStatusCode.BadRequest)
-                return@post
-            }
             if (inference == null) {
                 call.respondText(assistantError("assistant_unavailable"), ContentType.Application.Json, HttpStatusCode.ServiceUnavailable)
                 return@post
@@ -85,7 +86,6 @@ internal fun Route.ledgerAssistantInferenceRoute(
             return@post
         }
         val response = try {
-            val messages = parseAssistantJson(bytes) ?: throw InvalidAssistantInference()
             inference?.complete(messages) ?: throw LedgerAssistantUnavailable()
         } catch (_: InvalidAssistantInference) {
             call.respondText(assistantError("assistant_context_invalid"), ContentType.Application.Json, HttpStatusCode.BadRequest)
@@ -136,7 +136,16 @@ internal fun ledgerAssistantInference(environment: Map<String, String>): LedgerA
                     val message = choice?.get("message") as? JsonObject ?: throw LedgerAssistantUnavailable()
                     val allowedFields = message.filterKeys { it in setOf("role", "content", "tool_calls") }
                     try {
-                        val safeMessage = assistantMessage(JsonObject(allowedFields))
+                        val input = assistantClientRequest(messages)
+                        val safeMessage = assistantMessage(JsonObject(allowedFields), input.tools)
+                        if (input.hasSkills) (safeMessage["tool_calls"] as? JsonArray)?.forEach { call ->
+                            val safeCall = call as JsonObject
+                            val id = (safeCall.getValue("id") as JsonPrimitive).content
+                            val fn = safeCall.getValue("function") as JsonObject
+                            val name = (fn.getValue("name") as JsonPrimitive).content
+                            val args = (fn.getValue("arguments") as JsonPrimitive).content
+                            if (id.isBlank() || !validAssistantArguments(input.tools, name, args)) throw InvalidAssistantInference()
+                        }
                         val content = (safeMessage["content"] as? JsonPrimitive)?.takeIf { it.isString }
                         if (safeMessage["role"] != JsonPrimitive("assistant") ||
                             (content?.content.orEmpty().isBlank() && "tool_calls" !in safeMessage)
@@ -169,7 +178,7 @@ internal fun ledgerAssistantInference(environment: Map<String, String>): LedgerA
                         if (response.statusCode() !in 200..299 ||
                             !response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream", true)
                         ) throw LedgerAssistantUnavailable()
-                        relayAssistantStream(input, emit)
+                        relayAssistantStream(input, assistantClientRequest(messages).hasSkills, emit)
                     }
                 } ?: throw LedgerAssistantUnavailable()
             } catch (failure: IOException) {
@@ -185,7 +194,11 @@ private fun assistantStreamFrame(type: String, value: JsonElement) = buildJsonOb
     put("value", value)
 }
 
-internal suspend fun relayAssistantStream(input: InputStream, emit: suspend (JsonObject) -> Unit) {
+internal suspend fun relayAssistantStream(
+    input: InputStream,
+    hasSkills: Boolean = false,
+    emit: suspend (JsonObject) -> Unit,
+) {
     val content = StringBuilder()
     val id = StringBuilder()
     val name = StringBuilder()
@@ -242,18 +255,9 @@ internal suspend fun relayAssistantStream(input: InputStream, emit: suspend (Jso
         throw LedgerAssistantUnavailable()
     }
     if (toolSeen) {
-        val decoded = try { Json.parseToJsonElement(arguments.toString()) } catch (_: SerializationException) { null }
-        val tool = assistantTools.firstOrNull { it.name == name.toString() } ?: throw LedgerAssistantUnavailable()
-        if (id.isBlank() || decoded !is JsonObject || !decoded.keys.containsAll(tool.required) ||
-            decoded.any { (field, value) ->
-                val primitive = value as? JsonPrimitive
-                when (tool.fields[field]) {
-                    "string" -> primitive?.isString != true
-                    "integer" -> primitive == null || primitive.isString || primitive.intOrNull == null
-                    else -> true
-                }
-            }
-        ) throw LedgerAssistantUnavailable()
+        if (id.isBlank() || !validAssistantArguments(assistantToolsFor(hasSkills), name.toString(), arguments.toString())) {
+            throw LedgerAssistantUnavailable()
+        }
     }
     val final = buildJsonObject {
         put("role", "assistant")
@@ -278,18 +282,38 @@ private fun parseAssistantJson(bytes: ByteArray): JsonElement? = try {
     null
 }
 
+private data class AssistantClientRequest(val history: JsonArray, val hasSkills: Boolean) {
+    val tools: List<AssistantTool> get() = assistantToolsFor(hasSkills)
+}
+
+private fun assistantClientRequest(value: JsonElement): AssistantClientRequest {
+    val input = when (value) {
+        is JsonArray -> AssistantClientRequest(value, hasSkills = false)
+        is JsonObject -> {
+            if (value.keys != setOf("messages", "capabilities") ||
+                value["capabilities"] != JsonArray(listOf(JsonPrimitive(ASSISTANT_SKILLS_CAPABILITY)))
+            ) throw InvalidAssistantInference()
+            AssistantClientRequest(value["messages"] as? JsonArray ?: throw InvalidAssistantInference(), hasSkills = true)
+        }
+        else -> throw InvalidAssistantInference()
+    }
+    if (input.history.isEmpty()) throw InvalidAssistantInference()
+    input.history.forEach { assistantMessage(it, input.tools) }
+    return input
+}
+
 internal fun assistantModelRequest(model: String, messages: JsonElement): JsonObject {
-    val history = messages as? JsonArray ?: throw InvalidAssistantInference()
-    if (history.isEmpty()) throw InvalidAssistantInference()
+    val input = assistantClientRequest(messages)
     return buildJsonObject {
         put("model", model)
-        put("messages", JsonArray(listOf(assistantSystemMessage) + history.map(::assistantMessage)))
-        put("tools", assistantToolCatalog)
+        val system = if (input.hasSkills) assistantSkillSystemMessage else assistantSystemMessage
+        put("messages", JsonArray(listOf(system) + input.history))
+        put("tools", if (input.hasSkills) assistantSkillToolCatalog else assistantToolCatalog)
         put("parallel_tool_calls", false)
     }
 }
 
-private fun assistantMessage(value: JsonElement): JsonObject {
+private fun assistantMessage(value: JsonElement, tools: List<AssistantTool>): JsonObject {
     val message = value as? JsonObject ?: throw InvalidAssistantInference()
     val role = message["role"]
     val content = message["content"]
@@ -301,7 +325,7 @@ private fun assistantMessage(value: JsonElement): JsonObject {
         JsonPrimitive("assistant") -> setOf("role", "content", "tool_calls").also {
             val calls = message["tool_calls"]
             if (!hasText && (content != JsonNull && content != null || calls == null)) throw InvalidAssistantInference()
-            if (calls != null && ((calls as? JsonArray)?.let { it.size == 1 && it.all(::isAssistantToolCall) } != true)) {
+            if (calls != null && ((calls as? JsonArray)?.let { it.size == 1 && it.all { call -> isAssistantToolCall(call, tools) } } != true)) {
                 throw InvalidAssistantInference()
             }
         }
@@ -314,14 +338,14 @@ private fun assistantMessage(value: JsonElement): JsonObject {
     return message
 }
 
-private fun isAssistantToolCall(value: JsonElement): Boolean {
+private fun isAssistantToolCall(value: JsonElement, tools: List<AssistantTool>): Boolean {
     val call = value as? JsonObject ?: return false
     val function = call["function"] as? JsonObject ?: return false
     return call.keys == setOf("id", "type", "function") &&
         (call["id"] as? JsonPrimitive)?.isString == true &&
         call["type"] == JsonPrimitive("function") &&
         function.keys == setOf("name", "arguments") &&
-        (function["name"] as? JsonPrimitive)?.let { it.isString && it.content in assistantToolNames } == true &&
+        (function["name"] as? JsonPrimitive)?.let { name -> name.isString && tools.any { it.name == name.content } } == true &&
         (function["arguments"] as? JsonPrimitive)?.isString == true
 }
 
@@ -356,8 +380,42 @@ private val assistantTools = listOf(
             "counterparty", "note", "category_id").associateWith { "string" },
         listOf("account_id", "amount", "currency", "occurred_at", "record_type")),
 )
-private val assistantToolNames = assistantTools.map { it.name }.toSet()
-private val assistantToolCatalog = JsonArray(assistantTools.map { tool ->
+private val assistantSkillTools = assistantTools + listOf(
+    AssistantTool("read_skill", "Read a built-in skill or one of its registered resources.",
+        mapOf("skill_id" to "string", "resource" to "string"), listOf("skill_id")),
+    AssistantTool("run_script", "Run a JavaScript function body on this device using only the selected workspace's read-only ledger and conversation files.",
+        mapOf("code" to "string", "input" to "object"), listOf("code")),
+    AssistantTool("send_file", "Attach a successful script's versioned file reference to this conversation.",
+        mapOf("file_ref" to "string"), listOf("file_ref")),
+)
+
+private val assistantSkillSystemMessage = JsonObject(assistantSystemMessage + ("content" to JsonPrimitive(
+    (assistantSystemMessage.getValue("content") as JsonPrimitive).content +
+        " For a file export or report, read the built-in ledger-analysis-export skill before running a script. " +
+        "Attach files only through send_file with a file reference returned by a completed script.",
+)))
+
+private fun assistantToolsFor(hasSkills: Boolean): List<AssistantTool> = if (hasSkills) assistantSkillTools else assistantTools
+
+private fun validAssistantArguments(tools: List<AssistantTool>, name: String, arguments: String): Boolean {
+    val tool = tools.firstOrNull { it.name == name } ?: return false
+    val decoded = try { Json.parseToJsonElement(arguments) as? JsonObject } catch (_: SerializationException) { null }
+        ?: return false
+    return decoded.keys.containsAll(tool.required) && decoded.all { (field, value) ->
+        val primitive = value as? JsonPrimitive
+        when (tool.fields[field]) {
+            "string" -> primitive?.isString == true
+            "integer" -> primitive?.isString == false && primitive.intOrNull != null
+            "object" -> value is JsonObject
+            else -> false
+        }
+    }
+}
+
+private val assistantToolCatalog = assistantCatalog(assistantTools)
+private val assistantSkillToolCatalog = assistantCatalog(assistantSkillTools)
+
+private fun assistantCatalog(tools: List<AssistantTool>) = JsonArray(tools.map { tool ->
     buildJsonObject {
         put("type", "function")
         put("function", buildJsonObject {

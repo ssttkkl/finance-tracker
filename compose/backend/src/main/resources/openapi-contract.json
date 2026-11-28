@@ -13407,9 +13407,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "minItems": 1,
-                "items": { "type": "object", "required": ["role"] }
+                "oneOf": [
+                  { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["role"] } },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["messages", "capabilities"],
+                    "properties": {
+                      "messages": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["role"] } },
+                      "capabilities": { "type": "array", "minItems": 1, "maxItems": 1, "items": { "enum": ["assistant-skills-v1"] } }
+                    }
+                  }
+                ]
               }
             }
           }
