@@ -28,6 +28,7 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
     private val issues = mutableListOf<CashIssueWriteDto>()
     private val resolved = mutableListOf<CashWriteVersionedReferenceDto>()
     private val empty = JsonObject(emptyMap())
+    private val encodedCoverages = mutableMapOf<CashSourceCoverage, JsonElement>()
 
     fun build(): CashWriteSetDto {
         for ((operation, row) in operations.zip(transactions)) {
@@ -166,8 +167,12 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
     }
 
     private fun version(id: String, revision: String) = CashWriteVersionedReferenceDto(ExistingCashWriteReferenceDto(id), revision)
-    private fun coverage(value: CashSourceCoverage): JsonElement = encodeLocalCashValue(cashSourceCoverageFields(value) +
-        ("page_total" to value.pageTotal?.let(::SourceJsonInteger)))
+    private fun coverage(value: CashSourceCoverage): JsonElement {
+        encodedCoverages[value]?.let { return it }
+        val encoded = encodeLocalCashValue(cashSourceCoverageFields(value) + ("page_total" to value.pageTotal?.let(::SourceJsonInteger)))
+        if (trustedFrozenPlan && encodedCoverages.size < 64) encodedCoverages[value] = encoded
+        return encoded
+    }
     private fun JsonObject.text(key: String): String? = get(key)?.takeIf { it != JsonNull }?.jsonPrimitive?.content
     private fun sourceTruthy(value: Any?): Boolean = when (value) {
         null -> false

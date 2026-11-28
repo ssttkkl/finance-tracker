@@ -1,6 +1,7 @@
 package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.*
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.*
 
 /** The write-effects component of a file-import conclusion. Never sufficient by itself to authorize a retry. */
@@ -45,9 +46,10 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
 
     fun normalized(): CashWriteSetDto = normalized(deferCollections = false)
 
-    fun forSerialization(): CashWriteSetDto = normalized(deferCollections = true)
+    fun forSerialization(trustedSourceBindings: Boolean = false): CashWriteSetDto =
+        normalized(deferCollections = true, trustedSourceBindings = trustedSourceBindings)
 
-    private fun normalized(deferCollections: Boolean): CashWriteSetDto {
+    private fun normalized(deferCollections: Boolean, trustedSourceBindings: Boolean = false): CashWriteSetDto {
         require(changes.deletedTransactions.isEmpty() && changes.issueResolutions.isEmpty() && changes.entrySplitChoices.isEmpty()) {
             "cash_import_conclusion_file_only"
         }
@@ -85,15 +87,70 @@ internal class CashImportConclusionValues(private val facts: LedgerFactsDto, pri
                     member.copy(transaction = transaction(member.transaction), standaloneManualFields = member.standaloneManualFields.sorted())
                 })) }) },
             entryDependencies = emptyList(),
-            sourceBindings = collection(changes.sourceBindings.size) { ordered(changes.sourceBindings.map { it.copy(target = CashWriteVersionedReferenceDto(identity("binding",
-                JsonPrimitive(it.sourceType), JsonPrimitive(it.sourceScopeKind), JsonPrimitive(it.sourceScopeKey),
-                JsonPrimitive(it.identityKind), JsonPrimitive(it.identityKey)), null), transaction = transactionRef(it.transaction)) }) },
+            sourceBindings = if (trustedSourceBindings && hasSourceBindingSortPrefix && changes.sourceBindings.size > 1)
+                streamedSourceBindings() else collection(changes.sourceBindings.size) {
+                    ordered(changes.sourceBindings.map(::normalizeSourceBinding))
+                },
             sourceEmptyPages = collection(changes.sourceEmptyPages.size) { ordered(changes.sourceEmptyPages) },
             statementAccountMappings = collection(changes.statementAccountMappings.size) { ordered(changes.statementAccountMappings.map {
                 it.copy(target = CashWriteVersionedReferenceDto(
                     identity("mapping", JsonPrimitive(it.sourceType), JsonPrimitive(it.identityKind), JsonPrimitive(it.sourceAccountKey)), null))
             }) },
         )
+    }
+
+    private fun normalizeSourceBinding(binding: CashSourceBindingWriteDto) = binding.copy(
+        target = CashWriteVersionedReferenceDto(identity("binding", JsonPrimitive(binding.sourceType),
+            JsonPrimitive(binding.sourceScopeKind), JsonPrimitive(binding.sourceScopeKey),
+            JsonPrimitive(binding.identityKind), JsonPrimitive(binding.identityKey)), null),
+        transaction = transactionRef(binding.transaction),
+    )
+
+    private fun streamedSourceBindings(): List<CashSourceBindingWriteDto> = object : AbstractList<CashSourceBindingWriteDto>() {
+        override val size get() = changes.sourceBindings.size
+
+        override fun iterator(): Iterator<CashSourceBindingWriteDto> = sequence {
+            val bindings = changes.sourceBindings.toList()
+            if (bindings.any { it.coverage !is JsonObject ||
+                    (it.transaction !in transactions && (it.transaction as? ExistingCashWriteReferenceDto)?.id !in rows) }) {
+                yieldAll(ordered(bindings.map(::normalizeSourceBinding)))
+                return@sequence
+            }
+            val keys = try {
+                sourceBindingKeys(bindings).sortedWith(sourceBindingSortOrder)
+            } catch (_: IllegalArgumentException) {
+                yieldAll(ordered(bindings.map(::normalizeSourceBinding)))
+                return@sequence
+            }
+            var start = 0
+            while (start < keys.size) {
+                var end = start + 1
+                while (end < keys.size && sourceBindingSortOrder.compare(keys[start], keys[end]) == 0) end++
+                if (end == start + 1) yield(normalizeSourceBinding(keys[start].binding))
+                else yieldAll(ordered(keys.subList(start, end).map { normalizeSourceBinding(it.binding) }))
+                start = end
+            }
+        }.iterator()
+
+        override fun get(index: Int): CashSourceBindingWriteDto {
+            if (index !in indices) throw IndexOutOfBoundsException("Invalid source binding position")
+            return iterator().asSequence().drop(index).first()
+        }
+    }
+
+    private fun sourceBindingKeys(bindings: List<CashSourceBindingWriteDto>): List<SourceBindingSortKey> {
+        val coverageKeys = mutableListOf<Pair<JsonElement, String>>()
+        return bindings.map { binding ->
+            val proof = binding.coverage
+            val coverage = coverageKeys.firstOrNull { it.first === proof }?.second ?: conclusionText(
+                conclusionJson.encodeToJsonElement(binding).jsonObject.getValue("coverage"),
+            ).also {
+                require(conclusionJson.parseToJsonElement(it) is JsonObject)
+                if (coverageKeys.size < 64) coverageKeys += proof to it
+            }
+            SourceBindingSortKey(binding, coverage, conclusionText(JsonPrimitive(binding.identityKey)),
+                conclusionText(JsonPrimitive(binding.identityKind)), conclusionText(JsonPrimitive(binding.identityStrength)))
+        }
     }
 
     private fun transaction(value: CashWriteVersionedReferenceDto) = CashWriteVersionedReferenceDto(transactionRef(value.reference), null)
@@ -127,6 +184,20 @@ private class ConclusionWriteCollection<T>(override val size: Int, private val r
     override fun iterator(): Iterator<T> = read().iterator()
 
     override fun get(index: Int): T = read()[index]
+}
+
+private class SourceBindingSortKey(
+    val binding: CashSourceBindingWriteDto, val coverage: String, val identity: String, val kind: String, val strength: String,
+)
+
+private val sourceBindingSortOrder = compareBy(SourceBindingSortKey::coverage, SourceBindingSortKey::identity,
+    SourceBindingSortKey::kind, SourceBindingSortKey::strength)
+
+// Every prefix value is a complete object or string, so its canonical bytes cannot prefix a different value.
+@OptIn(ExperimentalSerializationApi::class)
+private val hasSourceBindingSortPrefix = CashSourceBindingWriteDto.serializer().descriptor.let { descriptor ->
+    (0 until descriptor.elementsCount).map(descriptor::getElementName).sortedWith(::pythonStringOrder).take(4) ==
+        listOf("coverage", "identity_key", "identity_kind", "identity_strength")
 }
 
 private val conclusionJson = Json { encodeDefaults = true }

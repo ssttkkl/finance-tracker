@@ -1,6 +1,7 @@
 package com.finance.tracker.business.domain
 
 import com.finance.tracker.business.contracts.CashSourceBindingWriteDto
+import com.finance.tracker.business.contracts.ExistingCashWriteReferenceDto
 import kotlinx.serialization.json.*
 import kotlin.test.*
 import kotlin.time.Instant
@@ -161,6 +162,78 @@ class LocalCashImportRecalculationTest {
         assertEquals(hashCashImportConclusion(fixture.source.workspaceId, reference, review),
             hashCashImportConclusion(fixture.source.workspaceId, result, review))
         assertEquals(bindings.size, reads)
+    }
+
+    @Test fun identicalSourceCoverageIsRetainedOnceWithinOneCommand() {
+        val f = fixture()
+        val (_, writes) = calculateLocalCashImportBusinessPlan(f.files, f.source, f.input, requireActive = {},
+            now = { Instant.parse("2026-10-03T09:00:00Z") })
+        val bindings = writes.sourceBindings
+        val pair = bindings.groupBy { it.coverage.toString() }.values.first { it.size > 1 }.take(2)
+        assertSame(pair[0].coverage, pair[1].coverage)
+    }
+
+    @Test fun streamingSourceBindingOrderUsesTheWholeLegacyKeyOnTiesAndKeepsUnknownCoverageShapes() {
+        val f = fixture()
+        val (_, batch) = f.confirmed()
+        val seed = batch.writes.sourceBindings.first()
+        val coverages = listOf(buildJsonObject { put("region", "a") }, buildJsonObject { put("region", "a😀") },
+            buildJsonObject { put("region", "") }, buildJsonObject { put("region", "a") })
+        val keys = listOf("aa", "a", "a" + 34.toChar(), "aa")
+        val given = keys.indices.map { index -> seed.copy(
+            identityKey = keys[index], identityKind = "fixture",
+            stableEvidenceKey = index.toString(), coverage = coverages[index]) }
+        for (items in listOf(given, given.mapIndexed { index, value ->
+                if (index < 2) value.copy(coverage = Json.parseToJsonElement(listOf("1", "1e+1")[index])) else value
+            }, given.mapIndexed { index, value ->
+                if (index < 2) value.copy(coverage = Json.parseToJsonElement(listOf("""{"x":1e1}""", """{"x":11}""")[index])) else value
+            })) {
+            val input = batch.writes.copy(sourceBindings = items.reversed())
+            val expected = CashImportConclusionValues(f.source.facts, input).normalized()
+            val actual = CashImportConclusionValues(f.source.facts, input).forSerialization(trustedSourceBindings = true)
+            val review = buildJsonObject { put("version", 1) }
+            assertEquals(expected.sourceBindings, actual.sourceBindings.toList())
+            assertEquals(hashCashImportConclusion(f.source.workspaceId, expected, review),
+                hashCashImportConclusion(f.source.workspaceId, actual, review))
+        }
+    }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @Test fun distinctSourceProofTokensNeverShareASortKeyThroughJsonEquality() {
+        val f = fixture()
+        val (_, batch) = f.confirmed()
+        val seed = batch.writes.sourceBindings.first()
+        val parsed = Json.parseToJsonElement("""{"x":1e1}""")
+        val literal = buildJsonObject { put("x", JsonUnquotedLiteral("1e1")) }
+        assertEquals(parsed, literal)
+        val proofs = listOf(parsed, literal, Json.parseToJsonElement("""{"x":11}"""))
+        val input = batch.writes.copy(sourceBindings = proofs.map { seed.copy(coverage = it) })
+        val expected = CashImportConclusionValues(f.source.facts, input).normalized()
+        val actual = CashImportConclusionValues(f.source.facts, input).forSerialization(trustedSourceBindings = true)
+        assertEquals(cashWriteSetJson.encodeToString(expected), cashWriteSetJson.encodeToString(actual))
+        val review = buildJsonObject { put("version", 1) }
+        assertEquals(hashCashImportConclusion(f.source.workspaceId, expected, review),
+            hashCashImportConclusion(f.source.workspaceId, actual, review))
+    }
+
+    @Test fun unusualSourceProofAndMissingOwnersKeepTheLegacyResult() {
+        val f = fixture()
+        val (_, batch) = f.confirmed()
+        val source = batch.writes.sourceBindings.first()
+        val broken = source.copy(coverage = Json.parseToJsonElement("""{"x":1e9999}"""))
+        val unusual = batch.writes.copy(sourceBindings = listOf(source, broken))
+        val previous = CashImportConclusionValues(f.source.facts, unusual).normalized()
+        val streaming = CashImportConclusionValues(f.source.facts, unusual).forSerialization(trustedSourceBindings = true)
+        assertEquals(cashWriteSetJson.encodeToString(previous), cashWriteSetJson.encodeToString(streaming))
+
+        val missing = listOf(source.copy(transaction = ExistingCashWriteReferenceDto("90000002")),
+            broken.copy(transaction = ExistingCashWriteReferenceDto("90000001")))
+        val input = batch.writes.copy(sourceBindings = missing)
+        val old = assertFailsWith<NoSuchElementException> { CashImportConclusionValues(f.source.facts, input).normalized() }
+        val current = assertFailsWith<NoSuchElementException> {
+            CashImportConclusionValues(f.source.facts, input).forSerialization(trustedSourceBindings = true).sourceBindings.toList()
+        }
+        assertEquals(old.message, current.message)
     }
 
     @Test fun oneFrozenPlanPreservesTheLegacyCommandConclusionAndPreviewHistory() {

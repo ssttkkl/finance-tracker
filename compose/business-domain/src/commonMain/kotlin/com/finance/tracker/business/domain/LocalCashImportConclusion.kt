@@ -4,9 +4,14 @@ import com.finance.tracker.business.contracts.*
 import kotlinx.serialization.json.*
 
 /** Compare complete review results and writes. Choice recovery, discovery and retry authorization remain with the caller. */
-fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String {
+fun localCashImportConclusion(source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto): String =
+    localCashImportConclusion(source, plan, changes, trustedPlan = false)
+
+internal fun localCashImportConclusion(
+    source: LedgerSnapshotDto, plan: JsonObject, changes: CashWriteSetDto, trustedPlan: Boolean,
+): String {
     val values = CashImportConclusionValues(source.facts, changes)
-    return hashCashImportConclusion(source.workspaceId, values::forSerialization) { append ->
+    return hashCashImportConclusion(source.workspaceId, { values.forSerialization(trustedPlan) }) { append ->
         PlanConclusion(source.facts, plan, values).writeNormalized(append)
     }
 }
