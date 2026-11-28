@@ -22,7 +22,7 @@
 - [x] 构建本机账本只读 SDK 宿主和 CSV 解析／生成。
 - [x] 客户端协商、脚本宿主、文件事务、附件、预览与导出。
 - [x] 三币种确认退款对照、三端 QuickJS 堆采样、原生系统保存字节和 SQLite 空间不足验收。
-- [x] 真实模型宽屏实测及失败证据，核对内嵌技能示例的日期、时区和签名。
+- [x] 真实模型在宽窄屏导出并下载 CSV；核对内嵌技能示例的日期、时区和签名。
 - [ ] 原生正式应用从对话到系统保存、应用进程内存和发行验收。
 
 ## 4. 构建
@@ -126,7 +126,8 @@
 - 原生系统保存使用独立夹具，Android API 36 从真实 SAF 保存面板选定 Downloads，iOS 18.3 从真实 UIDocumentPicker 选定本机文件夹，分别沿目标 URI／作用域 URL 写入和读回。实际目标各 51 字节，`cmp` 一致，SHA-256 为 `6caf31520b72570f85830288a649ba542ba45fb7681bc4521a31f9bc32067bd7`，文件见 `/tmp/ledger-native-save-qa/{android,ios}/exported.csv`。覆盖系统面板和文件写入链路，正式应用的 Compose 附件卡到 FileKit 调用仍需真机或模拟器端到端复核。未在设备上占满磁盘，第三方文件提供商及 App Store 外部审核未验证。
 
 
-- 真实模型补证以 `1b2cf0f2` 的正式构建及现有 18804 为准。Chrome 1440×900 使用直连后端与 Mistral／DeepSeek `deepseek-v4-1-flash-1017`，实际经历 `read_skill`、`run_script`、`send_file`，7 次推理 HTTP 200，下载 28 字节 UTF-8 CSV，刷新后可打开原文件。该月 QA 账本无明细，金额对照使用独立三币种夹具。自由措辞另一次出现多次工具调用，140 秒内未产出卡，12 次推理均为 200。另一次运行遇到 `invalid_arguments` 后继续查询、运行并成功发送，自动化随后等待超时。日志为 `/tmp/ledger-skill-real-provider/18804-wide.log`、`18804-browser.log`、`18804-browser-trace.log`。内嵌用法补齐函数体与入参签名、YYYY-MM-DD 本地日期、IANA 时区及可执行的月报入参示例。提取仓库内两段 JavaScript 例程，用 Node.js 及宿主合同替身执行，对照文档入参、文件名和结果。见 `/tmp/ledger-skill-examples-js.log`。说明修订后 Android 主机助手定向测试 12 项通过，无失败或跳过，见 `/tmp/ledger-skill-examples-qa.log`。模型证据早于说明修订，未复验修订后的真实模型稳定性。
+- 2026-11-29（UTC+8），从 `9bc703bc` 执行 `:webApp:wasmJsBrowserDistribution`，18804 实际提供的 JS 和主 Wasm 与本次构建逐字节一致。Chrome 390×844、1440×900 各用一个新对话，向真实 Mistral／DeepSeek `deepseek-v4-1-flash-1017` 发送同一句「请把 2026 年 11 月当前账本的支出按月和币种导出成 CSV 文件，发给我。即使没有流水也请发送只有列标题的文件。」两次均经历技能读取、脚本执行、附件发送，分别产生 6 次 HTTP 200 推理响应。两个视口均打开预览、下载 28 字节 UTF-8 CSV，并在刷新后恢复附件卡，刷新未新增推理。该月 QA 账本无明细，金额对照见三币种退款夹具。构建与两次实测见 `/tmp/ledger-skill-real-provider/9bc703bc-{dist,390,1440}.log`。
+- 该措辞在基线 `1b2cf0f2` 有一次 140 秒内未产出附件，另一次工具报错后发送成功但浏览器验收超时，见同目录的 `18804-browser.log`、`18804-browser-trace.log`。本次两次通过覆盖这一复现条件，更广泛措辞的成功率尚未测量。技能示例的签名、日期和时区合同见 `/tmp/ledger-skill-examples-js.log`；Android 主机助手定向测试 12 项通过，无失败或跳过，见 `/tmp/ledger-skill-examples-qa.log`。
 
 ## 7. 发布
 
