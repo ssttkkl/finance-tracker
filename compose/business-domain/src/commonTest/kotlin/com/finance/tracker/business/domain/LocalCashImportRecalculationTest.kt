@@ -236,6 +236,40 @@ class LocalCashImportRecalculationTest {
         assertEquals(old.message, current.message)
     }
 
+    @Test fun retainingOnlyChoiceContextReleasesTheFrozenWorkingPlan() {
+        val f = fixture()
+        val (review, original) = f.confirmed()
+        val input = review.inputJson()
+        val working = original.plan.toMutableMap()
+        val firstGroup = (working.getValue("relation_groups") as List<*>).single() as Map<*, *>
+        working["invalidated_relation_choices"] = mapOf("fixture-stale" to mapOf(
+            "choice" to mapOf("action" to "defer", "suggestion_id" to "fixture-stale"),
+            "member_refs" to firstGroup["member_refs"],
+        ))
+        val generations = working["relation_choice_generations"] as Map<*, *>
+        working["relation_choice_generations"] = generations + ("fixture-stale" to SourceJsonInteger(1))
+        val previousFrozen = freezeLocalCashImportPreviewPlan(working).toString()
+        val blocks = mutableListOf<String>()
+        val frozen = freezeLocalCashImportPreviewPlan(working, object : CashImportReviewWorkspace {
+            override fun write(text: String): Int = blocks.size.also { blocks += text }
+            override fun read(block: Int): String = blocks[block]
+        })
+        assertTrue(blocks.isNotEmpty())
+        val preceding = LocalCashImportReview.forPreview(working)(input).encode()
+        val presentation = LocalCashImportReview.encodePreviewContext(working)
+        val submitted = LocalCashImportReview.freeze(input, working).encode()
+        val limited = retainFrozenCashImportChoiceInputs(working)
+        assertEquals(preceding, LocalCashImportReview.forPreview(limited)(input).encode())
+        assertEquals(presentation, LocalCashImportReview.encodePreviewContext(limited))
+        assertEquals(submitted, LocalCashImportReview.freeze(input, limited).encode())
+        assertEquals(previousFrozen, frozen.toString())
+        assertTrue(limited.keys.none { it in setOf("items", "item_details", "detail_values", "processing_details", "row_decisions", "monthly_source") })
+        val operation = (limited.getValue("operations") as List<*>).single() as Map<*, *>
+        assertEquals(setOf("record_id"), (operation["values"] as Map<*, *>).keys)
+        val group = (limited.getValue("relation_groups") as List<*>).single() as Map<*, *>
+        assertFalse("edges" in group)
+    }
+
     @Test fun oneFrozenPlanPreservesTheLegacyCommandConclusionAndPreviewHistory() {
         val fixture = fixture()
         val evaluatedAt = Instant.parse("2026-10-03T09:00:00Z")

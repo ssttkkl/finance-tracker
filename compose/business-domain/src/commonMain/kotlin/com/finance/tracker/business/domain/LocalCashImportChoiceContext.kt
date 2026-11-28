@@ -12,6 +12,29 @@ fun localCashImportChoiceContextFromPlan(plan: JsonObject): JsonObject =
 /** Computed plans are read directly; only stable references are copied, without serializing calculated values. */
 fun localCashImportChoiceContextFromPlan(plan: Map<String, Any?>): Map<String, Any?> = localChoiceContext.fromPlan(plan)
 
+/** Release the typed display plan once an exclusive workspace has frozen all of its output. */
+internal fun retainFrozenCashImportChoiceInputs(plan: MutableMap<String, Any?>): Map<String, Any?> {
+    plan.keys.retainAll(setOf("can_commit", "operations", "relation_groups", "invalidated_relation_choices",
+        "relation_choice_generations", "entry_targets"))
+    val operations = plan["operations"] as? List<*>
+    if (operations != null) plan["operations"] = operations.map { raw ->
+        val operation = raw as? Map<*, *> ?: return@map raw
+        val values = operation["values"]
+        operation.filterKeys { it in setOf("occurrence_key", "transaction_id") } +
+            ("values" to if (values is Map<*, *>) values.filterKeys { it == "record_id" } else values)
+    }
+    val groups = plan["relation_groups"] as? List<*>
+    if (groups != null) plan["relation_groups"] = groups.map { raw ->
+        val group = raw as? Map<*, *> ?: return@map raw
+        val candidates = group["candidates"]
+        group.filterKeys { it in setOf("suggestion_id", "source_suggestion_id", "choice_generation", "member_refs") } +
+            ("candidates" to if (candidates is List<*>) candidates.map {
+                if (it is Map<*, *>) it.filterKeys { key -> key == "candidate_id" } else it
+            } else candidates)
+    }
+    return plan
+}
+
 fun retainLocalCashImportChoices(contextData: JsonObject, plan: JsonObject?): JsonObject {
     val context = if (plan != null) localCashImportChoiceContextFromPlan(plan)
         else contextData[CASH_IMPORT_CHOICE_CONTEXT_KEY]?.let(::validateLocalCashImportChoiceContext)
