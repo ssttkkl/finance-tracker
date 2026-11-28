@@ -622,5 +622,11 @@ D 两轮核对均比 B 和 C 快。B 的 RSS 比 D 分别少 1,273,856 B 和 14,
 
 JVM 共享操作 12 项、SQLite 和真实 PostgreSQL 合同各 13 项、OpenAPI 17 项、Wasm 编译、846 项公开 ABI 检查、npm 实装和 24 项 Node 回归通过。独立评审核验授权、版本固定、跨段完整性和预算，补足未协商、超窗口及回放尺寸不匹配的失败回归。原始报告 `local/ft-client-review-full-bundle_base.ocTR4K`、`local/ft-client-review-full-bundle_real.ZvmmpG`、`local/ft-client-review-full-bundle_base_replay.lLsLA8`、`local/ft-client-review-full-bundle_replay.FV9yPF`，首次失败 `local/ft-client-review-full-bundle_replay.6OwSCc`。实际 #126 仍为 `82bb0b03`，固定检查失败。
 
+### 终端核对的 CPU 与对象驻留
+
+复用 `bfc9088a` 已安装包的 19 文件诊断 `local/ft-client-review-full-selected_cpu_probe.aSXoOB`。探针包 SHA-256 `a36fc9e0d6a2fc47fbd05d9cca56ad52de6fa5be88904e476f146abd1a5b6d26`，采样跨度 201.355 秒。`LocalCashImportReview.kt:55` 的 `forPreview` 自身／含子调用 0.000／0.315 秒，`copyLocalCashValue` 0.110／0.357 秒，冻结编码 `LocalCashImportPlanEncoding.kt:9` 0.660／6.646 秒，写集构造 0.003／28.273 秒，`LocalCashImportConclusion.kt:7` 的结论 0.166／64.564 秒，GC 样本 53.254 秒。含子调用的时间有重叠。正文就绪时 RSS／V8 堆／External 为 2,276,356,096／744,312,464／291,596,180 B，ArrayBuffers 270,484,546 B 已含在 External；结论就绪时为 2,103,140,352／1,679,461,440／42,084,184 B，ArrayBuffers 20,707,434 B。这些是有探针的阶段样本，不能用于固定资源达标判定。
+
+开发对照从同一已解析批次和已认证本地状态各复制独立副本，单独运行 review，核对相同实际展示与回写前零账本写入。另用 292 条合成行在已编码正文和核对展示仍在作用域时做一次小堆诊断，宿主内存不足时记录跳过。原堆快照只留在临时 runner，输出白名单类型、对象数量、shallow size、最大单对象 retained size、强引用路径和支配关系。与运行时 RSS、V8 堆、External 一起判读，无法对应的原生内存单列。账户变更回核对另用同一已解析退款与重复文件验证，分别比较业务结果和内部引用。原固定门禁及正式整批运行保持。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。

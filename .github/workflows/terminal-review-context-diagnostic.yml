@@ -44,11 +44,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
           psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE review_context_test"
+          psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE review_context_heap_test"
           parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
           printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
           sudo chown "$(id -u):$(id -g)" "$parent"
           printf 'FT_PERF_CGROUP_PARENT=%s\nFT_PERF_CGROUP_SUDO=1\n' "$parent" >> "$GITHUB_ENV"
       - name: Build the single-variable pair and verify review contracts
+        id: packages
         shell: bash
         run: |
           set -euo pipefail
@@ -76,22 +78,44 @@ jobs:
           (cd compose && ./gradlew --stop)
           npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
           npm pack --json --pack-destination "$out/terminal" compose/cli/build/npm > "$out/terminal/pack.json"
-      - name: Prepare one batch and compare reviews using cloned state
-        shell: bash
-        run: |
-          set -euo pipefail
-          out="$RUNNER_TEMP/terminal-context"
           for label in base terminal; do
             mkdir -p "$out/$label/installed"
             npm install --prefix "$out/$label/installed" --ignore-scripts --engine-strict --no-audit --no-fund "$out/$label"/*.tgz
             sha256sum "$out/$label"/*.tgz | cut -d' ' -f1 > "$out/$label/package-sha256.txt"
           done
+      - name: Prepare one batch and compare reviews using cloned state
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/terminal-context"
           export FT_DIAGNOSTIC_REVIEW_VARIANTS=$(node -e 'const p=process.argv[1]; console.log(JSON.stringify(Object.fromEntries(["base","terminal"].map(n=>[n,`${p}/${n}/installed/node_modules/.bin/ft`]))))' "$out")
           export FT_PERF_CLI_PACKAGE=$(find "$out/base" -maxdepth 1 -type f -name '*.tgz')
           export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/review_context_test"
           export FT_PERF_ARTIFACTS="$out/reviews" FT_PERF_EVENTS="$out/reviews/measurements.jsonl"
           export FT_PERF_LIVE_MEMORY_FORCE_GC=1
           node compose/client-operations/perf/large-bench.mjs
+      - name: Capture and summarize one small review heap inside the runner
+        if: always() && steps.packages.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          out="$RUNNER_TEMP/terminal-context"
+          temporary=$(mktemp -d "$RUNNER_TEMP/private-review-heap.XXXXXX")
+          trap 'rm -rf -- "$temporary"' EXIT
+          perf=compose/client-operations/perf
+          python3 "$perf/diagnosis/small-review-fixture.py" "$perf/fixtures/large-cash.py" \
+            "$temporary/fixture" compose/backend/build/install/backend
+          export FT_PERF_WORKSPACE_DIAGNOSTIC_FIXTURE="$temporary/fixture/128"
+          export FT_DIAGNOSTIC_REVIEW_VARIANTS=$(node -e 'const p=process.argv[1]; console.log(JSON.stringify(Object.fromEntries(["base","terminal"].map(n=>[n,`${p}/${n}/installed/node_modules/.bin/ft`]))))' "$out")
+          export FT_PERF_CLI_PACKAGE=$(find "$out/base" -maxdepth 1 -type f -name '*.tgz')
+          export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/review_context_heap_test"
+          export FT_PERF_ARTIFACTS="$out/small-heap" FT_PERF_EVENTS="$out/small-heap/measurements.jsonl"
+          export FT_DIAGNOSTIC_REVIEW_HEAP=1 FT_DIAGNOSTIC_HEAP_PATH="$temporary/review.heapsnapshot"
+          node "$perf/large-bench.mjs"
+          if [[ -f "$FT_DIAGNOSTIC_HEAP_PATH" ]]; then
+            node "$perf/diagnosis/aggregate-review-heap.mjs" "$FT_DIAGNOSTIC_HEAP_PATH" > "$out/small-heap/retained-heap-summary.json"
+          fi
       - name: Upload review-only evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -106,6 +130,7 @@ jobs:
             ${{ runner.temp }}/terminal-context/**/large-details.json
             ${{ runner.temp }}/terminal-context/**/measurements.jsonl
             ${{ runner.temp }}/terminal-context/**/*.live-memory.jsonl
+            ${{ runner.temp }}/terminal-context/**/retained-heap-summary.json
             ${{ runner.temp }}/terminal-context/**/exit.txt
           if-no-files-found: error
           retention-days: 30

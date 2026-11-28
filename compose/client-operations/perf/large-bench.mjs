@@ -26,7 +26,9 @@ const perfDirectory = dirname(fileURLToPath(import.meta.url));
 const checkout = resolve(perfDirectory, '../../..');
 const testPassword = 'synthetic benchmark has no private credentials 683';
 const pdfPassword = 'synthetic-fixture-only-613';
-const expected = { rows: 14424, posted: 12724, duplicates: 1700, relations: 2995, missingIds: 6 };
+const heapReview = process.env.FT_DIAGNOSTIC_REVIEW_HEAP === '1';
+const expected = heapReview ? { rows: 292, posted: 260, duplicates: 32, relations: 128 }
+    : { rows: 14424, posted: 12724, duplicates: 1700, relations: 2995, missingIds: 6 };
 
 function validateTestDatabase(value) {
     assert.ok(value, 'Set FT_TEST_POSTGRES_URL to an empty loopback PostgreSQL test database');
@@ -208,9 +210,9 @@ async function main() {
         else tool('python3', [join(perfDirectory, 'fixtures/large-cash.py'), '--output', fixture, '--backend-install', backend]);
         const manifest = JSON.parse(await readFile(join(fixture, 'manifest.json'), 'utf8'));
         assert.equal(manifest.rows, expected.rows);
-        assert.deepEqual(manifest.formats, { csv: 6, pdf: 5, xls: 2, xlsx: 6 });
-        assert.equal(manifest.files.length, 19);
-        assert.equal(manifest.files.filter(file => file.password_required).length, 3);
+        assert.deepEqual(manifest.formats, heapReview ? { csv: 2, xls: 1 } : { csv: 6, pdf: 5, xls: 2, xlsx: 6 });
+        assert.equal(manifest.files.length, heapReview ? 3 : 19);
+        assert.equal(manifest.files.filter(file => file.password_required).length, heapReview ? 0 : 3);
         for (const file of manifest.files) assert.equal(await sha256(join(fixture, file.file)), file.sha256);
         evidence.fixture = manifest;
 
@@ -293,7 +295,7 @@ async function main() {
                 const measured = await measureCommand(client, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
                     collectLiveMemory: sampleMemory || liveMemoryFlows.has(flow),
-                    collectGc: !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
+                    collectGc: !reviewVariants && !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
                         NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
                         FT_PERF_CLIENT_REQUEST_CLOCK: clocksPath,
@@ -479,10 +481,10 @@ async function main() {
         }
         const prepareMs = performance.now() - startPrepare;
         assert.equal(prepared.batch_id, batch);
-        assert.equal(prepared.files.length, 19);
-        assert.equal(prepared.source_accounts.length, 8);
+        assert.equal(prepared.files.length, manifest.files.length);
+        if (!heapReview) assert.equal(prepared.source_accounts.length, 8);
         await record('large.prepare', { ms: prepareMs, rssBytes: Math.max(...preparations.map(r => r.rssBytes)) }, {
-            files: prepared.files.length, groups: prepared.source_accounts.length, encryptedPdfs: 3,
+            files: prepared.files.length, groups: prepared.source_accounts.length, encryptedPdfs: encryptedFiles.length,
             subprocesses: preparations.map(({ label, ms, rssBytes }) => ({ label, ms, rssBytes })),
         });
         const account = (await run([
@@ -503,11 +505,13 @@ async function main() {
         if (reviewVariants) {
             assert.ok(!isolated && !legacyComparison);
             assert.deepEqual(Object.keys(reviewVariants).sort(), ['base', 'terminal']);
-            const matrix = [{ name: 'base', sampled: false }, { name: 'terminal', sampled: false },
-                { name: 'terminal', sampled: true }, { name: 'base', sampled: true }];
+            const matrix = heapReview ? [{ name: 'base', sampled: true }]
+                : [{ name: 'base', sampled: false }, { name: 'terminal', sampled: false },
+                    { name: 'terminal', sampled: true }, { name: 'base', sampled: true }];
             const beforeLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
             let expectedView;
             const results = [];
+            checks.reviewComparison = { seedPreparations: 1, results };
             for (const [index, { name, sampled }] of matrix.entries()) {
                 const state = join(work, `review-comparison-${index}`);
                 await cp(primaryState, state, { recursive: true });
@@ -520,7 +524,7 @@ async function main() {
                     assert.equal(result.value.summary.create_posted, expected.posted);
                     assert.equal(result.value.summary.duplicate, expected.duplicates);
                     assert.equal(result.value.summary.relations_accepted, expected.relations);
-                    assert.deepEqual(result.value.item_counts, { confirmed: 9729, pending: 0 });
+                    if (!heapReview) assert.deepEqual(result.value.item_counts, { confirmed: 9729, pending: 0 });
                     const { plan_id, ...view } = result.value;
                     assert.ok(plan_id);
                     expectedView ??= view;
@@ -536,7 +540,7 @@ async function main() {
             const afterLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
             assert.equal(afterLedger.ledgerSeq, beforeLedger.ledgerSeq);
             assert.equal(afterLedger.originalReceipt, null);
-            checks.reviewComparison = { seedPreparations: 1, sharedLedgerVersion: true, zeroWrites: true, results };
+            Object.assign(checks.reviewComparison, { sharedLedgerVersion: true, zeroWrites: true });
             checks.completed = false;
             return;
         }

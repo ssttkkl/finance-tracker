@@ -160,6 +160,8 @@ function measure(prepared, phase, selected, enforceBudget) {
   }
   delete env.FT_PERF_LIVE_MEMORY_FLOWS;
   delete env.FT_DIAGNOSTIC_REVIEW_VARIANTS;
+  delete env.FT_DIAGNOSTIC_REVIEW_HEAP;
+  delete env.FT_DIAGNOSTIC_HEAP_PATH;
   delete env.FT_PERF_LIVE_MEMORY_FORCE_GC;
   delete env.FT_PERF_PAYLOAD_PROFILE;
   delete env.FT_PERF_PAYLOAD_PROFILE_LEGACY;

@@ -2,7 +2,7 @@ import { Cipheriv, Decipheriv } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { PerformanceObserver } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
-import { getHeapStatistics } from 'node:v8';
+import { getHeapStatistics, writeHeapSnapshot } from 'node:v8';
 
 const destination = process.env.FT_PERF_LIVE_MEMORY_FILE;
 const linux = process.platform === 'linux';
@@ -14,6 +14,8 @@ const forcePhaseGc = process.env.FT_PERF_LIVE_MEMORY_FORCE_GC === '1';
 if (forcePhaseGc && typeof globalThis.gc !== 'function') throw new Error('Retained-heap sampling requires --expose-gc');
 let phase = 'startup';
 let busy = false;
+const snapshotPath = process.env.FT_DIAGNOSTIC_HEAP_PATH;
+let snapshotTaken = false;
 
 function bucket(slot) {
     if (slot === 'session') return 'session';
@@ -91,6 +93,15 @@ process.stderr.write = function (chunk, ...args) {
         if (forcePhaseGc) {
             globalThis.gc();
             sample('import-phase-after-gc');
+        }
+        if (snapshotPath && !snapshotTaken && phase === 'diagnostic_rendered_preview') {
+            snapshotTaken = true;
+            const available = process.availableMemory();
+            const required = Math.max(2 * 1024 ** 3, 3 * process.memoryUsage.rss());
+            if (linux && process.env.GITHUB_ACTIONS === 'true' && available >= required) {
+                sample('retained-snapshot-before');
+                writeHeapSnapshot(snapshotPath);
+            } else sample('retained-snapshot-skipped');
         }
     }
     return stderrWrite.call(this, chunk, ...args);
