@@ -346,31 +346,41 @@ function sqliteReviewBlocks(connection, ownsConnection) {
     ) STRICT, WITHOUT ROWID`);
     const insert = connection.prepare('INSERT INTO cash_review_work VALUES (?, ?, ?, ?, ?)');
     const select = connection.prepare('SELECT part, total, payload FROM cash_review_work WHERE generation = ? AND block = ? ORDER BY part');
-    const remove = connection.prepare('DELETE FROM cash_review_work WHERE generation = ?');
+    const remove = connection.prepare(`DELETE FROM cash_review_work WHERE generation = ? AND (block, part) IN (
+        SELECT block, part FROM cash_review_work WHERE generation = ? ORDER BY block, part LIMIT 16
+    )`);
     const generations = connection.prepare('SELECT DISTINCT generation FROM cash_review_work');
+    function removeGeneration(generation) {
+        while (remove.run(generation, generation).changes !== 0) {
+            // Each iteration is an independent bounded transaction when the host has released the main writer.
+        }
+    }
     return {
         removeAbandoned() {
             for (const row of generations.all()) {
                 const owner = /^(\d+)-[0-9a-f]{32}$/.exec(row.generation);
-                if (owner && !processAlive(Number(owner[1]))) remove.run(row.generation);
+                if (owner && !processAlive(Number(owner[1]))) removeGeneration(row.generation);
             }
         },
         write(generation, block, parts, encode) {
-            const start = !connection.isTransaction;
-            if (start) connection.exec('BEGIN IMMEDIATE');
-            try {
-                for (const [part, piece] of parts.entries())
-                    insert.run(generation, block, part, parts.length, encode(piece, part, parts.length));
-                if (start) connection.exec('COMMIT');
-            } catch (error) {
-                if (start && connection.isTransaction) connection.exec('ROLLBACK');
-                throw error;
+            for (let first = 0; first < parts.length; first += 16) {
+                const start = !connection.isTransaction;
+                if (start) connection.exec('BEGIN IMMEDIATE');
+                try {
+                    const end = Math.min(first + 16, parts.length);
+                    for (let part = first; part < end; part++)
+                        insert.run(generation, block, part, parts.length, encode(parts[part], part, parts.length));
+                    if (start) connection.exec('COMMIT');
+                } catch (error) {
+                    if (start && connection.isTransaction) connection.exec('ROLLBACK');
+                    throw error;
+                }
             }
         },
         read: (generation, block) => select.all(generation, block),
         close(generation) {
             if (ownsConnection) connection.close();
-            else remove.run(generation);
+            else removeGeneration(generation);
         },
     };
 }

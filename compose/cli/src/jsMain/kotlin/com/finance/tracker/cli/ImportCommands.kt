@@ -98,7 +98,7 @@ internal suspend fun cashImport(action: String?, args: List<String>): TerminalRe
         when (action) {
             "review" -> {
                 val choices = options["--choices"]?.let { decodeInput(CashImportPreviewInput.serializer(), it) }
-                reviewResult(operations.review(expected, batch, zone, choices))
+                operations.reviewForOutput(expected, batch, zone, choices, ::reviewResult)
             }
             "items" -> {
                 val review = operations.reviewView(expected, batch, zone)
@@ -238,13 +238,15 @@ private fun preparedResult(result: PreparedCashImport): TerminalResult {
     }.trimEnd())
 }
 
-private fun reviewResult(review: CashImportReviewOperations.Review): TerminalResult {
-    val plan = review.plan
+private fun reviewResult(review: CashImportReviewOperations.Review): TerminalResult =
+    reviewResult(review.workspaceId, review.plan, review.calculation.request.baseLedgerSeq)
+
+private fun reviewResult(workspaceId: String, plan: CashImportPlanDto, ledgerSeq: String): TerminalResult {
     val document = exactReadIdentifiers(outputJson.encodeToJsonElement(CashImportPlanDto.serializer(), plan)).jsonObject
     return TerminalResult(buildJsonObject {
         for ((key, value) in document) put(key, value)
-        put("workspace_id", review.workspaceId)
-        put("ledger_seq", review.calculation.request.baseLedgerSeq)
+        put("workspace_id", workspaceId)
+        put("ledger_seq", ledgerSeq)
         put("review_revision", plan.sessionRevision.toString())
     }, buildString {
         appendLine("Batch ${plan.sessionId}  Review ${plan.sessionRevision}")

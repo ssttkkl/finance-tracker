@@ -512,5 +512,15 @@ V8 分阶段采样定位到归一化来源及索引、预览行和图的映射�
 
 集成分支收录原正文复用及上述可复验记录。固定预算、全部样本要求和实际 #126 的固定检查保持现有合同。GitHub Actions App 15368 在 #126 实际头 `82bb0b03` 的固定检查仍为失败。同一候选五台正式校准等待两层实测满足预算。[实际 PR 检查](https://github.com/ssttkkl/finance-tracker/actions/runs/45996460911/job/140519590872)
 
+### 临时工作区的发布和清理
+
+`9b342045` 是 A/B/C/D 托管对照的原型，内存端使用 `9e1153c9`。三个磁盘原型共用冻结展示字段的分块，不更换候选搜索、来源读取或写集判定。GitHub Actions 在同一台 Ubuntu x64 预先构建并安装，使用 Node 26.13.1、PostgreSQL 18.6 和同一份合成 19 文件，正反顺序各一轮。原型范围只有冻结展示，仍需对整个工作集验证有界解码、关联索引和写集。此诊断与 #126 的固定检查独立。[托管候选运行](https://github.com/ssttkkl/finance-tracker/actions/runs/46134077994)
+
+独立复核确定三个故障边界。分块重新读取时恢复精确数字标记并递归封存容器，惰性读取仅识别自己的块。CLI 在释放介质前提取独立终端 DTO 和最小冻结分量，回调只接收该 DTO 和标识。已清理临时块后再取得发布锁，在同一事务复验原账本、批次和会话。共库每个短事务最多写入或删除 16 个物理分片。共享 JVM 验证清理失败时没有发布新的修订，公开输出仍可独立持有，固定清单核对 846 签名。
+
+8 MiB 临时文件系统中三种介质均在第 51 块遇到 `SQLITE_FULL` 或 `ENOSPC`，不返回故障块。释放明确预留的 1.5 MiB 后，原共库整代删除仍返回 `SQLITE_FULL`，独立 SQLite 和文件均恢复。修正版三种介质重开后原冻结状态相同，已发布状态为一条，孤块为零。该实验仅覆盖底层存储和释放预留空间的恢复。原始 `local/ft-review-media-full.o6fUpX`、`local/ft-review-media-full.Eho9QS`。
+
+实装 `ft` 与真实 PostgreSQL 的独立并发用例在核对进入来源准备时暂停 3.5 秒。内存路径的普通 `cash list` 与其他批次 `import prepare` 分别为 3,874／4,037 ms。共库、独立 SQLite、独立文件分别为 167／308 ms、498／1,065 ms、411／667 ms。四组同批并发均恰一个新修订，另一进程 `plan_changed`，零 POST。三个磁盘组的胜者均为并行启动的第二进程，先打开临时工作区的进程明确未提交。此为人为暂停的锁竞争复现，原 19 文件整步时延使用无探针托管样本。原始 `local/ft-workspace-concurrency-memory.cisRHk`、`local/ft-workspace-concurrency-shared.ObZZgP`、`local/ft-workspace-concurrency-sqlite.9lbe4H`、`local/ft-workspace-concurrency-file.C74Mwr`。
+
 ## 7. 发布
 - [ ] 同步规格并归档，推当前分支；校准后增量读取验证 main 必需检查。

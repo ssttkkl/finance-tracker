@@ -3,6 +3,7 @@ package com.finance.tracker.client
 import com.finance.tracker.business.contracts.CashImportAccountInput
 import com.finance.tracker.business.contracts.CashImportConfirmation
 import com.finance.tracker.business.contracts.CashImportConfirmationStatus
+import com.finance.tracker.business.contracts.CashImportPreviewInput
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.CashMutationResultDto
 import com.finance.tracker.business.contracts.CashMutationResultPageDto
@@ -15,6 +16,7 @@ import com.finance.tracker.business.contracts.StoredCashImportSubmission
 import com.finance.tracker.business.contracts.UserDto
 import com.finance.tracker.business.contracts.WorkspaceDto
 import com.finance.tracker.business.domain.cashWriteSetJson
+import com.finance.tracker.business.domain.CashImportReviewWorkspace
 import com.finance.tracker.business.domain.page
 import java.nio.charset.Charset
 import kotlinx.coroutines.runBlocking
@@ -166,6 +168,25 @@ class CashImportRecoveryEntryParityTest {
         assertEquals(1, mappings.size)
         val review = start.mapAccounts(workspace.id, prepared.batchId, prepared.revision, mappings, "UTC")
         assertTrue(review.plan.canCommit)
+        val originalBatch = checkNotNull(store.batch)
+        val nextChoices = CashImportPreviewInput(originalBatch.revision, originalBatch.planId, mappings, emptyList(), emptyList())
+        store.reviewWorkspaceEnabled = true
+        store.failWorkspaceCleanup = true
+        var rendered = false
+        val cleanup = assertFailsWith<ClientOperationFailure> {
+            start.reviewForOutput(workspace.id, prepared.batchId, "UTC", nextChoices) { id, output, seq ->
+                assertEquals(workspace.id, id)
+                assertEquals(snapshot.ledgerSeq, seq)
+                assertTrue(output.canCommit)
+                rendered = true
+            }
+        }
+        assertTrue(rendered)
+        assertEquals("not_committed", cleanup.commitState)
+        assertEquals(originalBatch, store.batch)
+        store.failWorkspaceCleanup = false
+        assertEquals(review.plan, start.reviewForOutput(workspace.id, prepared.batchId, "UTC", null) { _, output, _ -> output })
+        store.reviewWorkspaceEnabled = false
         planning.clear()
         val view = operations().reviewView(workspace.id, prepared.batchId, "UTC")
         val page = review.items(null, 20)
@@ -270,6 +291,9 @@ class CashImportRecoveryEntryParityTest {
         var ledgerStateReads = 0
         var batchReads = 0
         var useConfirmationIndex = true
+        var reviewWorkspaceEnabled = false
+        var failWorkspaceCleanup = false
+        private var workspaceBlocks: MutableList<String>? = null
         val removedWorkspaces = mutableSetOf<String>()
 
         override suspend fun session(): ClientStoredSession = binding
@@ -323,6 +347,20 @@ class CashImportRecoveryEntryParityTest {
 
         override suspend fun readFile(session: ClientStoredSession, workspaceId: String, batchId: String, storageId: String): String? =
             files[storageId]
+
+        override fun openReviewWorkspace(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportReviewWorkspace? {
+            if (!reviewWorkspaceEnabled) return null
+            workspaceBlocks = mutableListOf()
+            return object : CashImportReviewWorkspace {
+                override fun write(text: String): Int = checkNotNull(workspaceBlocks).let { it.size.also { _ -> it += text } }
+                override fun read(block: Int): String = checkNotNull(workspaceBlocks)[block]
+            }
+        }
+
+        override fun finishReviewWorkspace() {
+            workspaceBlocks = null
+            if (failWorkspaceCleanup) throw ClientOperationFailure("local_state_unreadable", commitState = "not_committed")
+        }
 
         override suspend fun compareAndDelete(session: ClientStoredSession, workspaceId: String, previous: ClientCashImportBatch): Boolean =
             error("Unused")

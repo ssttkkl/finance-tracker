@@ -4,6 +4,7 @@ import com.finance.tracker.business.contracts.CashImportAccountInput
 import com.finance.tracker.business.contracts.CashImportConfirmation
 import com.finance.tracker.business.contracts.CashImportConfirmationStatus
 import com.finance.tracker.business.contracts.CashImportPreviewInput
+import com.finance.tracker.business.contracts.CashImportPlanDto
 import com.finance.tracker.business.contracts.CashImportSessionDto
 import com.finance.tracker.business.contracts.CashMutationReceiptDto
 import com.finance.tracker.business.contracts.StoredCashImportSubmission
@@ -323,7 +324,18 @@ class ClientCashImportOperations(
         updatedChoices: CashImportPreviewInput? = null,
     ): CashImportReviewOperations.Review {
         val ledger = session.ledger(workspaceId)
-        return review(ledger, batch(ledger, batchId), timezone, updatedChoices, useWorkspace = true)
+        return review(ledger, batch(ledger, batchId), timezone, updatedChoices)
+    }
+
+    /** Convert a workspace-backed review into its terminal output while all blocks are available. */
+    suspend fun <T> reviewForOutput(
+        workspaceId: String?, batchId: String, timezone: String, updatedChoices: CashImportPreviewInput?,
+        render: (String, CashImportPlanDto, String) -> T,
+    ): T {
+        val ledger = session.ledger(workspaceId)
+        return reviewWithinWorkspace(ledger, batch(ledger, batchId), timezone, updatedChoices, true) {
+            render(it.workspaceId, it.plan, it.calculation.request.baseLedgerSeq)
+        }
     }
 
     suspend fun reviewView(workspaceId: String?, batchId: String, timezone: String): CashImportReviewView {
@@ -356,8 +368,15 @@ class ClientCashImportOperations(
 
     private suspend fun review(
         ledger: ClientLedgerRead, batch: ClientCashImportBatch,
-        timezone: String, updatedChoices: CashImportPreviewInput?, useWorkspace: Boolean = false,
-    ): CashImportReviewOperations.Review {
+        timezone: String, updatedChoices: CashImportPreviewInput?,
+    ): CashImportReviewOperations.Review =
+        reviewWithinWorkspace(ledger, batch, timezone, updatedChoices, false) { it }
+
+    private suspend fun <T> reviewWithinWorkspace(
+        ledger: ClientLedgerRead, batch: ClientCashImportBatch,
+        timezone: String, updatedChoices: CashImportPreviewInput?, useWorkspace: Boolean,
+        render: (CashImportReviewOperations.Review) -> T,
+    ): T {
         val snapshot = ledger.ledger.snapshot
         if (batch.submission != null || batch.result != null) throw ClientOperationFailure("plan_changed", 409)
         if (updatedChoices != null && (updatedChoices.expectedSessionRevision != batch.revision ||
@@ -392,6 +411,7 @@ class ClientCashImportOperations(
         val reviewed = review.calculation.requestBody?.takeIf { publish }?.let { body ->
             ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
         }
+        val rendered = render(review)
         if (workspace != null) store.finishReviewWorkspace()
         session.requireCurrent(ledger.binding)
         if (publish) {
@@ -399,7 +419,7 @@ class ClientCashImportOperations(
             save(ledger, batch, batch.copy(revision = revision, planId = planId, ledgerSeq = snapshot.ledgerSeq,
                 review = review.calculation.review.encode(), reviewed = reviewed))
         }
-        return review
+        return rendered
     }
 
     private fun choices(batch: ClientCashImportBatch): CashImportPreviewInput {

@@ -1440,6 +1440,13 @@
       ]
     },
     {
+      "signature": "ClientCashImportOperations.reviewForOutput|reviewForOutput(kotlin.String?;kotlin.String;kotlin.String;com.finance.tracker.business.contracts.CashImportPreviewInput?;kotlin.Function3<kotlin.String,com.finance.tracker.business.contracts.CashImportPlanDto,kotlin.String,0:0>){0§<kotlin.Any?>}",
+      "scenarios": [
+        "import.review",
+        "large.review"
+      ]
+    },
+    {
       "signature": "ClientCashImportStore.finishReviewWorkspace|finishReviewWorkspace(){}",
       "disposition": "spi",
       "reason": "Host transaction fence exercised by the installed CLI review"

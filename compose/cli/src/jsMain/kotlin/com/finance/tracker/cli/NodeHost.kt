@@ -174,6 +174,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private var savedConfirmation: SavedConfirmation? = null
     private var checkpointedConfirmation: SavedConfirmation? = null
     private var reviewRead: ReviewRead? = null
+    private var reviewWorkspace: dynamic = null
 
     private data class SavedConfirmation(val key: String, val stamp: String, val batch: ClientCashImportBatch)
 
@@ -389,6 +390,7 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         reviewRead = ReviewRead(key, stateStamp(key), batch, stateStamp(batch))
         database.releaseImportRead()
         val workset = database.openImportWorkset(batch, medium)
+        reviewWorkspace = workset
         return object : CashImportReviewWorkspace {
             private var next = 0
             override fun write(text: String): Int = next.also { workset.write(it, text); next++ }
@@ -399,6 +401,8 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     override fun finishReviewWorkspace() {
         val previous = checkNotNull(reviewRead)
         reviewRead = null
+        reviewWorkspace.close()
+        reviewWorkspace = null
         database.resumeImportWrite()
         if (stateStamp(previous.ledgerSlot) != previous.ledgerStamp || stateStamp(previous.batchSlot) != previous.batchStamp)
             throw ClientOperationFailure("plan_changed", 409, commitState = "not_committed")
