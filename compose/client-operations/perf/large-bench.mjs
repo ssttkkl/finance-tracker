@@ -159,6 +159,8 @@ async function main() {
         runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks, requestReports,
         ...(payloadShapes ? { payloadProfile: { diagnosticOnly: true, payloadShapes } } : {}),
     };
+    const reviewVariants = process.env.FT_DIAGNOSTIC_REVIEW_VARIANTS
+        ? JSON.parse(process.env.FT_DIAGNOSTIC_REVIEW_VARIANTS) : null;
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
         raw.push({ ...sample, checks: facts });
@@ -275,7 +277,8 @@ async function main() {
             evidence.workspaceDisk = [];
         }
         let sequence = 0;
-        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined, concurrent = false } = {}) => {
+        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined,
+            concurrent = false, client = ft, sampleMemory = false } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
             const clocksPath = join(work, `${label}-http.jsonl`);
             if (flow) {
@@ -287,9 +290,9 @@ async function main() {
                 (diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow));
             const disk = observeDisk ? trackDisk(state) : null;
             try {
-                const measured = await measureCommand(ft, [...args, '--json'], {
+                const measured = await measureCommand(client, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
-                    collectLiveMemory: liveMemoryFlows.has(flow),
+                    collectLiveMemory: sampleMemory || liveMemoryFlows.has(flow),
                     collectGc: !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
                         NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
@@ -351,7 +354,7 @@ async function main() {
         const mutatingRequests = after => observed.slice(after)
             .filter(item => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(item.method));
 
-        if (!legacyComparison) {
+        if (!legacyComparison && !reviewVariants) {
             const [, controlCsv] = ordinaryLedgerCsv();
             const controlFile = join(work, 'confirmation-control.csv');
             await writeFile(controlFile, controlCsv);
@@ -496,6 +499,47 @@ async function main() {
             })),
             row_choices: [], relation_choices: [], entry_choices: [],
         }));
+
+        if (reviewVariants) {
+            assert.ok(!isolated && !legacyComparison);
+            assert.deepEqual(Object.keys(reviewVariants).sort(), ['base', 'terminal']);
+            const matrix = [{ name: 'base', sampled: false }, { name: 'terminal', sampled: false },
+                { name: 'terminal', sampled: true }, { name: 'base', sampled: true }];
+            const beforeLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
+            let expectedView;
+            const results = [];
+            for (const [index, { name, sampled }] of matrix.entries()) {
+                const state = join(work, `review-comparison-${index}`);
+                await cp(primaryState, state, { recursive: true });
+                const start = observed.length;
+                try {
+                    const result = await run(['import', 'review', batch, '--choices', choice, ...scope],
+                        { state, client: reviewVariants[name], sampleMemory: sampled });
+                    assert.equal(mutatingRequests(start).length, 0);
+                    assert.equal(result.value.can_commit, true);
+                    assert.equal(result.value.summary.create_posted, expected.posted);
+                    assert.equal(result.value.summary.duplicate, expected.duplicates);
+                    assert.equal(result.value.summary.relations_accepted, expected.relations);
+                    assert.deepEqual(result.value.item_counts, { confirmed: 9729, pending: 0 });
+                    const { plan_id, ...view } = result.value;
+                    assert.ok(plan_id);
+                    expectedView ??= view;
+                    assert.deepEqual(view, expectedView);
+                    const temporary = evidence.workspaceDisk.at(-1);
+                    assert.equal(temporary.after.scratch, 0);
+                    assert.equal(temporary.after.scratchDirectories, 0);
+                    results.push({ name, sampled, label: processes.at(-1).label, ms: result.ms, rssBytes: result.rssBytes });
+                } finally {
+                    await rm(state, { recursive: true, force: true });
+                }
+            }
+            const afterLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
+            assert.equal(afterLedger.ledgerSeq, beforeLedger.ledgerSeq);
+            assert.equal(afterLedger.originalReceipt, null);
+            checks.reviewComparison = { seedPreparations: 1, sharedLedgerVersion: true, zeroWrites: true, results };
+            checks.completed = false;
+            return;
+        }
 
         const reviewStart = observed.length;
         const review = await run(['import', 'review', batch, '--choices', choice, ...scope]);

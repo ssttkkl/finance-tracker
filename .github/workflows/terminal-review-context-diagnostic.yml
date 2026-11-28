@@ -43,9 +43,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
-          for database in base_small terminal_small base_real terminal_real; do
-            psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE review_context_${database}_test"
-          done
+          psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE review_context_test"
           parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
           printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
           sudo chown "$(id -u):$(id -g)" "$parent"
@@ -78,34 +76,23 @@ jobs:
           (cd compose && ./gradlew --stop)
           npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
           npm pack --json --pack-destination "$out/terminal" compose/cli/build/npm > "$out/terminal/pack.json"
-      - name: Run small phase probes and equal uninstrumented 19-file installs
+      - name: Prepare one batch and compare reviews using cloned state
         shell: bash
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/terminal-context"
-          perf=compose/client-operations/perf
-          cp "$perf/large-bench.mjs" "$perf/terminal-context-profile.mjs"
-          python3 "$perf/diagnosis/stage-small-mixed-cash.py" "$perf/terminal-context-profile.mjs"
-          result=0
-          for label in base_small terminal_small terminal_real base_real; do
-            export FT_PERF_CLI_PACKAGE=$(find "$out/${label%_*}" -maxdepth 1 -type f -name '*.tgz')
-            test -f "$FT_PERF_CLI_PACKAGE"
-            export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/review_context_${label}_test"
-            export FT_PERF_ARTIFACTS="$out/$label" FT_PERF_EVENTS="$out/$label/measurements.jsonl"
-            mkdir -p "$FT_PERF_ARTIFACTS"
-            unset FT_PERF_LIVE_MEMORY_FLOWS FT_PERF_LIVE_MEMORY_FORCE_GC
-            bench=large-bench
-            if [[ "$label" == *_small ]]; then
-              export FT_PERF_LIVE_MEMORY_FLOWS=review FT_PERF_LIVE_MEMORY_FORCE_GC=1
-              bench=terminal-context-profile
-            fi
-            status=0
-            node "$perf/$bench.mjs" || status=$?
-            printf '%s\n' "$status" > "$FT_PERF_ARTIFACTS/exit.txt"
-            if [ "$status" -ne 0 ]; then result=1; fi
+          for label in base terminal; do
+            mkdir -p "$out/$label/installed"
+            npm install --prefix "$out/$label/installed" --ignore-scripts --engine-strict --no-audit --no-fund "$out/$label"/*.tgz
+            sha256sum "$out/$label"/*.tgz | cut -d' ' -f1 > "$out/$label/package-sha256.txt"
           done
-          exit "$result"
-      - name: Upload phase and full-operation evidence
+          export FT_DIAGNOSTIC_REVIEW_VARIANTS=$(node -e 'const p=process.argv[1]; console.log(JSON.stringify(Object.fromEntries(["base","terminal"].map(n=>[n,`${p}/${n}/installed/node_modules/.bin/ft`]))))' "$out")
+          export FT_PERF_CLI_PACKAGE=$(find "$out/base" -maxdepth 1 -type f -name '*.tgz')
+          export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/review_context_test"
+          export FT_PERF_ARTIFACTS="$out/reviews" FT_PERF_EVENTS="$out/reviews/measurements.jsonl"
+          export FT_PERF_LIVE_MEMORY_FORCE_GC=1
+          node compose/client-operations/perf/large-bench.mjs
+      - name: Upload review-only evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -115,6 +102,7 @@ jobs:
             ${{ runner.temp }}/terminal-context/control.patch
             ${{ runner.temp }}/terminal-context/TEST-*LocalCashImportBusinessPlanTest.xml
             ${{ runner.temp }}/terminal-context/**/pack.json
+            ${{ runner.temp }}/terminal-context/**/package-sha256.txt
             ${{ runner.temp }}/terminal-context/**/large-details.json
             ${{ runner.temp }}/terminal-context/**/measurements.jsonl
             ${{ runner.temp }}/terminal-context/**/*.live-memory.jsonl

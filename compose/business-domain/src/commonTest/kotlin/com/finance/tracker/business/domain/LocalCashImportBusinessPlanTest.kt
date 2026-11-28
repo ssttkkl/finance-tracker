@@ -81,11 +81,14 @@ class LocalCashImportBusinessPlanTest {
         fun prepare(choices: JsonObject, previous: LocalCashImportReview? = null) = prepareLocalCashImportReview(
             files, source, choices, previous?.previousPlan(), previous?.recordIds().orEmpty(),
             includePreviewContext = false, requireActive = {}, progress = {}, now = { clock })
-        val throughA = prepare(account("10")).previousReviewFor(final)
+        val firstA = prepare(account("10"))
+        val throughA = firstA.previousReviewFor(final)
+        val previousCli = LocalCashImportReview.decode(firstA.confirmedReview().encode())
         val direct = prepare(final)
         val changed = prepare(final, throughA)
+        val changedFromStorage = prepare(final, previousCli)
 
-        for (review in listOf(direct, changed)) {
+        for (review in listOf(direct, changed, changedFromStorage)) {
             assertTrue(review.canCommit)
             assertEquals(JsonPrimitive(2), review.plan.getValue("summary").jsonObject.getValue("create_posted"))
             assertEquals(JsonPrimitive(1), review.plan.getValue("summary").jsonObject.getValue("duplicate"))
@@ -97,12 +100,13 @@ class LocalCashImportBusinessPlanTest {
             val amounts = review.changes.transactions.associate { it.target to CashAmount.parse(checkNotNull(it.values.amount)) }
             assertEquals("refund_offset", relation.kind)
             assertEquals(CashAmount.parse("3.00"), CashAmount.parse(relation.appliedAmount))
-            assertEquals(setOf(CashAmount.parse("-10.00"), CashAmount.parse("3.00")),
-                setOf(amounts.getValue(relation.primaryTransaction), amounts.getValue(checkNotNull(relation.secondaryTransaction))))
+            assertEquals(CashAmount.parse("-10.00"), amounts.getValue(relation.primaryTransaction))
+            assertEquals(CashAmount.parse("3.00"), amounts.getValue(checkNotNull(relation.secondaryTransaction)))
         }
         fun rowDecisions(review: PreparedCashImportReview) = review.plan.getValue("row_decisions").jsonArray
             .associate { item -> item.jsonObject.let { it.getValue("row_ref") to it.getValue("planned_action") } }
         assertEquals(rowDecisions(direct), rowDecisions(changed))
+        assertEquals(rowDecisions(direct), rowDecisions(changedFromStorage))
         assertEquals(direct.plan.getValue("summary"), changed.plan.getValue("summary"))
         val freshReferences = direct.confirmedReview().recordIds()
         val retainedReferences = changed.confirmedReview().recordIds()
