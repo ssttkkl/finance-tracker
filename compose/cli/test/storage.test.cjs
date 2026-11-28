@@ -280,6 +280,17 @@ test('the frozen request is stored byte for byte without one large JSON encoding
         const collision = metadata.replace('"submission":', '"decoy":"\\u0000ft.import.request","submission":');
         store.writeFrozenImportBatch('collision', collision, request);
         assert.equal(store.read('collision') === collision.replace('""', stringify(request)), true);
+
+        const reviewMetadata = '{"planId":"synthetic","revision":9223372036854775807,"ledgerSeq":"9","command":{"rulesVersion":"cash-rules-v1","request":"","resultInput":"\ud800{}"}}';
+        const expectedReview = reviewMetadata.toWellFormed().replace('"request":""', '"request":' + stringify(request.toWellFormed()));
+        fullEncodings = 0;
+        chunkEncodings = 0;
+        store.writeFrozenImportBatch('review', reviewMetadata, request, 'command');
+        assert.equal(store.read('review') === expectedReview, true);
+        assert.equal(fullEncodings, 0);
+        assert.ok(chunkEncodings <= Math.ceil(request.length / (64 * 1024 - 1)));
+        assert.throws(() => store.writeFrozenImportBatch('review', reviewMetadata, request, 'submission'));
+        assert.equal(store.read('review') === expectedReview, true);
     } finally {
         JSON.stringify = stringify;
         try { store.close(true); } finally {

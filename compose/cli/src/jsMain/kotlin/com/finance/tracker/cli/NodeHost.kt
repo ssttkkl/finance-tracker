@@ -359,9 +359,13 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         if (reviewed == null) database.remove("$prefix.file.reviewed")
         else if (reviewed != current?.reviewed || batch.planId != current.planId || batch.revision != current.revision ||
             batch.ledgerSeq != current.ledgerSeq) {
-            database.write("$prefix.file.reviewed", Json.encodeToString(StoredReviewedCommand(
-                checkNotNull(batch.planId), batch.revision, checkNotNull(batch.ledgerSeq), reviewed,
-            )))
+            val slot = "$prefix.file.reviewed"
+            val command = StoredReviewedCommand(checkNotNull(batch.planId), batch.revision, checkNotNull(batch.ledgerSeq), reviewed)
+            if (reviewed.request.length < largeImportRequestLength) database.write(slot, Json.encodeToString(command))
+            else {
+                val metadata = Json.encodeToString(command.copy(command = reviewed.copy(request = "")))
+                database.writeFrozenImportBatch(slot, metadata, reviewed.request, "command")
+            }
         }
         removedFileIds.forEach { database.remove("$prefix.file.$it") }
         val confirmationSlot = "$prefix.file.confirmation"

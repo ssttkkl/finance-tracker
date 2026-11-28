@@ -303,16 +303,20 @@ function escapedJsonStringBytes(text) {
     return bytes;
 }
 
-function sealFrozenImportBatch(key, aad, metadata, request) {
-    const envelope = parseImportEnvelope(metadata);
-    if (envelope?.submission?.request !== '') throw new Error('Invalid frozen import metadata');
+function sealFrozenImportBatch(key, aad, metadata, request, field) {
+    const reviewed = field === 'command';
+    const envelope = parseImportEnvelope(reviewed ? metadata.toWellFormed() : metadata);
+    const record = envelope?.[field];
+    if ((!reviewed && field !== 'submission') || record?.request !== '') throw new Error('Invalid frozen import metadata');
+    // The original Kotlin encoder passed isolated surrogates directly to the UTF-8 encoder for reviewed commands.
+    if (reviewed) request = request.toWellFormed();
     const placeholder = '\u0000ft.import.request';
     const token = JSON.stringify(placeholder);
-    envelope.submission.request = placeholder;
+    record.request = placeholder;
     const canonical = JSON.stringify(envelope);
     const position = canonical.indexOf(token);
     if (position < 0 || position !== canonical.lastIndexOf(token)) {
-        envelope.submission.request = request;
+        record.request = request;
         return sealStateText(key, aad, JSON.stringify(envelope));
     }
     function* chunks() {
@@ -531,8 +535,8 @@ export function openStore(origin, createKey) {
             writeGeneratedState(slot, createCursor) {
                 writeState(slot, (key, aad) => sealGeneratedState(key, aad, createCursor));
             },
-            writeFrozenImportBatch(slot, metadata, request) {
-                writeState(slot, (key, aad) => sealFrozenImportBatch(key, aad, metadata, request));
+            writeFrozenImportBatch(slot, metadata, request, field = 'submission') {
+                writeState(slot, (key, aad) => sealFrozenImportBatch(key, aad, metadata, request, field));
             },
             remove(slot) {
                 database.prepare('DELETE FROM client_state WHERE server = ? AND slot = ?').run(server, slot);
