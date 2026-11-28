@@ -1,5 +1,10 @@
 package com.finance.tracker.business.domain
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+
 /** The original duplicate fast path compares issue reasons, not stored issue bodies or candidate observations. */
 fun cashImportIssuesUnchanged(operation: Map<String, Any?>, truthy: (Any?) -> Boolean): Boolean {
     fun reasons(key: String) = (operation.getValue(key) as List<*>).map { raw ->
@@ -8,6 +13,20 @@ fun cashImportIssuesUnchanged(operation: Map<String, Any?>, truthy: (Any?) -> Bo
     }.toSet()
     return reasons("expected_issues") == reasons("issues") && !truthy(operation["pending_fields"]) &&
         !truthy(operation["candidate_ids"]) && !truthy(operation["candidate_set_ref"]) && !truthy(operation["resolved_issue_ids"])
+}
+
+internal fun projectedCashImportIssuesUnchanged(operation: JsonObject, truthy: (Any?) -> Boolean): Boolean {
+    fun reasons(key: String) = operation.getValue(key).jsonArray.map { raw ->
+        val issue = raw.jsonObject
+        decodeLocalCashValue(issue["code"]) to decodeLocalCashValue(issue["field_path"])
+    }.toSet()
+    fun present(key: String): Boolean = when (val value = operation[key]) {
+        is JsonObject -> value.isNotEmpty()
+        is JsonArray -> value.isNotEmpty()
+        else -> truthy(decodeLocalCashValue(value))
+    }
+    return reasons("expected_issues") == reasons("issues") && !present("pending_fields") &&
+        !present("candidate_ids") && !present("candidate_set_ref") && !present("resolved_issue_ids")
 }
 
 /** Select the original document groups before writing any source rows; no file parsing or ledger reads. */

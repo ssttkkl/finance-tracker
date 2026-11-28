@@ -23,9 +23,15 @@ internal fun localCashImportChoiceKeys(source: LedgerSnapshotDto, plan: JsonObje
 
 private class PlanConclusion(private val facts: LedgerFactsDto, private val plan: JsonObject, private val values: CashImportConclusionValues) {
     private val participants = linkedSetOf<String>()
-    private val operations = plan.objects("operations")
-    private val operationParents = operations.associate { it.text("operation_ref")!! to it.text("preview_transaction_id")!! }
-    private val rowParents = operations.flatMap { operation -> operation.getValue("row_refs").jsonArray.map {
+    private val operations = plan.getValue("operations").jsonArray.reviewObjects()
+    private val references = plan.getValue("operations").jsonArray.frozenOperationReferences()
+    private val operationParents = if (references == null)
+        operations.associate { it.text("operation_ref")!! to it.text("preview_transaction_id")!! }
+    else emptyMap()
+    private fun operationParent(ref: String): String = references?.let {
+        it.parentsByPosition[it.operationPositions.getValue(ref)]
+    } ?: operationParents.getValue(ref)
+    private val rowParents = references?.rowParents ?: operations.flatMap { operation -> operation.getValue("row_refs").jsonArray.map {
         it.jsonPrimitive.content to operation.text("preview_transaction_id")!!
     } }.toMap()
     private val oldRelations = facts.transactionRelations.associateBy { it.id }
@@ -171,7 +177,7 @@ private class PlanConclusion(private val facts: LedgerFactsDto, private val plan
             key == "field_diffs" -> diffs(value)
             else -> value
         }
-    } + (raw.text("operation_ref")?.let { mapOf("operation" to parent(operationParents.getValue(it))) } ?: emptyMap()) +
+    } + (raw.text("operation_ref")?.let { mapOf("operation" to parent(operationParent(it))) } ?: emptyMap()) +
         (raw.text("source_group_ref")?.let { mapOf("source_group" to sourceGroups.getValue(it)) } ?: emptyMap()))
 
     private fun staleChoice(raw: JsonObject): JsonObject = buildJsonObject {

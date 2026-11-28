@@ -9,10 +9,13 @@ class LocalCashImportResultInput private constructor(private val body: String) {
 
     companion object {
         fun freeze(plan: JsonObject): LocalCashImportResultInput {
-            val operations = plan.getValue("operations").jsonArray.map { it.jsonObject }
-            val positions = operations.withIndex().associate { it.value.text("operation_ref") to it.index }
+            val operations = plan.getValue("operations").jsonArray
+            val refs = operations.frozenOperationReferences()
+            val original by lazy { operations.map { it.jsonObject } }
+            val positions = refs?.operationPositions ?: original.withIndex().associate { it.value.text("operation_ref") to it.index }
             check(positions.size == operations.size) { "cash_import_result_input_invalid" }
-            val parents = operations.withIndex().associate { it.value["preview_transaction_id"]?.jsonPrimitive?.content to it.index }
+            val parents: Map<String?, Int> = refs?.parentPositions
+                ?: original.withIndex().associate { it.value["preview_transaction_id"]?.jsonPrimitive?.content to it.index }
             val rows = plan.getValue("row_decisions").jsonArray.map { it.jsonObject }.filter { row ->
                 val action = row.text("planned_action")
                 val operation = row.optionalText("operation_ref")

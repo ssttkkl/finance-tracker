@@ -7,6 +7,7 @@ import com.finance.tracker.client.ClientCapturedCashImportFile
 import com.finance.tracker.client.ClientCashImportBatch
 import com.finance.tracker.client.ClientCashImportListing
 import com.finance.tracker.client.ClientCashImportOperations
+import com.finance.tracker.client.CashImportReviewDiagnostics
 import com.finance.tracker.client.ClientCashImportReviewedCommand
 import com.finance.tracker.client.ClientCashImportStore
 import com.finance.tracker.client.ClientImportAccountOperations
@@ -167,7 +168,11 @@ private fun nodeTransport(origin: String) = ClientHttp { request ->
     }
 private const val largeImportRequestLength = 1024 * 1024
 
-private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore {
+private class NodeSessionStore(private val database: dynamic) : ClientSessionStore, ClientCashImportStore, ClientCashCommandStore,
+    CashImportReviewDiagnostics {
+    override fun sampleReviewPhase(phase: String) {
+        if (process.env.FT_PERF_LIVE_MEMORY_FILE != null) process.stderr.write("ft import: diagnostic_$phase\n")
+    }
     private var observedLedger: ObservedLedger? = null
     private var observedBatch: ObservedBatch? = null
     private var savedArchive: Pair<String, String>? = null

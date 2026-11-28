@@ -8,6 +8,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 /** Temporary, operation-scoped storage for exact JSON blocks. */
 interface CashImportReviewWorkspace {
@@ -17,7 +19,25 @@ interface CashImportReviewWorkspace {
 
 private const val reviewBlockUnits = 64 * 1024
 
-internal fun CashImportReviewWorkspace.storeList(values: Sequence<JsonElement>): List<JsonElement> {
+internal class FrozenCashOperationReferences {
+    val operationPositions = linkedMapOf<String, Int>()
+    val parentPositions = linkedMapOf<String?, Int>()
+    val parentsByPosition = mutableListOf<String>()
+    val rowParents = linkedMapOf<String, String>()
+
+    fun add(index: Int, operation: JsonObject) {
+        val ref = operation.getValue("operation_ref").jsonPrimitive.content
+        val parent = operation.getValue("preview_transaction_id").jsonPrimitive.content
+        operationPositions[ref] = index
+        parentPositions[parent] = index
+        parentsByPosition += parent
+        for (row in operation.getValue("row_refs").jsonArray) rowParents[row.jsonPrimitive.content] = parent
+    }
+}
+
+internal fun CashImportReviewWorkspace.storeList(
+    values: Sequence<JsonElement>, operationReferences: FrozenCashOperationReferences? = null,
+): List<JsonElement> {
     val pages = mutableListOf<Pair<Int, Int>>()
     val pending = StringBuilder()
     var size = 0
@@ -34,13 +54,14 @@ internal fun CashImportReviewWorkspace.storeList(values: Sequence<JsonElement>):
         size++
     }
     flush()
-    return StoredReviewList(this, pages, size)
+    return StoredReviewList(this, pages, size, operationReferences)
 }
 
 private class StoredReviewList(
     private val workspace: CashImportReviewWorkspace,
     private val pages: List<Pair<Int, Int>>,
     override val size: Int,
+    private val operationReferences: FrozenCashOperationReferences?,
 ) : AbstractList<JsonElement>() {
     private var loadedPage = -1
     private var loaded: JsonArray? = null
@@ -59,12 +80,33 @@ private class StoredReviewList(
         return checkNotNull(loaded)[index - start]
     }
 
-    override fun iterator(): Iterator<JsonElement> = StoredReviewIterator(super.iterator())
+    override fun iterator(): Iterator<JsonElement> = StoredReviewIterator(super.iterator(), operationReferences)
 }
 
-private class StoredReviewIterator(private val values: Iterator<JsonElement>) : Iterator<JsonElement> by values
+private class StoredReviewIterator(
+    private val values: Iterator<JsonElement>, val operationReferences: FrozenCashOperationReferences?,
+) : Iterator<JsonElement> by values
+
+internal fun JsonArray.frozenOperationReferences(): FrozenCashOperationReferences? =
+    (iterator() as? StoredReviewIterator)?.operationReferences
 
 internal fun JsonArray.isStoredReviewList(): Boolean = iterator() is StoredReviewIterator
+
+internal class StoredReviewPlanList(private val items: JsonArray, private val decode: (JsonElement) -> Any?) : AbstractList<Any?>() {
+    override val size get() = items.size
+    override fun get(index: Int): Any? = decode(items[index])
+    fun operationReference(index: Int): String? = ((items[index] as? JsonObject)?.get("operation_ref") as? JsonPrimitive)
+        ?.takeIf { it.isString }?.content
+}
+
+internal fun JsonArray.reviewObjects(): List<JsonObject> {
+    if (!isStoredReviewList()) return map { it.jsonObject }
+    return object : AbstractList<JsonObject>() {
+        override val size get() = this@reviewObjects.size
+        override fun get(index: Int): JsonObject = this@reviewObjects[index].jsonObject
+    }
+}
+
 
 private interface StoredReviewEntries
 

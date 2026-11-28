@@ -6,6 +6,12 @@ import kotlinx.serialization.json.*
 /** Build the source transaction fragment of a completed preview; relation and final entry fragments are composed separately. */
 fun buildLocalCashImportTransactionWrites(source: LedgerSnapshotDto, plan: JsonObject,
     rowChoices: JsonArray = JsonArray(emptyList())): List<CashTransactionWriteDto> {
+    val write = localCashImportTransactionWriter(source, plan, rowChoices)
+    return plan.getValue("operations").jsonArray.map { write(it.jsonObject) }
+}
+
+internal fun localCashImportTransactionWriter(source: LedgerSnapshotDto, plan: JsonObject, rowChoices: JsonArray):
+    (JsonObject) -> CashTransactionWriteDto {
     check(plan["can_commit"] == JsonPrimitive(true)) { "local_import_plan_not_committable" }
     val parents = source.facts.cashTransactions.associateBy { it.id }
     val parts = source.facts.cashTransactionComponents.associateBy { it.id }
@@ -14,8 +20,7 @@ fun buildLocalCashImportTransactionWrites(source: LedgerSnapshotDto, plan: JsonO
     @Suppress("UNCHECKED_CAST")
     val choices = (prepareLocalCashImportInput(JsonArray(emptyList()), rowChoices, JsonArray(emptyList())).getValue("row_choices") as List<Map<String, Any?>>)
         .associateBy { it.getValue("row_ref") as String }
-    return plan.getValue("operations").jsonArray.map { raw ->
-        val operation = raw.jsonObject
+    return { operation ->
         val values = operation.getValue("values").jsonObject
         val id = operation.writeText("transaction_id")
         val old = id?.let(parents::getValue)

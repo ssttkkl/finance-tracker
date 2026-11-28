@@ -12,12 +12,13 @@ internal fun buildLocalCashImportSourceWrites(source: LedgerSnapshotDto, files: 
     plan: JsonObject, rowChoices: JsonArray, trustedFrozenPlan: Boolean): CashWriteSetDto =
     LocalSourceWrites(source, files, sources, plan, rowChoices, trustedFrozenPlan).build()
 
-private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: List<ParsedImportFile>,
-    private val sources: PreparedCashSourcePlan, private val plan: JsonObject, rowChoices: JsonArray,
+private class LocalSourceWrites(private val source: LedgerSnapshotDto, private val files: List<ParsedImportFile>,
+    private val sources: PreparedCashSourcePlan, private val plan: JsonObject, private val rowChoices: JsonArray,
     private val trustedFrozenPlan: Boolean) {
     private val facts = source.facts
-    private val transactions = buildLocalCashImportTransactionWrites(source, plan, rowChoices)
-    private val operations = plan.getValue("operations").jsonArray.map { it.jsonObject }
+    private val operationRows by lazy { plan.getValue("operations").jsonArray }
+    private val indexed = trustedFrozenPlan && operationRows.frozenOperationReferences() != null
+    private val operations by lazy { operationRows.reviewObjects() }
     private val parents = facts.cashTransactions.associateBy { it.id }
     private val records = sources.records.associateBy { it.transactionId }
     private val oldBindings = facts.cashSourceBindings.associateBy {
@@ -31,20 +32,33 @@ private class LocalSourceWrites(source: LedgerSnapshotDto, private val files: Li
     private val encodedCoverages = mutableMapOf<CashSourceCoverage, JsonElement>()
 
     fun build(): CashWriteSetDto {
-        for ((operation, row) in operations.zip(transactions)) {
-            @Suppress("UNCHECKED_CAST") val decoded = decodeLocalCashValue(operation) as Map<String, Any?>
-            val unchanged = cashImportIssuesUnchanged(decoded, ::sourceTruthy)
-            val record = operation.text("transaction_id")?.let(records::getValue)
-            val missingBinding = operation.getValue("source_updates").jsonArray.map { it.jsonObject }.any { update ->
-                update.getValue("bind") == JsonPrimitive(true) &&
-                    sources.rows.rows.getValue(update.getValue("row_ref").jsonPrimitive.content).bindingSpecs.any { it.key !in record?.bindingKeys.orEmpty() }
+        val transactions = if (indexed) {
+            val write = localCashImportTransactionWriter(source, plan, rowChoices)
+            operations.map { operation -> write(operation).also { applySourceWrites(operation, it) } }
+        } else {
+            buildLocalCashImportTransactionWrites(source, plan, rowChoices).also { written ->
+                for ((operation, row) in operations.zip(written)) applySourceWrites(operation, row)
             }
-            if (operation.getValue("planned_action") == JsonPrimitive("duplicate") && unchanged && !missingBinding) continue
-            bind(operation, row)
-            sourceIssues(operation, row)
         }
         return CashWriteSetDto(transactions = transactions, sourceBindings = bindings.values.toList(), issues = issues,
             resolvedIssues = resolved, statementAccountMappings = mappings(), sourceEmptyPages = emptyPages())
+    }
+
+    private fun applySourceWrites(operation: JsonObject, row: CashTransactionWriteDto) {
+        val unchanged = if (indexed) {
+            operation["planned_action"] == JsonPrimitive("duplicate") && projectedCashImportIssuesUnchanged(operation, ::sourceTruthy)
+        } else {
+            @Suppress("UNCHECKED_CAST") val decoded = decodeLocalCashValue(operation) as Map<String, Any?>
+            cashImportIssuesUnchanged(decoded, ::sourceTruthy)
+        }
+        val record = operation.text("transaction_id")?.let(records::getValue)
+        val missingBinding = operation.getValue("source_updates").jsonArray.map { it.jsonObject }.any { update ->
+            update.getValue("bind") == JsonPrimitive(true) &&
+                sources.rows.rows.getValue(update.getValue("row_ref").jsonPrimitive.content).bindingSpecs.any { it.key !in record?.bindingKeys.orEmpty() }
+        }
+        if (operation.getValue("planned_action") == JsonPrimitive("duplicate") && unchanged && !missingBinding) return
+        bind(operation, row)
+        sourceIssues(operation, row)
     }
 
     private fun bind(operation: JsonObject, row: CashTransactionWriteDto) {

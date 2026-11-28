@@ -6,7 +6,10 @@ import kotlin.time.Instant
 /** Freeze a completed, exclusively computed plan without changing its values or raw JSON number kinds. */
 fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject = freezeLocalCashImportPreviewPlan(value, null)
 
-internal fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>, workspace: CashImportReviewWorkspace?): JsonObject {
+internal fun freezeLocalCashImportPreviewPlan(
+    value: Map<String, Any?>, workspace: CashImportReviewWorkspace?,
+    takeOperations: (() -> MutableList<MutableMap<String, Any?>>)? = null,
+): JsonObject {
     fun count(value: Any?, nullable: Boolean = false): Any? {
         if ((value == null || value == JsonNull) && nullable) return null
         val exact = localCashIntegerText(value)
@@ -57,7 +60,26 @@ internal fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>, workspac
         }
         else -> encodeLocalCashValue(value)
     }
-    return encode(value, emptyList()).jsonObject
+    if (takeOperations == null) return encode(value, emptyList()).jsonObject
+    val store = checkNotNull(workspace)
+    return JsonObject(buildMap(value.size) {
+        for (name in value.keys.sortedWith(::pythonStringOrder)) {
+            name.encodeToByteArray(throwOnInvalidSequence = true)
+            if (name == "operations") {
+                val operations = takeOperations()
+                val references = FrozenCashOperationReferences()
+                val encoded = operations.indices.asSequence().map { index ->
+                    val operation = encode(operations[index], listOf(name, "[]")).jsonObject
+                    references.add(index, operation)
+                    operations[index] = linkedMapOf()
+                    operation
+                }
+                put(name, JsonArray(store.storeList(encoded, references)))
+            } else {
+                put(name, encode(value.getValue(name), listOf(name)))
+            }
+        }
+    })
 }
 
 internal val storedReviewArrays = setOf("items", "monthly_source", "processing_details", "row_decisions")

@@ -41,8 +41,17 @@ fun prepareLocalCashImportReview(
     previous: Map<String, Any?>?, recordIds: Map<String, String>, includePreviewContext: Boolean,
     requireActive: () -> Unit, progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
     workspace: CashImportReviewWorkspace? = null,
+): PreparedCashImportReview = prepareLocalCashImportReview(
+    files, source, input, previous, recordIds, includePreviewContext, requireActive, progress, now, workspace, {},
+)
+
+fun prepareLocalCashImportReview(
+    files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
+    previous: Map<String, Any?>?, recordIds: Map<String, String>, includePreviewContext: Boolean,
+    requireActive: () -> Unit, progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
+    workspace: CashImportReviewWorkspace?, sample: (String) -> Unit,
 ): PreparedCashImportReview {
-    val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace)
+    val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace, sample)
     return PreparedCashImportReview(frozen, changes, plan["can_commit"] == true, LocalCashImportReview.forPreview(plan),
         if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
         source, LocalCashImportReview.freeze(input, plan), trustedWorkspacePlan = workspace != null)
@@ -54,15 +63,25 @@ private fun calculateImportPlan(
     files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
     progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
-    workspace: CashImportReviewWorkspace? = null,
+    workspace: CashImportReviewWorkspace? = null, sample: (String) -> Unit = {},
 ): CalculatedImportPlan {
     val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
-    val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
+    sample("planning_complete")
+    val retained = if (workspace == null) plan else localCashImportChoiceContextFromPlan(plan) +
+        mapOf("can_commit" to plan["can_commit"], "entry_targets" to plan["entry_targets"])
+    val frozen = if (workspace == null) freezeLocalCashImportPreviewPlan(plan) else {
+        freezeLocalCashImportPreviewPlan(plan, workspace) {
+            @Suppress("UNCHECKED_CAST")
+            (plan.remove("operations") as MutableList<MutableMap<String, Any?>>)
+        }
+    }
+    sample("plan_frozen")
     val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray, trustedFrozenPlan = true)
-    return CalculatedImportPlan(plan, frozen, changes)
+    sample("write_set")
+    return CalculatedImportPlan(retained, frozen, changes)
 }
 
 private data class LocalPreparedImportPlan(val plan: MutableMap<String, Any?>, val sources: PreparedCashSourcePlan)

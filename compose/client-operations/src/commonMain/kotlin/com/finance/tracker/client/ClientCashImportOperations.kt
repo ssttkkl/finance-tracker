@@ -145,6 +145,10 @@ internal class EditableImportBatch(val ledger: ClientLedgerRead, val batch: Clie
     val workspaceId: String get() = ledger.ledger.snapshot.workspaceId
 }
 
+fun interface CashImportReviewDiagnostics {
+    fun sampleReviewPhase(phase: String)
+}
+
 class ClientCashImportOperations(
     private val session: ClientSessionOperations,
     private val store: ClientCashImportStore,
@@ -402,9 +406,11 @@ class ClientCashImportOperations(
         progress("read_files")
         val files = parsedFiles(ledger, batch)
         val workspace = if (useWorkspace) store.openReviewWorkspace(ledger.binding, snapshot.workspaceId, batch.id) else null
+        val diagnostics = (store as? CashImportReviewDiagnostics).takeIf { useWorkspace }
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
             snapshot, batch.id, planId, revision, files,
             choices, previous, progress = { progress(it.name.lowercase()) }, requireActive = {}, workspace = workspace,
+            sample = { diagnostics?.sampleReviewPhase(it) },
         )
         val publish = !reusable || (batch.reviewed == null && review.calculation.requestBody != null &&
             previous?.conclusion() == review.calculation.review.conclusion())
@@ -412,6 +418,7 @@ class ClientCashImportOperations(
             ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
         }
         val rendered = render(review)
+        diagnostics?.sampleReviewPhase("rendered_preview")
         if (workspace != null) store.finishReviewWorkspace()
         session.requireCurrent(ledger.binding)
         if (publish) {

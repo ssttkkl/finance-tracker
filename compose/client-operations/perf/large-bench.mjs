@@ -9,7 +9,7 @@ import { availableParallelism, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { measureCommand } from './large-measure.mjs';
 import { trackDisk } from './workspace-diagnostic/disk.mjs';
 import {
@@ -26,7 +26,9 @@ const perfDirectory = dirname(fileURLToPath(import.meta.url));
 const checkout = resolve(perfDirectory, '../../..');
 const testPassword = 'synthetic benchmark has no private credentials 683';
 const pdfPassword = 'synthetic-fixture-only-613';
-const expected = { rows: 14424, posted: 12724, duplicates: 1700, relations: 2995, missingIds: 6 };
+const smallReview = process.env.FT_DIAGNOSTIC_SMALL_REVIEW === '1';
+const expected = smallReview ? { rows: 292, posted: 260, duplicates: 32, relations: 128 }
+    : { rows: 14424, posted: 12724, duplicates: 1700, relations: 2995, missingIds: 6 };
 
 function validateTestDatabase(value) {
     assert.ok(value, 'Set FT_TEST_POSTGRES_URL to an empty loopback PostgreSQL test database');
@@ -159,6 +161,8 @@ async function main() {
         runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks, requestReports,
         ...(payloadShapes ? { payloadProfile: { diagnosticOnly: true, payloadShapes } } : {}),
     };
+    const reviewVariants = process.env.FT_DIAGNOSTIC_REVIEW_VARIANTS
+        ? JSON.parse(process.env.FT_DIAGNOSTIC_REVIEW_VARIANTS) : null;
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
         raw.push({ ...sample, checks: facts });
@@ -206,9 +210,9 @@ async function main() {
         else tool('python3', [join(perfDirectory, 'fixtures/large-cash.py'), '--output', fixture, '--backend-install', backend]);
         const manifest = JSON.parse(await readFile(join(fixture, 'manifest.json'), 'utf8'));
         assert.equal(manifest.rows, expected.rows);
-        assert.deepEqual(manifest.formats, { csv: 6, pdf: 5, xls: 2, xlsx: 6 });
-        assert.equal(manifest.files.length, 19);
-        assert.equal(manifest.files.filter(file => file.password_required).length, 3);
+        assert.deepEqual(manifest.formats, smallReview ? { csv: 2, xls: 1 } : { csv: 6, pdf: 5, xls: 2, xlsx: 6 });
+        assert.equal(manifest.files.length, smallReview ? 3 : 19);
+        assert.equal(manifest.files.filter(file => file.password_required).length, smallReview ? 0 : 3);
         for (const file of manifest.files) assert.equal(await sha256(join(fixture, file.file)), file.sha256);
         evidence.fixture = manifest;
 
@@ -275,7 +279,8 @@ async function main() {
             evidence.workspaceDisk = [];
         }
         let sequence = 0;
-        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined, concurrent = false } = {}) => {
+        const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined,
+            concurrent = false, client = ft, sampleMemory = false, sampleAllocations = false } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
             const clocksPath = join(work, `${label}-http.jsonl`);
             if (flow) {
@@ -287,12 +292,16 @@ async function main() {
                 (diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow));
             const disk = observeDisk ? trackDisk(state) : null;
             try {
-                const measured = await measureCommand(ft, [...args, '--json'], {
+                const measured = await measureCommand(client, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
-                    collectLiveMemory: liveMemoryFlows.has(flow),
-                    collectGc: !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
+                    collectLiveMemory: sampleMemory || liveMemoryFlows.has(flow),
+                    collectGc: !reviewVariants && !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
-                        NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
+                        NODE_OPTIONS: [
+                            `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
+                            ...(sampleAllocations ? [`--import=${new URL('./diagnosis/sample-review-allocations.mjs', import.meta.url).href}`] : []),
+                        ].join(' '),
+                        ...(sampleAllocations ? { FT_DIAGNOSTIC_REVIEW_ALLOCATIONS: join(evidenceDir, label + '.allocation.json') } : {}),
                         FT_PERF_CLIENT_REQUEST_CLOCK: clocksPath,
                     } : {}) },
                 });
@@ -351,7 +360,7 @@ async function main() {
         const mutatingRequests = after => observed.slice(after)
             .filter(item => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(item.method));
 
-        if (!legacyComparison) {
+        if (!legacyComparison && !reviewVariants) {
             const [, controlCsv] = ordinaryLedgerCsv();
             const controlFile = join(work, 'confirmation-control.csv');
             await writeFile(controlFile, controlCsv);
@@ -476,10 +485,10 @@ async function main() {
         }
         const prepareMs = performance.now() - startPrepare;
         assert.equal(prepared.batch_id, batch);
-        assert.equal(prepared.files.length, 19);
-        assert.equal(prepared.source_accounts.length, 8);
+        assert.equal(prepared.files.length, manifest.files.length);
+        if (!smallReview) assert.equal(prepared.source_accounts.length, 8);
         await record('large.prepare', { ms: prepareMs, rssBytes: Math.max(...preparations.map(r => r.rssBytes)) }, {
-            files: prepared.files.length, groups: prepared.source_accounts.length, encryptedPdfs: 3,
+            files: prepared.files.length, groups: prepared.source_accounts.length, encryptedPdfs: encryptedFiles.length,
             subprocesses: preparations.map(({ label, ms, rssBytes }) => ({ label, ms, rssBytes })),
         });
         const account = (await run([
@@ -496,6 +505,106 @@ async function main() {
             })),
             row_choices: [], relation_choices: [], entry_choices: [],
         }));
+
+        if (reviewVariants) {
+            assert.ok(!isolated && !legacyComparison);
+            assert(smallReview);
+            assert.deepEqual(Object.keys(reviewVariants).sort(), ['base', 'indexed']);
+            const matrix = [
+                { name: 'base' }, { name: 'indexed' }, { name: 'indexed' }, { name: 'base' },
+                { name: 'base', sampled: true }, { name: 'indexed', sampled: true },
+                { name: 'indexed', allocated: true }, { name: 'base', allocated: true },
+            ];
+            const beforeLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
+            let expectedView;
+            let expectedFrozen;
+            const oldHost = await import(pathToFileURL(resolve(dirname(reviewVariants.base), '../finance-tracker-cli/lib/host.mjs')));
+            function inspectFrozen(state, planId) {
+                const keys = ['FT_CLI_STATE_DIR', 'FT_CLI_STORAGE_KEY'];
+                const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+                Object.assign(process.env, { FT_CLI_STATE_DIR: state, FT_CLI_STORAGE_KEY: cliEnv.FT_CLI_STORAGE_KEY });
+                let store;
+                try {
+                    store = oldHost.openStore(cliEnv.FT_CLI_SERVER, false);
+                    assert(store && !store.error, 'The previous host must reopen the candidate cache');
+                    const auth = JSON.parse(store.read('session'));
+                    const slot = store.workspaceSlot(auth.token, auth.session.user.email, workspace) + '.import.' + batch;
+                    const editable = JSON.parse(store.read(slot));
+                    assert.equal(editable.planId, planId);
+                    assert.equal(editable.submission ?? null, null);
+                    const stored = store.read(slot + '.file.reviewed');
+                    const split = oldHost.splitLargeImportRequest(stored, 'command', 1024 * 1024);
+                    const frozen = JSON.parse(split?.metadata ?? stored);
+                    assert.equal(frozen.planId, planId);
+                    assert.equal(frozen.ledgerSeq, editable.ledgerSeq);
+                    const command = frozen.command;
+                    const request = split?.request ?? command.request;
+                    const resultInput = JSON.parse(command.resultInput);
+                    const review = JSON.parse(editable.review);
+                    const digest = value => createHash('sha256').update(value).digest('hex');
+                    assert(request.length > 0 && resultInput.rows.length > 0 && /^[a-f0-9]{64}$/.test(review.conclusion));
+                    return {
+                        requestBytes: Buffer.byteLength(request), requestHash: digest(request),
+                        resultHash: digest(command.resultInput), conclusion: review.conclusion,
+                        rows: resultInput.rows.length, ledgerSeq: frozen.ledgerSeq, rulesVersion: command.rulesVersion,
+                    };
+                } finally {
+                    if (store && !store.error) store.close(false);
+                    for (const key of keys) {
+                        if (saved[key] === undefined) delete process.env[key];
+                        else process.env[key] = saved[key];
+                    }
+                }
+            }
+            const results = [];
+            checks.reviewComparison = { seedPreparations: 1, results };
+            for (const [index, { name, sampled, allocated }] of matrix.entries()) {
+                const state = join(work, `review-comparison-${index}`);
+                await cp(primaryState, state, { recursive: true });
+                const start = observed.length;
+                try {
+                    const result = await run(['import', 'review', batch, '--choices', choice, ...scope],
+                        { state, client: reviewVariants[name], sampleMemory: sampled, sampleAllocations: allocated });
+                    assert.equal(mutatingRequests(start).length, 0);
+                    assert.equal(result.value.can_commit, true);
+                    assert.equal(result.value.summary.create_posted, expected.posted);
+                    assert.equal(result.value.summary.duplicate, expected.duplicates);
+                    assert.equal(result.value.summary.relations_accepted, expected.relations);
+                    if (!smallReview) assert.deepEqual(result.value.item_counts, { confirmed: 9729, pending: 0 });
+                    const { plan_id, pages, ...view } = result.value;
+                    assert.ok(plan_id);
+                    view.pages = Object.fromEntries(Object.entries(pages).map(([kind, cursor]) => {
+                        if (cursor === null) return [kind, null];
+                        const tuple = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+                        assert.equal(tuple.length, 4);
+                        assert.equal(tuple[0], plan_id);
+                        assert.equal(tuple[1], kind);
+                        return [kind, tuple.slice(1)];
+                    }));
+                    expectedView ??= view;
+                    assert.deepEqual(view, expectedView);
+                    const frozen = inspectFrozen(state, plan_id);
+                    expectedFrozen ??= frozen;
+                    assert.deepEqual(frozen, expectedFrozen);
+                    const temporary = evidence.workspaceDisk.at(-1);
+                    assert.equal(temporary.after.scratch, 0);
+                    assert.equal(temporary.after.scratchDirectories, 0);
+                    results.push({ name, sampled: !!sampled, allocated: !!allocated, label: processes.at(-1).label, ms: result.ms, rssBytes: result.rssBytes });
+                } finally {
+                    await rm(state, { recursive: true, force: true });
+                }
+            }
+            const afterLedger = await sampleConfirmDatabase(psqlArgs, workspace, email, batch);
+            assert.equal(afterLedger.ledgerSeq, beforeLedger.ledgerSeq);
+            assert.equal(afterLedger.originalReceipt, null);
+            Object.assign(checks.reviewComparison, {
+                sharedLedgerVersion: true, zeroWrites: true, oldHostReopensEveryFrozenCommand: true,
+                exactFrozenCommandAndResultInput: true, exactLegacyConclusion: true,
+                frozenRequestBytes: expectedFrozen.requestBytes, receiptInputRows: expectedFrozen.rows,
+            });
+            checks.completed = false;
+            return;
+        }
 
         const reviewStart = observed.length;
         const review = await run(['import', 'review', batch, '--choices', choice, ...scope]);

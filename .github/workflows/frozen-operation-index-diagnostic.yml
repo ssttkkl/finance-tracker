@@ -1,0 +1,99 @@
+name: Frozen operation index diagnostic
+
+on:
+  push:
+    branches: [perf/index-frozen-cash-operations]
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-operation-index:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: ft_performance
+          POSTGRES_PASSWORD: disposable_ci_password
+          POSTGRES_DB: frozen_operation_review_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ft_performance -d frozen_operation_review_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      FT_TEST_POSTGRES_URL: postgresql://ft_performance:disposable_ci_password@127.0.0.1:5432/frozen_operation_review_test
+      FT_REVIEW_BASE: 742b87d52af4611f9ebb328d31dca63b76aae8ff
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Build both npm packages and verify snapshot and receipt contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client qpdf time
+          out="$RUNNER_TEMP/frozen-operation-reviews"
+          packages="$RUNNER_TEMP/frozen-operation-packages"
+          baseline="$RUNNER_TEMP/frozen-operation-baseline"
+          mkdir -p "$out/review" "$packages/base" "$packages/indexed"
+          git worktree add --detach "$baseline" "$FT_REVIEW_BASE"
+          git rev-parse HEAD > "$out/indexed-source.txt"
+          git -C "$baseline" rev-parse HEAD > "$out/base-source.txt"
+          python3 compose/client-operations/perf/diagnosis/trace-review-baseline.py "$GITHUB_WORKSPACE" "$baseline"
+          git -C "$baseline" diff --binary > "$out/baseline-phase-samples.patch"
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
+            :business-domain:jvmTest --tests '**.CashImportReviewWorkspaceTest' \
+               --tests '**.LocalCashImportBusinessPlanTest' --tests '**.LocalCashImportRecalculationTest' \
+            :client-operations:jvmTest --tests '**.CashImportRecoveryEntryParityTest' \
+            :backend:installDist :cli:stageNpm)
+          (cd "$baseline/compose" && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm)
+          (cd compose && ./gradlew --stop)
+          npm pack --pack-destination "$packages/base" "$baseline/compose/cli/build/npm" --silent >/dev/null
+          npm pack --pack-destination "$packages/indexed" ./compose/cli/build/npm --silent >/dev/null
+          for variant in base indexed; do
+            sha256sum "$packages/$variant"/*.tgz | cut -d' ' -f1 > "$out/$variant-npm-sha256.txt"
+            npm install --prefix "$packages/$variant" --ignore-scripts --engine-strict --no-audit --no-fund "$packages/$variant"/*.tgz
+          done
+      - name: Review cloned small fixture states with both installed packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/frozen-operation-reviews"
+          packages="$RUNNER_TEMP/frozen-operation-packages"
+          private=$(mktemp -d "$RUNNER_TEMP/private-frozen-operations.XXXXXX")
+          trap 'rm -rf -- "$private"' EXIT
+          perf=compose/client-operations/perf
+          python3 "$perf/diagnosis/small-review-fixture.py" "$perf/fixtures/large-cash.py" "$private/fixture" compose/backend/build/install/backend
+          export FT_DIAGNOSTIC_SMALL_REVIEW=1 FT_PERF_WORKSPACE_DIAGNOSTIC_FIXTURE="$private/fixture/128"
+          export FT_DIAGNOSTIC_REVIEW_VARIANTS=$(node -e 'const p=process.argv[1]; console.log(JSON.stringify(Object.fromEntries(["base","indexed"].map(n=>[n,`${p}/${n}/node_modules/.bin/ft`]))))' "$packages")
+          export FT_PERF_CLI_PACKAGE=$(find "$packages/base" -maxdepth 1 -name '*.tgz')
+          export FT_PERF_ARTIFACTS="$out/review" FT_PERF_EVENTS="$out/review/measurements.jsonl"
+          export FT_PERF_LIVE_MEMORY_FORCE_GC=1
+          node "$perf/large-bench.mjs"
+          test "$(find "$out/review" -name '*.allocation.json' | wc -l)" -eq 2
+      - name: Upload synthetic aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-operation-index
+          path: |
+            ${{ runner.temp }}/frozen-operation-reviews/*.txt
+            ${{ runner.temp }}/frozen-operation-reviews/baseline-phase-samples.patch
+            ${{ runner.temp }}/frozen-operation-reviews/review/large-details.json
+            ${{ runner.temp }}/frozen-operation-reviews/review/measurements.jsonl
+            ${{ runner.temp }}/frozen-operation-reviews/review/*.live-memory.jsonl
+            ${{ runner.temp }}/frozen-operation-reviews/review/*.allocation.json
+          if-no-files-found: error
