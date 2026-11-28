@@ -78,7 +78,9 @@ internal suspend fun <T> withClient(
 internal suspend fun <T> withCashImport(server: String?, reportProgress: Boolean = false, action: suspend (ClientCashImportOperations) -> T): T =
     withHost(server, false) { session, store ->
         action(ClientCashImportOperations(session, store, nodeCalendar, ::newReference, progress = { stage ->
-            if (reportProgress) process.stderr.write("ft import: $stage\n")
+            if (stage.startsWith("diagnostic_")) {
+                if (process.env.FT_PERF_LIVE_MEMORY_FILE != null) process.stderr.write("ft import: $stage\n")
+            } else if (reportProgress) process.stderr.write("ft import: $stage\n")
         }))
     }
 

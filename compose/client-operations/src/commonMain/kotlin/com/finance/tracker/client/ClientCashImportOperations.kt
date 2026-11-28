@@ -405,6 +405,7 @@ class ClientCashImportOperations(
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
             snapshot, batch.id, planId, revision, files,
             choices, previous, progress = { progress(it.name.lowercase()) }, requireActive = {}, workspace = workspace,
+            terminal = useWorkspace, sample = { progress("diagnostic_$it") },
         )
         val publish = !reusable || (batch.reviewed == null && review.calculation.requestBody != null &&
             previous?.conclusion() == review.calculation.review.conclusion())
@@ -412,6 +413,7 @@ class ClientCashImportOperations(
             ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
         }
         val rendered = render(review)
+        progress("diagnostic_rendered_preview")
         if (workspace != null) store.finishReviewWorkspace()
         session.requireCurrent(ledger.binding)
         if (publish) {

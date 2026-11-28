@@ -1,0 +1,121 @@
+name: Terminal review context diagnostic
+
+on:
+  push:
+    branches: [perf/omit-terminal-review-context]
+
+permissions:
+  contents: read
+
+jobs:
+  terminal-context:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: ft_performance
+          POSTGRES_PASSWORD: disposable_ci_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ft_performance"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      FT_DIAGNOSTIC_PG: postgresql://ft_performance:disposable_ci_password@127.0.0.1:5432
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Prepare dedicated synthetic databases and delegated memory accounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
+          for database in base_small terminal_small base_real terminal_real; do
+            psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE review_context_${database}_test"
+          done
+          parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
+          printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
+          sudo chown "$(id -u):$(id -g)" "$parent"
+          printf 'FT_PERF_CGROUP_PARENT=%s\nFT_PERF_CGROUP_SUDO=1\n' "$parent" >> "$GITHUB_ENV"
+      - name: Build the single-variable pair and verify review contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/terminal-context"
+          control="$RUNNER_TEMP/review-context-control"
+          mkdir -p "$out/base" "$out/terminal"
+          git worktree add --detach "$control" "$GITHUB_SHA"
+          python3 - "$control" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1]) / 'compose/client-operations/src/commonMain/kotlin/com/finance/tracker/client/CashImportReviewOperations.kt'
+          text = p.read_text()
+          marker = 'includeInteractiveReview = !terminal'
+          assert text.count(marker) == 1
+          p.write_text(text.replace(marker, 'includeInteractiveReview = true'))
+          PY
+          git -C "$control" diff --binary > "$out/control.patch"
+          git rev-parse HEAD > "$out/candidate-source.txt"
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 \
+            :business-domain:jvmTest --tests '**.LocalCashImportRecalculationTest' \
+            :client-operations:jvmTest --tests '**.CashImportRecoveryEntryParityTest' \
+            :cashImportWorker:compileKotlinWasmJs :backend:installDist :cli:stageNpm)
+          (cd "$control/compose" && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm)
+          (cd compose && ./gradlew --stop)
+          npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
+          npm pack --json --pack-destination "$out/terminal" compose/cli/build/npm > "$out/terminal/pack.json"
+      - name: Run small phase probes and equal uninstrumented 19-file installs
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/terminal-context"
+          perf=compose/client-operations/perf
+          cp "$perf/large-bench.mjs" "$perf/terminal-context-profile.mjs"
+          python3 "$perf/diagnosis/stage-small-mixed-cash.py" "$perf/terminal-context-profile.mjs"
+          result=0
+          for label in base_small terminal_small terminal_real base_real; do
+            export FT_PERF_CLI_PACKAGE=$(find "$out/${label%_*}" -maxdepth 1 -type f -name '*.tgz')
+            test -f "$FT_PERF_CLI_PACKAGE"
+            export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/review_context_${label}_test"
+            export FT_PERF_ARTIFACTS="$out/$label" FT_PERF_EVENTS="$out/$label/measurements.jsonl"
+            mkdir -p "$FT_PERF_ARTIFACTS"
+            unset FT_PERF_LIVE_MEMORY_FLOWS FT_PERF_LIVE_MEMORY_FORCE_GC
+            bench=large-bench
+            if [[ "$label" == *_small ]]; then
+              export FT_PERF_LIVE_MEMORY_FLOWS=review FT_PERF_LIVE_MEMORY_FORCE_GC=1
+              bench=terminal-context-profile
+            fi
+            status=0
+            node "$perf/$bench.mjs" || status=$?
+            printf '%s\n' "$status" > "$FT_PERF_ARTIFACTS/exit.txt"
+            if [ "$status" -ne 0 ]; then result=1; fi
+          done
+          exit "$result"
+      - name: Upload phase and full-operation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-context-diagnostic-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/terminal-context/candidate-source.txt
+            ${{ runner.temp }}/terminal-context/control.patch
+            ${{ runner.temp }}/terminal-context/**/pack.json
+            ${{ runner.temp }}/terminal-context/**/large-details.json
+            ${{ runner.temp }}/terminal-context/**/measurements.jsonl
+            ${{ runner.temp }}/terminal-context/**/*.live-memory.jsonl
+            ${{ runner.temp }}/terminal-context/**/exit.txt
+          if-no-files-found: error
+          retention-days: 30

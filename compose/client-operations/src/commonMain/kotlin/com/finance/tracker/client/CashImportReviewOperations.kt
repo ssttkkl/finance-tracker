@@ -56,16 +56,20 @@ fun calculateCashImportReview(
 private fun calculateCashImportReview(
     files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
     includePreviewContext: Boolean, progress: (CashImportPlanningStage) -> Unit, requireActive: () -> Unit,
-    workspace: CashImportReviewWorkspace?,
+    workspace: CashImportReviewWorkspace?, terminal: Boolean = false, sample: (String) -> Unit = {},
 ): CashImportCalculation {
     val choices = freezeCashImportChoices(input)
     val prepared = prepareLocalCashImportReview(
         files, snapshot, choices, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(),
         includePreviewContext, requireActive, progress, Clock.System::now, workspace,
+        includeInteractiveReview = !terminal, sample = sample,
     )
     val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, prepared.changes)
     val body = if (prepared.canCommit) encodeCashImportRequest(request) else null
-    return CashImportCalculation(prepared.plan, prepared.confirmedReview(), request,
+    sample("request_body")
+    val review = prepared.confirmedReview()
+    sample("conclusion")
+    return CashImportCalculation(prepared.plan, review, request,
         prepared.previousReviewFor, prepared.previewContext, body)
 }
 
@@ -165,14 +169,16 @@ class CashImportReviewOperations(private val workspaceId: String, private val ca
         snapshot: LedgerSnapshotDto, batchId: String, planId: String, revision: Long, files: List<ParsedImportFile>,
         choices: CashImportPreviewInput, previous: LocalCashImportReview?,
         progress: (CashImportPlanningStage) -> Unit, requireActive: () -> Unit, workspace: CashImportReviewWorkspace?,
+        terminal: Boolean = false, sample: (String) -> Unit = {},
     ): Review {
         if (workspaceId != snapshot.workspaceId) throw ClientOperationFailure("workspace_conflict")
         if (choices.expectedSessionRevision != revision || revision < 1) throw CashImportPlanError("plan_changed")
         val input = clientJson.encodeToJsonElement(CashImportPreviewInput.serializer(), choices).jsonObject
-        val computation = calculateCashImportReview(files, snapshot, input, previous, false, progress, requireActive, workspace)
+        val computation = calculateCashImportReview(files, snapshot, input, previous, false, progress, requireActive, workspace, terminal, sample)
         val reader = cashImportPlanReader(identifyCashImportPreview(computation.plan, planId, batchId, revision), calendar, workspace != null)
         reader.validateReadable()
         val plan = clientJson.decodeFromJsonElement(CashImportPlanDto.serializer(), reader.view(choices.timezoneName))
+        sample("display_preview")
         return Review(workspaceId, plan, computation, CashImportReviewView(reader))
     }
 }
