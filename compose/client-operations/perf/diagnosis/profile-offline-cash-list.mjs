@@ -42,7 +42,7 @@ try {
         facts.cash_source_bindings.push({
             id: String(i + 1), transaction_id: id, source_type: 'alipay', source_scope_kind: 'account',
             source_scope_key: 'fixture', identity_kind: 'provider_id', identity_key: 'record-' + i,
-            identity_strength: 'provider', strategy_version: 'fixture', revision: '1', updated_at: transaction.created_at,
+            identity_strength: 'provider', stable_evidence_key: null, strategy_version: 'fixture', revision: '1', updated_at: transaction.created_at,
             created_at: transaction.created_at, coverage: { fixture: '合成条目'.repeat(180) },
         });
     }

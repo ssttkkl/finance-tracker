@@ -1,0 +1,47 @@
+name: Offline cash read phase diagnostic
+
+on:
+  push:
+    branches: [perf/trace-offline-cash-list]
+
+permissions:
+  contents: read
+
+jobs:
+  offline-cash-read-phases:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26.13.1'
+          package-manager-cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Build and measure only the installed offline CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/cash-page-phases"
+          install="$RUNNER_TEMP/cash-list-install"
+          mkdir -p "$out" "$install"
+          git rev-parse HEAD > "$out/source.txt"
+          node --version > "$out/node.txt"
+          (cd compose && ./gradlew --no-configuration-cache --max-workers=2 :cli:stageNpm && ./gradlew --stop)
+          package=$(npm pack --pack-destination "$install" ./compose/cli/build/npm --silent)
+          sha256sum "$install/$package" | cut -d' ' -f1 > "$out/npm-sha256.txt"
+          npm --prefix "$install" install --no-audit --no-fund --ignore-scripts "$install/$package"
+          node compose/client-operations/perf/diagnosis/profile-offline-cash-list.mjs "$install" "$out/cli.json"
+      - name: Upload numeric phase timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cash-offline-phases
+          path: ${{ runner.temp }}/cash-page-phases
+          if-no-files-found: error
