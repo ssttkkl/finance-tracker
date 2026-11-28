@@ -159,6 +159,8 @@ async function main() {
         runnerFacts: collectRunnerFacts(), measurements: raw, processes, checks, requestReports,
         ...(payloadShapes ? { payloadProfile: { diagnosticOnly: true, payloadShapes } } : {}),
     };
+    const cacheVariants = process.env.FT_DIAGNOSTIC_CACHE_VARIANTS
+        ? JSON.parse(process.env.FT_DIAGNOSTIC_CACHE_VARIANTS) : null;
     const record = async (id, measured, facts) => {
         const sample = { id, ms: measured.ms, rssBytes: measured.rssBytes, asserted: true };
         raw.push({ ...sample, checks: facts });
@@ -352,7 +354,7 @@ async function main() {
         const mutatingRequests = after => observed.slice(after)
             .filter(item => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(item.method));
 
-        if (!legacyComparison) {
+        if (!legacyComparison && !cacheVariants) {
             const [, controlCsv] = ordinaryLedgerCsv();
             const controlFile = join(work, 'confirmation-control.csv');
             await writeFile(controlFile, controlCsv);
@@ -583,6 +585,63 @@ async function main() {
             receiptSummary: receipt.summary, itemsComplete: confirm.value.items_complete, submittedBytes: writes[0].bytes,
         });
 
+        if (cacheVariants) {
+            assert.ok(!isolated && !legacyComparison);
+            const names = ['base', 'indexed', 'single_cursor'];
+            assert.deepEqual(Object.keys(cacheVariants).sort(), names);
+            const signedIn = await run(['auth', 'login', '--email', email, '--password-stdin'], { input: testPassword, state: coldState });
+            assert.equal(signedIn.value.active_workspace_id, workspace);
+            const listArgs = ['cash', 'list', '--limit', '20', ...scope];
+            const states = Object.fromEntries(names.map(name => [name, join(work, `ledger-cache-${name}`)]));
+            const variants = {};
+            let expectedPage;
+            async function cacheRead(name, operation, version, { offline = false, sampleMemory = false,
+                state = states[name], client = cacheVariants[name], flow, target = variants[name] } = {}) {
+                const firstRequest = observed.length;
+                const result = await run(listArgs, { state, sampleMemory, client, flow });
+                const page = readCashList(result.value, workspace, version, offline);
+                expectedPage ??= page;
+                assert.deepEqual(page, expectedPage);
+                if (offline) assert.equal(observed.length, firstRequest);
+                target[operation] = { label: processes.at(-1).label, ms: result.ms, rssBytes: result.rssBytes,
+                    requests: observed.length - firstRequest };
+            }
+            for (const name of names) {
+                await cp(coldState, states[name], { recursive: true });
+                variants[name] = {};
+                await cacheRead(name, 'first', '2', { flow: 'cold-snapshot' });
+                await cacheRead(name, 'sameVersion', '2', { flow: 'revalidated' });
+            }
+            await closeServer(proxy);
+            for (const name of names) await cacheRead(name, 'offline', '2', { offline: true });
+            await listen(proxy, proxyPort);
+            const probes = {};
+            for (const name of ['base', 'indexed']) {
+                probes[name] = {};
+                await cacheRead(name, 'sameVersion', '2', { sampleMemory: true, target: probes[name] });
+            }
+            await closeServer(proxy);
+            for (const name of ['base', 'indexed'])
+                await cacheRead(name, 'offline', '2', { offline: true, sampleMemory: true, target: probes[name] });
+            await listen(proxy, proxyPort);
+            await run(['account', 'create', '--name', 'Synthetic cache comparison version', '--type', 'cash', '--currency', 'CNY', ...scope]);
+            const staleCopies = {};
+            for (const name of ['base', 'indexed']) {
+                staleCopies[name] = join(work, `ledger-cache-probe-${name}`);
+                await cp(states[name], staleCopies[name], { recursive: true });
+            }
+            for (const name of [...names].reverse()) await cacheRead(name, 'changedVersion', '3', { flow: 'refreshed-snapshot' });
+            for (const name of ['base', 'indexed']) await cacheRead(name, 'changedVersion', '3',
+                { state: staleCopies[name], sampleMemory: true, target: probes[name] });
+            await closeServer(proxy);
+            for (const name of ['indexed', 'single_cursor']) await cacheRead(name, 'oldReader', '3',
+                { offline: true, client: cacheVariants.base });
+            checks.ledgerCacheComparison = { seedImports: 1, sameWorkspaceVersion: true, exactMemberPairs: serverFacts.exactPairs,
+                uniqueReceipt: true, variants, probes };
+            checks.completed = false;
+            return;
+        }
+
         const resultStart = observed.length;
         const result = await run(['import', 'result', batch, ...scope]);
         assert.deepEqual(result.value, confirm.value);
@@ -646,24 +705,6 @@ async function main() {
         await record('large.cash-refresh', refresh, {
             ledgerSeq: '3', snapshotDownloads: 1, rows: expectedPage.length, newAccount: refreshed.id,
         });
-        if (process.env.FT_DIAGNOSTIC_LEDGER_CACHE === '1') {
-            const probe = { state: coldState, sampleMemory: true };
-            const oldClient = process.env.FT_DIAGNOSTIC_FT_OLD;
-            const diagnostic = {};
-            const measureCache = async (name, version, offline, config = probe) => {
-                const result = await run(listArgs, config);
-                assert.deepEqual(readCashList(result.value, workspace, version, offline), expectedPage);
-                diagnostic[name] = { label: processes.at(-1).label, ms: result.ms, rssBytes: result.rssBytes };
-            };
-            await measureCache('sameVersion', '3', false);
-            await closeServer(proxy);
-            await measureCache('offline', '3', true);
-            if (oldClient) await measureCache('oldReader', '3', true, { state: coldState, client: oldClient });
-            await listen(proxy, proxyPort);
-            await run(['account', 'create', '--name', 'Synthetic probe version', '--type', 'cash', '--currency', 'CNY', ...scope]);
-            await measureCache('changedVersion', '4', false);
-            checks.ledgerCacheDiagnostic = diagnostic;
-        }
         checks.completed = true;
     } catch (error) {
         checks.completed = false;

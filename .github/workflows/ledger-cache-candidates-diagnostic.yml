@@ -45,9 +45,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends qpdf postgresql-client time
-          for database in base indexed single_cursor; do
-            psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ledger_candidates_${database}_test"
-          done
+          psql "$FT_DIAGNOSTIC_PG/postgres" -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ledger_candidates_test"
           parent=$(sudo mktemp -d /sys/fs/cgroup/ft-perf-XXXXXX)
           printf '+memory\n' | sudo tee "$parent/cgroup.subtree_control" >/dev/null
           sudo chown "$(id -u):$(id -g)" "$parent"
@@ -76,26 +74,21 @@ jobs:
           npm pack --json --pack-destination "$out/base" "$control/compose/cli/build/npm" > "$out/base/pack.json"
           git show "$LEDGER_CACHE_SINGLE_CURSOR:compose/cli/npm/lib/host.mjs" > "$control/compose/cli/build/npm/lib/host.mjs"
           npm pack --json --pack-destination "$out/single_cursor" "$control/compose/cli/build/npm" > "$out/single_cursor/pack.json"
-          mkdir -p "$RUNNER_TEMP/old-ft"
-          npm install --prefix "$RUNNER_TEMP/old-ft" --ignore-scripts --engine-strict --no-audit --no-fund "$out/base"/*.tgz
-      - name: Compare same-version, changed-version and offline cache access in sequential installed runs
+      - name: Import one seed and compare the three installed cache paths
         shell: bash
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/ledger-cache"
-          export FT_DIAGNOSTIC_LEDGER_CACHE=1 FT_DIAGNOSTIC_FT_OLD="$RUNNER_TEMP/old-ft/node_modules/.bin/ft"
-          result=0
           for label in base indexed single_cursor; do
-            export FT_PERF_CLI_PACKAGE=$(find "$out/$label" -maxdepth 1 -type f -name '*.tgz')
-            test -f "$FT_PERF_CLI_PACKAGE"
-            export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/ledger_candidates_${label}_test"
-            export FT_PERF_ARTIFACTS="$out/$label" FT_PERF_EVENTS="$out/$label/measurements.jsonl"
-            status=0
-            node compose/client-operations/perf/large-bench.mjs || status=$?
-            printf '%s\n' "$status" > "$FT_PERF_ARTIFACTS/exit.txt"
-            if [ "$status" -ne 0 ]; then result=1; fi
+            mkdir -p "$out/$label/installed"
+            npm install --prefix "$out/$label/installed" --ignore-scripts --engine-strict --no-audit --no-fund "$out/$label"/*.tgz
+            sha256sum "$out/$label"/*.tgz | cut -d' ' -f1 > "$out/$label/package-sha256.txt"
           done
-          exit "$result"
+          export FT_DIAGNOSTIC_CACHE_VARIANTS=$(node -e 'const p=process.argv[1]; console.log(JSON.stringify(Object.fromEntries(["base","indexed","single_cursor"].map(n=>[n,`${p}/${n}/installed/node_modules/.bin/ft`]))))' "$out")
+          export FT_PERF_CLI_PACKAGE=$(find "$out/base" -maxdepth 1 -type f -name '*.tgz')
+          export FT_TEST_POSTGRES_URL="$FT_DIAGNOSTIC_PG/ledger_candidates_test"
+          export FT_PERF_ARTIFACTS="$out/reads" FT_PERF_EVENTS="$out/reads/measurements.jsonl"
+          node compose/client-operations/perf/large-bench.mjs
       - name: Upload raw synthetic cache samples
         if: always()
         uses: actions/upload-artifact@v4
@@ -104,6 +97,7 @@ jobs:
           path: |
             ${{ runner.temp }}/ledger-cache/**/source.txt
             ${{ runner.temp }}/ledger-cache/**/pack.json
+            ${{ runner.temp }}/ledger-cache/**/package-sha256.txt
             ${{ runner.temp }}/ledger-cache/**/client-operations.abi
             ${{ runner.temp }}/ledger-cache/**/large-details.json
             ${{ runner.temp }}/ledger-cache/**/measurements.jsonl
