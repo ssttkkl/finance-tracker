@@ -525,8 +525,16 @@ async function main() {
                     assert.equal(result.value.summary.duplicate, expected.duplicates);
                     assert.equal(result.value.summary.relations_accepted, expected.relations);
                     if (!heapReview) assert.deepEqual(result.value.item_counts, { confirmed: 9729, pending: 0 });
-                    const { plan_id, ...view } = result.value;
+                    const { plan_id, pages, ...view } = result.value;
                     assert.ok(plan_id);
+                    view.pages = Object.fromEntries(Object.entries(pages).map(([kind, cursor]) => {
+                        if (cursor === null) return [kind, null];
+                        const tuple = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+                        assert.equal(tuple.length, 4);
+                        assert.equal(tuple[0], plan_id);
+                        assert.equal(tuple[1], kind);
+                        return [kind, tuple.slice(1)];
+                    }));
                     expectedView ??= view;
                     assert.deepEqual(view, expectedView);
                     const temporary = evidence.workspaceDisk.at(-1);
