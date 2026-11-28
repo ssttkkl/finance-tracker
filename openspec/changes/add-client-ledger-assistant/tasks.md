@@ -38,6 +38,8 @@
 
 - 侧栏图标是 B 类局部呈现调整。独立审查比对 Google Material Symbols Outlined 原路径，确认开关复用既有图标容器、主题前景色及无障碍名称。Material 3 Navigation rail 的 Overview 与 Specs 用于核对展开与收起的图标位置和状态。只涉及宽屏导航开关。
 
+- 工具行视觉调整按 B 类执行。独立审查核对 FinanceTheme 前景色、键盘焦点、原工具操作与结果顺序。相邻有可见结果卡时保留原边界，空目录和详情入口与原渲染共用解析，历史详情仍取原有首个对象。鼠标和触屏共用紧凑行高及点击区域，键盘保留同一行的可见焦点。视觉自检核对默认、悬停、焦点与工具详情。
+
 ## 6. 测试与 QA
 
 - [ ] Web 实际操作、Android 和 iOS 编译及单测、适用后端回归；记录当前证据。
@@ -68,6 +70,8 @@
 - 最终 `:webApp:wasmJsBrowserDistribution` 生成正式 Wasm 资源，Chrome 在 1440×900 和 390×844 从发布物复跑流式、断流、重试、待确认 A2UI 卡及 Markdown 图片、链接、局部表格滚动。两视口各 6 次故障夹具推理、零账本写入，A2UI 采用 0.3.0 正常发布资源解析，无资源 HTTP 错误和页面异常。证据见 `/tmp/ledger-assistant-history-hoisted-production.log`、`/tmp/ledger-md-acceptance/stream-production.log`（桌面）、`stream-production-mobile.log` 与 `gfm-production.log`。原生未做设备交互。
 
 - 2026-11-28，侧栏开关基于 `94ef0219`。Chrome 1440×900 使用正式 Web 构建核对两图标资源均为 200、悬浮展开、点击收起、固定展开和 Tab 聚焦展开，开关名称分别为「展开导航」「收起导航」。`:webApp:wasmJsBrowserDistribution`、`:shared:compileAndroidMain`、`:shared:compileKotlinIosSimulatorArm64` 通过。Web 与原生宽屏共享资源和样式，窄屏抽屉合同不变。证据见 `/tmp/ledger-panel-symbols-browser-pass.log`、`/tmp/ledger-panel-symbols-build.log` 和 http://127.0.0.1:18805/panel-symbols/ 。
+
+- 2026-11-28，工具行基于 `b17595ea`，旧版间距参考 `94ef0219`。Chrome 1440×900、390×844 验证无可见卡的连续摘要行高及行距均为 32 px，原来行距 72 px。同一 390×844 视口的鼠标和触摸模式测得相同行距。宽窄屏只在悬停行改变图标与文字颜色，行位置不动。Enter／Space、Escape、点击关闭和触屏逐条点选两项均走对应工具详情，零额外推理及写入。空查询结果仍成组，有卡时仍为工具 A、卡 A、工具 B、正文。Web 与 Android／iOS 共用分组及焦点，保持同一点击尺寸。开发构建实测见 `/tmp/ledger-tool-spacing-route-dev.log`，截图见 http://127.0.0.1:18805/compact-tools/ 。
 
 ## 7. 发布
 

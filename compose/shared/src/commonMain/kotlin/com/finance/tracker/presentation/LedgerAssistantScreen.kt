@@ -1,8 +1,12 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +37,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -41,7 +44,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_arrow_upward
+import com.finance.tracker.resources.ic_build
 import com.finance.tracker.resources.ic_chat
+import com.finance.tracker.resources.ic_chevron_right
 import com.finance.tracker.resources.ic_close
 import com.finance.tracker.resources.ic_expand_less
 import com.finance.tracker.resources.ic_expand_more
@@ -83,6 +88,7 @@ import com.finance.tracker.client.LedgerAssistantDeliveryStatus
 import com.finance.tracker.core.CashMaintenanceRecoveryStore
 import com.finance.tracker.core.WindowSizeClass
 import com.finance.tracker.core.PlatformModalEscapeHandler
+import com.finance.tracker.core.LocalFinanceColorRoles
 import com.finance.tracker.core.isWebPlatform
 import com.finance.tracker.core.DiagnosticLogger
 import com.finance.tracker.core.DiagnosticAction
@@ -341,7 +347,11 @@ internal class LedgerAssistantUi(
 private fun assistantMessageRows(messages: List<LedgerAssistantMessage>): List<List<LedgerAssistantMessage>> = buildList {
     messages.forEach { message ->
         val previous = lastOrNull()
-        if (message.reply != null && previous?.firstOrNull()?.toolTrace != null) {
+        val preceding = previous?.lastOrNull()
+        val continuesTools = preceding?.toolTrace != null && message.toolTrace != null &&
+            preceding.result?.hasVisibleCard() != true
+        val followsTools = message.reply != null && previous?.firstOrNull()?.toolTrace != null
+        if (previous != null && (continuesTools || followsTools)) {
             this[lastIndex] = previous + message
         } else {
             add(listOf(message))
@@ -481,13 +491,21 @@ internal fun LedgerAssistantScreen(
                         }
                         if (message.toolTrace != null || message.reply != null || message.result != null) {
                             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                message.toolTrace?.let { trace ->
-                                    key(current.id, trace.tool, trace.draftId) {
-                                        AssistantToolSummary(trace) { toolSheet = AssistantToolSelection(trace, it) }
+                                if (message.toolTrace != null) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        row.forEachIndexed { index, item ->
+                                            item.toolTrace?.let { trace ->
+                                                key(current.id, index, trace.tool, trace.draftId) {
+                                                    AssistantToolSummary(trace) { toolSheet = AssistantToolSelection(trace, it) }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 row.forEach { item -> item.reply?.let { AssistantReply(it, markdownImages) } }
-                                message.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
+                                row.forEach { item ->
+                                    item.result?.let { AssistantResultCard(it, sizeClass, ui.accounts, onDetail = { id -> detail = id }) }
+                                }
                             }
                         }
                     }
@@ -650,14 +668,34 @@ private fun AssistantToolSummary(trace: LedgerAssistantToolTrace, onOpen: (Focus
     val restoreFocus = remember { FocusRequester() }
     val label = assistantToolLabel(trace.tool)
     val status = assistantToolStatus(trace.status)
-    TextButton(
-        onClick = { onOpen(restoreFocus) },
-        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-        modifier = Modifier.focusRequester(restoreFocus).testTag("assistant.tool.toggle"),
-        contentPadding = PaddingValues(0.dp),
+    val interactions = remember { MutableInteractionSource() }
+    val hovered by interactions.collectIsHoveredAsState()
+    val focused by interactions.collectIsFocusedAsState()
+    val scheme = MaterialTheme.colorScheme
+    val tint = if (hovered || focused) scheme.onSurface else scheme.onSurfaceVariant
+    val shape = MaterialTheme.shapes.small
+    Row(
+        modifier = Modifier.focusRequester(restoreFocus).testTag("assistant.tool.toggle")
+            .then(if (focused) Modifier.border(1.dp, LocalFinanceColorRoles.current.focus, shape) else Modifier)
+            .clickable(
+                interactionSource = interactions,
+                indication = null,
+                role = Role.Button,
+                onClick = { onOpen(restoreFocus) },
+            )
+            .heightIn(min = 32.dp)
+            .widthIn(min = 48.dp)
+            .padding(end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(painterResource(Res.drawable.ic_expand_more), contentDescription = null)
-        Text("$label · $status", style = MaterialTheme.typography.labelMedium)
+        Icon(
+            painterResource(if (hovered) Res.drawable.ic_chevron_right else Res.drawable.ic_build),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = tint,
+        )
+        Text("$label · $status", color = tint, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -766,6 +804,23 @@ internal fun AssistantGlyph(modifier: Modifier, color: androidx.compose.ui.graph
     Icon(painterResource(Res.drawable.ic_chat), contentDescription = null, modifier = modifier, tint = color)
 }
 
+private fun LedgerAssistantToolResult.directoryEntries(): List<JsonObject> {
+    val key = if (tool == "list_accounts") "accounts" else "items"
+    return (payload[key] as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
+}
+
+private fun LedgerAssistantToolResult.detailRecordId(): String? {
+    val group = payload["group"] as? JsonObject
+    val members = (group?.get("members") as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
+    return members.firstOrNull()?.string("transaction_id")
+}
+
+private fun LedgerAssistantToolResult.hasVisibleCard(): Boolean = when (tool) {
+    "list_accounts", "list_categories" -> directoryEntries().isNotEmpty()
+    "get_transaction" -> detailRecordId() != null
+    else -> true
+}
+
 @Composable
 private fun AssistantResultCard(
     result: LedgerAssistantToolResult,
@@ -794,7 +849,7 @@ private fun AssistantResultCard(
         "summarize_transactions" -> AssistantSummaryCard(result, sizeClass, onDetail)
         "list_accounts", "list_categories" -> {
             val key = if (result.tool == "list_accounts") "accounts" else "items"
-            val entries = (result.payload[key] as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
+            val entries = result.directoryEntries()
             if (entries.isNotEmpty()) LedgerAssistantCard(LedgerAssistantCardKind.QUERY) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(localizedText(if (key == "accounts") "assistant_account" else "assistant_categories"),
@@ -804,9 +859,7 @@ private fun AssistantResultCard(
             }
         }
         "get_transaction" -> {
-            val group = result.payload["group"] as? JsonObject
-            val members = (group?.get("members") as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
-            members.firstOrNull()?.string("transaction_id")?.let { id ->
+            result.detailRecordId()?.let { id ->
                 AssistantActionSurface(localizedText("assistant_details"), "details") { onDetail(id) }
             }
         }
