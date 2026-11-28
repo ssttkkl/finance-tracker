@@ -3,9 +3,26 @@ package com.finance.tracker.business.domain
 import kotlinx.serialization.json.*
 
 /** Independent read-only views of a frozen calculation; lifecycle metadata must come from its actual owner. */
-class LocalCashImportPlanReader(plan: JsonObject, private val monthly: (List<*>, String) -> Map<String, Any?>) {
+class LocalCashImportPlanReader(plan: JsonObject, stored: Boolean, private val monthly: (List<*>, String) -> Map<String, Any?>) {
+    constructor(plan: JsonObject, monthly: (List<*>, String) -> Map<String, Any?>) : this(plan, false, monthly)
     @Suppress("UNCHECKED_CAST")
-    private val plan = decode(plan) as Map<String, Any?>
+    private val plan = if (stored) plan.mapValues { (_, value) ->
+        when {
+            value is JsonObject && value.isStoredReviewMap() -> {
+                val values = value
+                val keys = values.keys.toList()
+                lazyReviewMap(keys) { decode(values.getValue(keys[it])) }
+            }
+            value is JsonArray && value.isStoredReviewList() -> {
+                val values = value
+                object : AbstractList<Any?>() {
+                    override val size get() = values.size
+                    override fun get(index: Int): Any? = decode(values[index])
+                }
+            }
+            else -> decode(value)
+        }
+    } else decode(plan) as Map<String, Any?>
     private val rules = CashImportPlanViewRules(LocalCashRecordValues, ::localCashPreviewInteger,
         { CashImportPreviewInteger.parse(it.toString()) }, ::localVirtualComponent,
         { it is String || it is Number || it is Boolean || it is JsonPrimitive || it is CashImportPreviewInteger }, monthly)

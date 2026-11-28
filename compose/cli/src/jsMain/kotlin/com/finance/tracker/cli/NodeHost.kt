@@ -22,6 +22,7 @@ import com.finance.tracker.business.contracts.COMPATIBLE_READ_PAGES_VERSION
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_MAX_BYTES
 import com.finance.tracker.business.contracts.LEDGER_SNAPSHOT_PAGE_PATH
 import com.finance.tracker.business.domain.CASH_STATEMENT_MAX_BYTES
+import com.finance.tracker.business.domain.CashImportReviewWorkspace
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.client.ClientHttp
 import com.finance.tracker.client.ClientHttpBody
@@ -172,8 +173,11 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
     private var savedArchive: Pair<String, String>? = null
     private var savedConfirmation: SavedConfirmation? = null
     private var checkpointedConfirmation: SavedConfirmation? = null
+    private var reviewRead: ReviewRead? = null
 
     private data class SavedConfirmation(val key: String, val stamp: String, val batch: ClientCashImportBatch)
+
+    private data class ReviewRead(val ledgerSlot: String, val ledgerStamp: String?, val batchSlot: String, val batchStamp: String?)
 
     private data class ObservedLedger(val slot: String, val stamp: String, val state: dynamic)
 
@@ -376,6 +380,29 @@ private class NodeSessionStore(private val database: dynamic) : ClientSessionSto
         } catch (failure: Throwable) {
             throw ClientOperationFailure("local_state_unreadable", cause = failure)
         }
+
+    override fun openReviewWorkspace(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportReviewWorkspace? {
+        val medium = process.env.FT_PERF_REVIEW_WORKSPACE as String? ?: return null
+        val key = slot(session, workspaceId)
+        val batch = "$key.import.$batchId"
+        check(reviewRead == null)
+        reviewRead = ReviewRead(key, stateStamp(key), batch, stateStamp(batch))
+        database.releaseImportRead()
+        val workset = database.openImportWorkset(batch, medium)
+        return object : CashImportReviewWorkspace {
+            private var next = 0
+            override fun write(text: String): Int = next.also { workset.write(it, text); next++ }
+            override fun read(block: Int): String = workset.read(block) as String
+        }
+    }
+
+    override fun finishReviewWorkspace() {
+        val previous = checkNotNull(reviewRead)
+        reviewRead = null
+        database.resumeImportWrite()
+        if (stateStamp(previous.ledgerSlot) != previous.ledgerStamp || stateStamp(previous.batchSlot) != previous.batchStamp)
+            throw ClientOperationFailure("plan_changed", 409, commitState = "not_committed")
+    }
 
     override suspend fun compareAndDelete(session: ClientStoredSession, workspaceId: String, previous: ClientCashImportBatch): Boolean {
         if (!sameState(session, session()) || read(session, workspaceId, previous.id) != previous ||

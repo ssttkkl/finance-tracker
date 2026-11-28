@@ -13,6 +13,7 @@ import com.finance.tracker.business.domain.identifyCashImportPreview
 import kotlin.time.Clock
 import com.finance.tracker.business.domain.CashImportResultContent
 import com.finance.tracker.business.domain.CashImportPlanError
+import com.finance.tracker.business.domain.CashImportReviewWorkspace
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
 import com.finance.tracker.business.contracts.CashWriteSetRequestDto
 import com.finance.tracker.business.domain.LocalCashImportResultInput
@@ -72,6 +73,8 @@ interface ClientCashImportStore {
         removedFileIds: List<String> = emptyList(),
     ): Boolean
     suspend fun readFile(session: ClientStoredSession, workspaceId: String, batchId: String, storageId: String): String?
+    fun openReviewWorkspace(session: ClientStoredSession, workspaceId: String, batchId: String): CashImportReviewWorkspace? = null
+    fun finishReviewWorkspace() {}
     /** The batch and file rows may be cleared only if they still match and no associated account write is unresolved. */
     suspend fun compareAndDelete(session: ClientStoredSession, workspaceId: String, previous: ClientCashImportBatch): Boolean
     /** Commit the stored operation before the first business HTTP request. */
@@ -320,7 +323,7 @@ class ClientCashImportOperations(
         updatedChoices: CashImportPreviewInput? = null,
     ): CashImportReviewOperations.Review {
         val ledger = session.ledger(workspaceId)
-        return review(ledger, batch(ledger, batchId), timezone, updatedChoices)
+        return review(ledger, batch(ledger, batchId), timezone, updatedChoices, useWorkspace = true)
     }
 
     suspend fun reviewView(workspaceId: String?, batchId: String, timezone: String): CashImportReviewView {
@@ -353,7 +356,7 @@ class ClientCashImportOperations(
 
     private suspend fun review(
         ledger: ClientLedgerRead, batch: ClientCashImportBatch,
-        timezone: String, updatedChoices: CashImportPreviewInput?,
+        timezone: String, updatedChoices: CashImportPreviewInput?, useWorkspace: Boolean = false,
     ): CashImportReviewOperations.Review {
         val snapshot = ledger.ledger.snapshot
         if (batch.submission != null || batch.result != null) throw ClientOperationFailure("plan_changed", 409)
@@ -378,17 +381,21 @@ class ClientCashImportOperations(
         val previous = batch.review?.let(LocalCashImportReview::decode)
         val choices = (updatedChoices ?: retained).copy(expectedSessionRevision = revision, timezoneName = timezone)
         progress("read_files")
+        val files = parsedFiles(ledger, batch)
+        val workspace = if (useWorkspace) store.openReviewWorkspace(ledger.binding, snapshot.workspaceId, batch.id) else null
         val review = CashImportReviewOperations(snapshot.workspaceId, calendar).review(
-            snapshot, batch.id, planId, revision, parsedFiles(ledger, batch),
-            choices, previous, progress = { progress(it.name.lowercase()) },
+            snapshot, batch.id, planId, revision, files,
+            choices, previous, progress = { progress(it.name.lowercase()) }, requireActive = {}, workspace = workspace,
         )
+        val publish = !reusable || (batch.reviewed == null && review.calculation.requestBody != null &&
+            previous?.conclusion() == review.calculation.review.conclusion())
+        val reviewed = review.calculation.requestBody?.takeIf { publish }?.let { body ->
+            ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
+        }
+        if (workspace != null) store.finishReviewWorkspace()
         session.requireCurrent(ledger.binding)
-        if (!reusable || (batch.reviewed == null && review.calculation.requestBody != null &&
-                previous?.conclusion() == review.calculation.review.conclusion())) {
+        if (publish) {
             progress("save_review")
-            val reviewed = review.calculation.requestBody?.let { body ->
-                ClientCashImportReviewedCommand(CASH_RULES_VERSION, body, review.resultInput().encode())
-            }
             save(ledger, batch, batch.copy(revision = revision, planId = planId, ledgerSeq = snapshot.ledgerSeq,
                 review = review.calculation.review.encode(), reviewed = reviewed))
         }

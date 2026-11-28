@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
-import { mkdirSync, lstatSync, fstatSync, closeSync, openSync, readSync, constants } from 'node:fs';
+import { mkdirSync, mkdtempSync, lstatSync, fstatSync, closeSync, openSync, readSync, writeSync, fsyncSync, readdirSync, rmSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -335,12 +335,186 @@ function open(key, aad, encrypted) {
     return tail.length === 0 ? plaintext : Buffer.concat([plaintext, tail]);
 }
 
+function sqliteReviewBlocks(connection, ownsConnection) {
+    connection.exec(`CREATE TABLE IF NOT EXISTS cash_review_work (
+        generation TEXT NOT NULL,
+        block INTEGER NOT NULL,
+        part INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        payload BLOB NOT NULL,
+        PRIMARY KEY (generation, block, part)
+    ) STRICT, WITHOUT ROWID`);
+    const insert = connection.prepare('INSERT INTO cash_review_work VALUES (?, ?, ?, ?, ?)');
+    const select = connection.prepare('SELECT part, total, payload FROM cash_review_work WHERE generation = ? AND block = ? ORDER BY part');
+    const remove = connection.prepare('DELETE FROM cash_review_work WHERE generation = ?');
+    const generations = connection.prepare('SELECT DISTINCT generation FROM cash_review_work');
+    return {
+        removeAbandoned() {
+            for (const row of generations.all()) {
+                const owner = /^(\d+)-[0-9a-f]{32}$/.exec(row.generation);
+                if (owner && !processAlive(Number(owner[1]))) remove.run(row.generation);
+            }
+        },
+        write(generation, block, parts, encode) {
+            const start = !connection.isTransaction;
+            if (start) connection.exec('BEGIN IMMEDIATE');
+            try {
+                for (const [part, piece] of parts.entries())
+                    insert.run(generation, block, part, parts.length, encode(piece, part, parts.length));
+                if (start) connection.exec('COMMIT');
+            } catch (error) {
+                if (start && connection.isTransaction) connection.exec('ROLLBACK');
+                throw error;
+            }
+        },
+        read: (generation, block) => select.all(generation, block),
+        close(generation) {
+            if (ownsConnection) connection.close();
+            else remove.run(generation);
+        },
+    };
+}
+
+function fileReviewBlocks(filename) {
+    const descriptor = openSync(filename, 'wx+', 0o600);
+    const index = new Map();
+    let offset = 0;
+    return {
+        write(_, block, parts, encode) {
+            if (index.has(block)) throw new Error('Cash review block must be UNIQUE');
+            const positions = [];
+            for (const [part, piece] of parts.entries()) {
+                const bytes = encode(piece, part, parts.length);
+                positions.push([offset, bytes.length]);
+                let written = 0;
+                while (written < bytes.length) {
+                    const count = writeSync(descriptor, bytes, written, bytes.length - written, offset + written);
+                    if (count === 0) throw new Error('Cash review block write did not progress');
+                    written += count;
+                }
+                offset += bytes.length;
+            }
+            fsyncSync(descriptor);
+            index.set(block, positions);
+        },
+        read(_, block) {
+            const positions = index.get(block) ?? [];
+            return positions.map(([offset, size], part) => {
+                const payload = Buffer.alloc(size);
+                let read = 0;
+                while (read < size) {
+                    const count = readSync(descriptor, payload, read, size - read, offset + read);
+                    if (count === 0) throw new Error('Cash review block is incomplete');
+                    read += count;
+                }
+                return { part, total: positions.length, payload };
+            });
+        },
+        close() { closeSync(descriptor); },
+    };
+}
+
+function processAlive(pid) {
+    if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2147483647) return true;
+    try { process.kill(pid, 0); return true; }
+    catch (error) {
+        if (error.code === 'ESRCH') return false;
+        if (error.code === 'EPERM') return true;
+        throw error;
+    }
+}
+
+function importWorksets(database, server, root) {
+    const active = new Set();
+    let shared;
+    let checkedOrphans = false;
+    return {
+        open(batch, medium) {
+            if (!['shared', 'sqlite', 'file'].includes(medium)) throw new Error('Invalid cash review workspace medium');
+            if (!checkedOrphans) {
+                for (const entry of readdirSync(root, { withFileTypes: true })) {
+                    const owner = /^\.cash-review-(\d+)-[a-zA-Z0-9]{6}$/.exec(entry.name);
+                    if (entry.isDirectory() && owner && !processAlive(Number(owner[1])))
+                        rmSync(join(root, entry.name), { recursive: true, force: true });
+                }
+                checkedOrphans = true;
+            }
+            const generation = process.pid + '-' + randomBytes(16).toString('hex');
+            const directory = medium === 'shared' ? null : mkdtempSync(join(root, '.cash-review-' + process.pid + '-'));
+            let blocks;
+            try {
+                if (medium === 'shared') {
+                    if (!shared) {
+                        shared = sqliteReviewBlocks(database, false);
+                        shared.removeAbandoned();
+                    }
+                    blocks = shared;
+                }
+                else if (medium === 'sqlite') {
+                    const connection = new DatabaseSync(join(directory, 'work.sqlite'));
+                    try { blocks = sqliteReviewBlocks(connection, true); }
+                    catch (error) { connection.close(); throw error; }
+                } else blocks = fileReviewBlocks(join(directory, 'blocks'));
+            } catch (error) {
+                if (directory != null) rmSync(directory, { recursive: true, force: true });
+                throw error;
+            }
+            const key = randomBytes(32);
+            const associated = (block, part, total) =>
+                Buffer.from(JSON.stringify(['ft-cash-review-v1', server, batch, generation, block, part, total]));
+            function requireBlock(block) {
+                if (!active.has(workset)) throw new Error('Cash review workspace is closed');
+                if (!Number.isSafeInteger(block) || block < 0) throw new Error('Invalid cash review block');
+            }
+            const workset = {
+                write(block, text) {
+                    requireBlock(block);
+                    if (typeof text !== 'string') throw new Error('Invalid cash review block text');
+                    const parts = [...stateTextChunks(text)];
+                    if (parts.length === 0) parts.push('');
+                    blocks.write(generation, block, parts, (piece, part, total) => {
+                        const bytes = Buffer.from(piece);
+                        try { return seal(key, associated(block, part, total), bytes); }
+                        finally { bytes.fill(0); }
+                    });
+                },
+                read(block) {
+                    requireBlock(block);
+                    const parts = blocks.read(generation, block);
+                    if (parts.length === 0 || parts.some((row, part) => row.part !== part || row.total !== parts.length))
+                        throw new Error('Cash review block is missing or incomplete');
+                    return parts.map(({ part, payload }) => {
+                        const bytes = open(key, associated(block, part, parts.length), payload);
+                        try { return bytes.toString('utf8'); }
+                        finally { bytes.fill(0); }
+                    }).join('');
+                },
+                close() {
+                    if (!active.delete(workset)) return;
+                    key.fill(0);
+                    try { blocks.close(generation); }
+                    finally { if (directory != null) rmSync(directory, { recursive: true, force: true }); }
+                },
+            };
+            active.add(workset);
+            return workset;
+        },
+        requireClosed() {
+            if (active.size !== 0) throw new Error('Open cash review workspace at checkpoint');
+        },
+        close() {
+            for (const workset of active) workset.close();
+        },
+    };
+}
+
 export function openStore(origin, createKey) {
     const root = resolve(process.env.FT_CLI_STATE_DIR || join(homedir(), '.finance-tracker-cli'));
     const database = new DatabaseSync(privateFile(root));
     let key;
     try {
         database.exec('PRAGMA busy_timeout = 10000; PRAGMA secure_delete = ON; BEGIN IMMEDIATE');
+        const worksets = importWorksets(database, origin, root);
         const version = database.prepare('PRAGMA user_version').get().user_version;
         if (version > 1) {
             database.close();
@@ -378,6 +552,11 @@ export function openStore(origin, createKey) {
             }
         };
         return {
+            openImportWorkset(batch, medium = 'shared') {
+                return worksets.open(batch, medium);
+            },
+            releaseImportRead() { database.exec('COMMIT'); },
+            resumeImportWrite() { database.exec('BEGIN IMMEDIATE'); },
             workspaceSlot(token, email, workspace) {
                 return createHmac('sha256', key).update(JSON.stringify([server, token, email, workspace])).digest('hex');
             },
@@ -425,11 +604,14 @@ export function openStore(origin, createKey) {
                 return database.prepare('PRAGMA data_version').get().data_version;
             },
             checkpoint() {
+                worksets.requireClosed();
                 database.exec('COMMIT; BEGIN IMMEDIATE');
             },
             close(commit) {
                 try {
-                    database.exec(commit ? 'COMMIT' : 'ROLLBACK');
+                    if (!commit && database.isTransaction) database.exec('ROLLBACK');
+                    worksets.close();
+                    if (database.isTransaction) database.exec('COMMIT');
                 } finally {
                     key.fill(0);
                     database.close();

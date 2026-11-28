@@ -11,6 +11,7 @@ import { performance } from 'node:perf_hooks';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { measureCommand } from './large-measure.mjs';
+import { trackDisk } from './workspace-diagnostic/disk.mjs';
 import {
     collectConfirmObservations, inspectLostConfirmation, observedTime, openProxy, sampleConfirmDatabase, verifyPreparedFiles,
 } from './large-support.mjs';
@@ -113,10 +114,11 @@ async function main() {
     await mkdir(dirname(eventPath), { recursive: true });
     await mkdir(evidenceDir, { recursive: true });
     const work = await mkdtemp(join(tmpdir(), 'ft-perf-large-'));
-    const install = join(work, 'installed');
+    const diagnosticInstall = process.env.FT_PERF_WORKSPACE_DIAGNOSTIC_INSTALL;
+    const install = diagnosticInstall || join(work, 'installed');
     const outputDir = join(work, 'command-logs');
     const fixture = join(work, 'fixture');
-    await mkdir(install);
+    if (!diagnosticInstall) await mkdir(install);
     await mkdir(outputDir);
     const backend = resolve(process.env.FT_PERF_BACKEND_INSTALL ?? join(checkout, 'compose/backend/build/install/backend'));
     const psqlArgs = ['-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '--dbname', dbUrl];
@@ -182,7 +184,7 @@ async function main() {
         }
         packagePath = resolve(packagePath);
         evidence.packageSha256 = await sha256(packagePath);
-        tool('npm', ['install', '--engine-strict', '--ignore-scripts', '--no-audit', '--no-fund', packagePath],
+        if (!diagnosticInstall) tool('npm', ['install', '--engine-strict', '--ignore-scripts', '--no-audit', '--no-fund', packagePath],
             { cwd: install });
         const ft = join(install, 'node_modules/.bin/ft');
         evidence.cliVersion = tool(ft, ['--version']).trim();
@@ -199,7 +201,9 @@ async function main() {
             regularTimeoutMs: timeout ? Number(timeout[2].replaceAll('_', '')) : null,
         };
 
-        tool('python3', [join(perfDirectory, 'fixtures/large-cash.py'), '--output', fixture, '--backend-install', backend]);
+        const diagnosticFixture = process.env.FT_PERF_WORKSPACE_DIAGNOSTIC_FIXTURE;
+        if (diagnosticFixture) await cp(diagnosticFixture, fixture, { recursive: true });
+        else tool('python3', [join(perfDirectory, 'fixtures/large-cash.py'), '--output', fixture, '--backend-install', backend]);
         const manifest = JSON.parse(await readFile(join(fixture, 'manifest.json'), 'utf8'));
         assert.equal(manifest.rows, expected.rows);
         assert.deepEqual(manifest.formats, { csv: 6, pdf: 5, xls: 2, xlsx: 6 });
@@ -266,6 +270,10 @@ async function main() {
         };
         delete cliEnv.NODE_OPTIONS;
         delete cliEnv.NODE_TLS_REJECT_UNAUTHORIZED;
+        if (diagnosticInstall) {
+            evidence.workspaceMedium = process.env.FT_PERF_REVIEW_WORKSPACE ?? 'memory';
+            evidence.workspaceDisk = [];
+        }
         let sequence = 0;
         const run = async (args, { input, state = primaryState, flow = args[0] === 'import' ? args[1] : undefined, concurrent = false } = {}) => {
             const label = `${++sequence}-${args[0]}-${args[1]}`;
@@ -275,11 +283,12 @@ async function main() {
                 requestFlow = { id: flow, concurrent, beginRss: beginRequestRss, started: 0, pending: [], errors: [] };
                 await writeFile(clocksPath, '');
             }
+            const disk = diagnosticInstall && ['prepare', 'review', 'confirm', 'result'].includes(flow) ? trackDisk(state) : null;
             try {
                 const measured = await measureCommand(ft, [...args, '--json'], {
                     outputDir, label, timeoutMs: 300_000, input,
                     collectLiveMemory: liveMemoryFlows.has(flow),
-                    collectGc: args[0] === 'import' && args[1] === 'review',
+                    collectGc: !diagnosticInstall && args[0] === 'import' && args[1] === 'review',
                     env: { ...cliEnv, FT_CLI_STATE_DIR: state, ...(flow ? {
                         NODE_OPTIONS: `--import=${new URL('./client-request-clock.mjs', import.meta.url).href}`,
                         FT_PERF_CLIENT_REQUEST_CLOCK: clocksPath,
@@ -291,6 +300,7 @@ async function main() {
                 processes.push({ label, error: error.message, ...error.measurement });
                 throw error;
             } finally {
+                if (disk) evidence.workspaceDisk.push({ label, flow, ...disk() });
                 if (flow) {
                     const { started, pending, errors } = requestFlow;
                     requestFlow = undefined;

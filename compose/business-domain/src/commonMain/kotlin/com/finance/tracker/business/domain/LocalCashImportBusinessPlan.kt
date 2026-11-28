@@ -39,8 +39,9 @@ fun prepareLocalCashImportReview(
     files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>?, recordIds: Map<String, String>, includePreviewContext: Boolean,
     requireActive: () -> Unit, progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
+    workspace: CashImportReviewWorkspace? = null,
 ): PreparedCashImportReview {
-    val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now)
+    val (plan, frozen, changes) = calculateImportPlan(files, source, input, previous, recordIds, requireActive, progress, now, workspace)
     return PreparedCashImportReview(frozen, changes, plan["can_commit"] == true, LocalCashImportReview.forPreview(plan),
         if (includePreviewContext) LocalCashImportReview.encodePreviewContext(plan) else null,
         source, LocalCashImportReview.freeze(input, plan))
@@ -52,11 +53,12 @@ private fun calculateImportPlan(
     files: List<ParsedImportFile>, source: LedgerSnapshotDto, input: JsonObject,
     previous: Map<String, Any?>?, recordIds: Map<String, String>, requireActive: () -> Unit,
     progress: (CashImportPlanningStage) -> Unit, now: () -> Instant,
+    workspace: CashImportReviewWorkspace? = null,
 ): CalculatedImportPlan {
     val (plan, sources) = localCashImportBusinessPlan(files, source, input, previous, recordIds, requireActive, progress, now)
     progress(CashImportPlanningStage.BUILD_WRITE_SET)
     val empty = JsonArray(emptyList())
-    val frozen = freezeLocalCashImportPreviewPlan(plan)
+    val frozen = freezeLocalCashImportPreviewPlan(plan, workspace)
     val changes = buildLocalCashImportWriteSet(source, files, sources, frozen,
         (input["row_choices"] ?: empty).jsonArray, (input["relation_choices"] ?: empty).jsonArray)
     return CalculatedImportPlan(plan, frozen, changes)

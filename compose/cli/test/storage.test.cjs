@@ -5,6 +5,129 @@ const { join } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { test } = require('node:test');
 
+test('cash review workspaces isolate blocks and cannot survive a checkpoint or interrupted connection', async () => {
+    const { spawnSync } = require('node:child_process');
+    const { pathToFileURL } = require('node:url');
+    const host = pathToFileURL(join(__dirname, '../npm/lib/host.mjs')).href;
+    const { openStore } = await import(host);
+    const root = mkdtempSync(join(tmpdir(), 'ft-review-workspace-'));
+    const env = { ...process.env, FT_CLI_STATE_DIR: root, FT_CLI_STORAGE_KEY: Buffer.alloc(32, 7).toString('base64') };
+    const origin = 'https://review-workspace.test';
+    const open = () => {
+        Object.assign(process.env, { FT_CLI_STATE_DIR: root, FT_CLI_STORAGE_KEY: env.FT_CLI_STORAGE_KEY });
+        return openStore(origin, true);
+    };
+    const previousRoot = process.env.FT_CLI_STATE_DIR;
+    const previousKey = process.env.FT_CLI_STORAGE_KEY;
+    try {
+        let store = open();
+        store.write('durable', 'original frozen command');
+        store.checkpoint();
+        const first = store.openImportWorkset('workspace.batch-one');
+        const second = store.openImportWorkset('workspace.batch-two');
+        const concurrent = store.openImportWorkset('workspace.batch-one');
+        const payload = '原始\u0001😀'.repeat(16000);
+        first.write(0, payload);
+        second.write(0, 'other batch');
+        concurrent.write(0, 'another generation');
+        assert.equal(first.read(0), payload);
+        assert.equal(second.read(0), 'other batch');
+        assert.equal(concurrent.read(0), 'another generation');
+        assert.throws(() => first.read(1), /missing/);
+        assert.throws(() => first.write(0, 'overwritten'), /UNIQUE/);
+        assert.throws(() => store.checkpoint(), /review workspace/);
+        first.close();
+        assert.throws(() => first.read(0), /closed/);
+        assert.equal(second.read(0), 'other batch');
+        second.close();
+        concurrent.close();
+        store.checkpoint();
+        store.close(true);
+
+        const child = spawnSync(process.execPath, ['--input-type=module', '--eval', `
+            import { openStore } from ${JSON.stringify(host)};
+            const store = openStore(${JSON.stringify(origin)}, false);
+            store.openImportWorkset('workspace.batch-one').write(0, 'interrupted');
+            store.write('durable', 'uncommitted change');
+            process.kill(process.pid, 'SIGKILL');
+        `], { env });
+        assert.equal(child.signal, 'SIGKILL');
+        store = open();
+        assert.equal(store.read('durable'), 'original frozen command');
+        const reopened = store.openImportWorkset('workspace.batch-one');
+        assert.throws(() => reopened.read(0), /missing/);
+        reopened.close();
+        assert.deepEqual(store.slots(''), ['durable']);
+        store.close(true);
+    } finally {
+        if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
+        else process.env.FT_CLI_STATE_DIR = previousRoot;
+        if (previousKey === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+        else process.env.FT_CLI_STORAGE_KEY = previousKey;
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('all review media release the main state transaction and recover killed generations', async () => {
+    const { spawnSync } = require('node:child_process');
+    const { readdirSync } = require('node:fs');
+    const { pathToFileURL } = require('node:url');
+    const host = pathToFileURL(join(__dirname, '../npm/lib/host.mjs')).href;
+    const { openStore } = await import(host);
+    const root = mkdtempSync(join(tmpdir(), 'ft-review-media-'));
+    const origin = 'https://review-media.test';
+    const key = Buffer.alloc(32, 19).toString('base64');
+    const previousRoot = process.env.FT_CLI_STATE_DIR;
+    const previousKey = process.env.FT_CLI_STORAGE_KEY;
+    const open = () => {
+        Object.assign(process.env, { FT_CLI_STATE_DIR: root, FT_CLI_STORAGE_KEY: key });
+        return openStore(origin, true);
+    };
+    const child = (code) => spawnSync(process.execPath, ['--input-type=module', '--eval', `
+        import { openStore } from ${JSON.stringify(host)};
+        const store = openStore(${JSON.stringify(origin)}, false);
+        if (store.error) throw new Error(store.error);
+        ${code}
+    `], { env: { ...process.env, FT_CLI_STATE_DIR: root, FT_CLI_STORAGE_KEY: key }, timeout: 5000 });
+    try {
+        for (const medium of ['shared', 'sqlite', 'file']) {
+            let store = open();
+            store.write('durable', 'original');
+            store.releaseImportRead();
+            const work = store.openImportWorkset('same-batch', medium);
+            work.write(0, 'in-progress');
+            assert.equal(child("store.write('other-batch', 'complete'); store.close(true);").status, 0);
+            assert.equal(work.read(0), 'in-progress');
+            store.resumeImportWrite();
+            assert.equal(store.read('other-batch'), 'complete');
+            store.close(true);
+            const killed = child(`
+                store.releaseImportRead();
+                store.openImportWorkset('same-batch', ${JSON.stringify(medium)}).write(0, 'abandoned');
+                process.kill(process.pid, 'SIGKILL');
+            `);
+            assert.equal(killed.signal, 'SIGKILL');
+            store = open();
+            assert.equal(store.read('durable'), 'original');
+            const recovered = store.openImportWorkset('same-batch', medium);
+            assert.throws(() => recovered.read(0), /missing/);
+            recovered.close();
+            store.close(true);
+            assert.equal(readdirSync(root).filter(name => name.startsWith('.cash-review-')).length, 0);
+        }
+        const inspect = new DatabaseSync(join(root, 'client.sqlite'), { readOnly: true });
+        try {
+            assert.equal(inspect.prepare('SELECT count(*) AS count FROM cash_review_work').get().count, 0);
+        } finally { inspect.close(); }
+    } finally {
+        if (previousRoot === undefined) delete process.env.FT_CLI_STATE_DIR;
+        else process.env.FT_CLI_STATE_DIR = previousRoot;
+        if (previousKey === undefined) delete process.env.FT_CLI_STORAGE_KEY;
+        else process.env.FT_CLI_STORAGE_KEY = previousKey;
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test('encrypted state avoids full-buffer copies and still rejects a modified tag', async () => {
     const root = mkdtempSync(join(tmpdir(), 'ft-encrypted-storage-'));
     const originalRoot = process.env.FT_CLI_STATE_DIR;

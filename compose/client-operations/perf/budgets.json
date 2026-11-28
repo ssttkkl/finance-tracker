@@ -1440,6 +1440,16 @@
       ]
     },
     {
+      "signature": "ClientCashImportStore.finishReviewWorkspace|finishReviewWorkspace(){}",
+      "disposition": "spi",
+      "reason": "Host transaction fence exercised by the installed CLI review"
+    },
+    {
+      "signature": "ClientCashImportStore.openReviewWorkspace|openReviewWorkspace(com.finance.tracker.client.ClientStoredSession;kotlin.String;kotlin.String){}",
+      "disposition": "spi",
+      "reason": "Operation-scoped temporary storage exercised by the installed CLI review"
+    },
+    {
       "signature": "ClientCashImportStore.batches|batches(com.finance.tracker.client.ClientStoredSession;kotlin.String){}",
       "disposition": "spi",
       "reason": "Host I/O, persistence or recovery adapter exercised through its owning operation"

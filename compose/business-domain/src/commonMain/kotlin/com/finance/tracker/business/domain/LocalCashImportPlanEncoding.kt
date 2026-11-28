@@ -4,7 +4,9 @@ import kotlinx.serialization.json.*
 import kotlin.time.Instant
 
 /** Freeze a completed, exclusively computed plan without changing its values or raw JSON number kinds. */
-fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
+fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject = freezeLocalCashImportPreviewPlan(value, null)
+
+internal fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>, workspace: CashImportReviewWorkspace?): JsonObject {
     fun count(value: Any?, nullable: Boolean = false): Any? {
         if ((value == null || value == JsonNull) && nullable) return null
         val exact = localCashIntegerText(value)
@@ -30,9 +32,19 @@ fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
         }
         is List<*> -> {
             val itemPath = path + "[]"
-            JsonArray(buildList(value.size) { for (item in value) add(encode(item, itemPath)) })
+            val stored = workspace != null && path.size == 1 && path.single() in storedReviewArrays
+            JsonArray(if (stored) checkNotNull(workspace).storeList(value.asSequence().map { encode(it, itemPath) })
+                else buildList(value.size) { for (item in value) add(encode(item, itemPath)) })
         }
-        is Map<*, *> -> encodeLocalCashObject(value) { name, item ->
+        is Map<*, *> -> {
+            if (workspace != null && path.size == 1 && path.single() in storedReviewObjects) {
+                val keys = value.keys.map { it as? String ?: throw InvalidCashValue() }.sortedWith(::pythonStringOrder)
+                val stored = workspace.storeList(keys.asSequence().map { name ->
+                    name.encodeToByteArray(throwOnInvalidSequence = true)
+                    encode(value[name], path + name)
+                })
+                JsonObject(lazyReviewMap(keys, stored::get))
+            } else encodeLocalCashObject(value) { name, item ->
             val normalized = when {
                 path == listOf("summary") -> count(item)
                 path == listOf("file_results", "[]") && name == "recognized_row_count" -> count(item, true)
@@ -40,9 +52,13 @@ fun freezeLocalCashImportPreviewPlan(value: Map<String, Any?>): JsonObject {
                 path == listOf("file_results", "[]", "diagnostic", "locations", "[]") && name == "row_number" -> count(item, true)
                 else -> item
             }
-            encode(normalized, path + name)
+                encode(normalized, path + name)
+            }
         }
         else -> encodeLocalCashValue(value)
     }
     return encode(value, emptyList()).jsonObject
 }
+
+internal val storedReviewArrays = setOf("items", "monthly_source", "processing_details", "row_decisions")
+internal val storedReviewObjects = setOf("item_details", "detail_values")

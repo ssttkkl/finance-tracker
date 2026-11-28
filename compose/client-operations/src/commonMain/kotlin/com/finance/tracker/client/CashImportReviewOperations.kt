@@ -11,8 +11,10 @@ import com.finance.tracker.business.domain.cashWriteSetJson
 import com.finance.tracker.business.domain.isCashWriteSetKey
 import com.finance.tracker.business.contracts.LedgerSnapshotDto
 import com.finance.tracker.business.domain.CASH_RULES_VERSION
+import com.finance.tracker.business.domain.CASH_WRITE_SET_MAX_BYTES
 import com.finance.tracker.business.domain.CashImportPlanError
 import com.finance.tracker.business.domain.CashImportPlanningStage
+import com.finance.tracker.business.domain.CashImportReviewWorkspace
 import com.finance.tracker.business.domain.cashWriteSetFitsBudget
 import com.finance.tracker.business.domain.LocalCashImportPlanReader
 import com.finance.tracker.business.domain.LocalCashImportResultInput
@@ -49,11 +51,17 @@ fun calculateCashImportReview(
     includePreviewContext: Boolean = false,
     progress: (CashImportPlanningStage) -> Unit = {},
     requireActive: () -> Unit,
+): CashImportCalculation = calculateCashImportReview(files, snapshot, input, previous, includePreviewContext, progress, requireActive, null)
+
+private fun calculateCashImportReview(
+    files: List<ParsedImportFile>, snapshot: LedgerSnapshotDto, input: JsonObject, previous: LocalCashImportReview?,
+    includePreviewContext: Boolean, progress: (CashImportPlanningStage) -> Unit, requireActive: () -> Unit,
+    workspace: CashImportReviewWorkspace?,
 ): CashImportCalculation {
     val choices = freezeCashImportChoices(input)
     val prepared = prepareLocalCashImportReview(
         files, snapshot, choices, previous?.previousPlan().orEmpty(), previous?.recordIds().orEmpty(),
-        includePreviewContext, requireActive, progress, Clock.System::now,
+        includePreviewContext, requireActive, progress, Clock.System::now, workspace,
     )
     val request = CashWriteSetRequestDto(snapshot.ledgerSeq, CASH_RULES_VERSION, prepared.changes)
     val body = if (prepared.canCommit) encodeCashImportRequest(request) else null
@@ -89,6 +97,8 @@ fun freezeCashImportConfirmation(
 private val cashImportJsonWithDefaultsOmitted = Json(cashWriteSetJson) { encodeDefaults = false }
 
 fun encodeCashImportRequest(request: CashWriteSetRequestDto): String {
+    if (requiredCashImportStringsExceed(request, CASH_WRITE_SET_MAX_BYTES))
+        throw CashImportPlanError("payload_too_large", "not_committed")
     val full = cashWriteSetJson.encodeToString(request)
     if (cashWriteSetFitsBudget(full)) return full
     val withoutDefaults = cashImportJsonWithDefaultsOmitted.encodeToString(request)
@@ -103,7 +113,10 @@ fun freezeCashImportChoices(input: JsonObject): JsonObject {
 }
 
 fun cashImportPlanReader(plan: JsonObject, calendar: CashLedgerCalendar): LocalCashImportPlanReader =
-    LocalCashImportPlanReader(plan) { rows, zone ->
+    cashImportPlanReader(plan, calendar, false)
+
+private fun cashImportPlanReader(plan: JsonObject, calendar: CashLedgerCalendar, stored: Boolean): LocalCashImportPlanReader =
+    LocalCashImportPlanReader(plan, stored) { rows, zone ->
         calendar.validateImportZone(zone)
         summarizeLocalCashImportMonths(rows) { text -> calendar.monthAt(parsePythonCashTimestamp(text, allowNaive = true), zone) }
     }
@@ -146,12 +159,18 @@ class CashImportReviewOperations(private val workspaceId: String, private val ca
         previous: LocalCashImportReview? = null,
         progress: (CashImportPlanningStage) -> Unit = {},
         requireActive: () -> Unit = {},
+    ): Review = review(snapshot, batchId, planId, revision, files, choices, previous, progress, requireActive, null)
+
+    internal fun review(
+        snapshot: LedgerSnapshotDto, batchId: String, planId: String, revision: Long, files: List<ParsedImportFile>,
+        choices: CashImportPreviewInput, previous: LocalCashImportReview?,
+        progress: (CashImportPlanningStage) -> Unit, requireActive: () -> Unit, workspace: CashImportReviewWorkspace?,
     ): Review {
         if (workspaceId != snapshot.workspaceId) throw ClientOperationFailure("workspace_conflict")
         if (choices.expectedSessionRevision != revision || revision < 1) throw CashImportPlanError("plan_changed")
         val input = clientJson.encodeToJsonElement(CashImportPreviewInput.serializer(), choices).jsonObject
-        val computation = calculateCashImportReview(files, snapshot, input, previous, progress = progress, requireActive = requireActive)
-        val reader = cashImportPlanReader(identifyCashImportPreview(computation.plan, planId, batchId, revision), calendar)
+        val computation = calculateCashImportReview(files, snapshot, input, previous, false, progress, requireActive, workspace)
+        val reader = cashImportPlanReader(identifyCashImportPreview(computation.plan, planId, batchId, revision), calendar, workspace != null)
         reader.validateReadable()
         val plan = clientJson.decodeFromJsonElement(CashImportPlanDto.serializer(), reader.view(choices.timezoneName))
         return Review(workspaceId, plan, computation, CashImportReviewView(reader))
